@@ -9,6 +9,10 @@ SaaS multi-tenant de agendamentos para barbearias, salões, clínicas de estéti
 - TypeScript `^5`
 - Tailwind CSS `^4`
 - Prettier + `prettier-plugin-tailwindcss`
+- Shadcn/UI (`radix-nova` style — base Radix UI, não o `base-nova`/`@base-ui` experimental que vem por padrão no CLI atual)
+- `next-themes` (dark/light), `motion` (sucessor do framer-motion), `lucide-react`
+- `@dnd-kit/core` (drag-and-drop da agenda), `@tanstack/react-query`
+- `react-hook-form` + `zod` + `@hookform/resolvers`
 
 Módulos adicionados progressivamente (Prisma, Clerk, Shadcn/UI, etc.) serão documentados aqui conforme instalados. Ver plano completo em `C:\Users\ketll\.claude\plans\functional-conjuring-mountain.md`.
 
