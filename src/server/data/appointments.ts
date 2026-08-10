@@ -121,7 +121,6 @@ export async function createAppointment(params: {
   professionalId: string;
   serviceId: string;
   startAt: Date;
-  endAt: Date;
   notes?: string;
   createdByUserId: string;
 }): Promise<Appointment> {
@@ -136,11 +135,15 @@ export async function createAppointment(params: {
   if (!professional) throw new ForeignEntityMismatchError('professional');
   if (!service) throw new ForeignEntityMismatchError('service');
 
+  // endAt is always derived from the service's current duration — never
+  // trusted from the caller — so it can never drift from the snapshot below.
+  const endAt = new Date(params.startAt.getTime() + service.durationMinutes * 60_000);
+
   await assertNoConflict({
     companyId: params.companyId,
     professionalId: params.professionalId,
     startAt: params.startAt,
-    endAt: params.endAt,
+    endAt,
   });
 
   const appointment = await prisma.appointment.create({
@@ -150,7 +153,7 @@ export async function createAppointment(params: {
       professionalId: params.professionalId,
       serviceId: params.serviceId,
       startAt: params.startAt,
-      endAt: params.endAt,
+      endAt,
       notes: params.notes,
       serviceNameSnapshot: service.name,
       durationMinutesSnapshot: service.durationMinutes,
@@ -174,7 +177,6 @@ export async function moveAppointment(params: {
   companyId: string;
   id: string;
   startAt: Date;
-  endAt: Date;
   updatedByUserId: string;
 }): Promise<Appointment> {
   const existing = await prisma.appointment.findFirst({
@@ -182,17 +184,23 @@ export async function moveAppointment(params: {
   });
   if (!existing) throw new AppointmentNotFoundError();
 
+  // Duration is preserved from the existing appointment — moving only
+  // shifts the time range, it never resizes it (resize is out of scope
+  // for this phase).
+  const durationMs = existing.endAt.getTime() - existing.startAt.getTime();
+  const endAt = new Date(params.startAt.getTime() + durationMs);
+
   await assertNoConflict({
     companyId: params.companyId,
     professionalId: existing.professionalId,
     startAt: params.startAt,
-    endAt: params.endAt,
+    endAt,
     excludeAppointmentId: existing.id,
   });
 
   const result = await prisma.appointment.updateMany({
     where: { id: params.id, companyId: params.companyId },
-    data: { startAt: params.startAt, endAt: params.endAt, updatedByUserId: params.updatedByUserId },
+    data: { startAt: params.startAt, endAt, updatedByUserId: params.updatedByUserId },
   });
   if (result.count === 0) throw new AppointmentNotFoundError();
 
@@ -202,7 +210,7 @@ export async function moveAppointment(params: {
     entityId: params.id,
     action: 'moved',
     userId: params.updatedByUserId,
-    metadata: { startAt: params.startAt.toISOString(), endAt: params.endAt.toISOString() },
+    metadata: { startAt: params.startAt.toISOString(), endAt: endAt.toISOString() },
   });
 
   return (await prisma.appointment.findFirst({
