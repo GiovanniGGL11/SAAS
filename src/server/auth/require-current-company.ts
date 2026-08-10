@@ -40,16 +40,11 @@ async function resolveCompanyForOrg(orgId: string): Promise<Company> {
 }
 
 /**
- * The single entry point every Server Action, Route Handler and
- * server-rendered page must call before touching tenant data. Resolves the
- * authenticated user + their active Clerk Organization into our internal
- * Company row. Throws instead of silently returning null/undefined so
- * callers can't accidentally proceed without a resolved tenant.
- *
- * Memoized per-request with React's `cache()` — safe to call multiple times
- * (layout + page + nested data calls) without duplicate DB round trips.
+ * Uncached core logic — exported separately so it's testable outside of
+ * Next.js's request-scoped React runtime, where React's cache() dispatcher
+ * (see requireCurrentCompany below) isn't available/meaningfully reset.
  */
-export const requireCurrentCompany = cache(async (): Promise<CurrentCompanySession> => {
+export async function resolveCurrentCompanySession(): Promise<CurrentCompanySession> {
   const { userId, orgId } = await auth();
 
   if (!userId) {
@@ -61,4 +56,16 @@ export const requireCurrentCompany = cache(async (): Promise<CurrentCompanySessi
 
   const company = await resolveCompanyForOrg(orgId);
   return { userId, orgId, company };
-});
+}
+
+/**
+ * The single entry point every Server Action, Route Handler and
+ * server-rendered page must call before touching tenant data. Resolves the
+ * authenticated user + their active Clerk Organization into our internal
+ * Company row. Throws instead of silently returning null/undefined so
+ * callers can't accidentally proceed without a resolved tenant.
+ *
+ * Memoized per-request with React's `cache()` — safe to call multiple times
+ * (layout + page + nested data calls) without duplicate DB round trips.
+ */
+export const requireCurrentCompany = cache(resolveCurrentCompanySession);
