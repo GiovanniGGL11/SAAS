@@ -6,15 +6,35 @@ import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   cancelAppointment,
   createAppointment,
+  listAppointmentsInRange,
   moveAppointment,
   updateAppointmentStatus,
 } from '@/server/data/appointments';
 import {
+  appointmentRangeInput,
   cancelAppointmentInput,
   createAppointmentInput,
   moveAppointmentInput,
   updateAppointmentStatusInput,
 } from '@/lib/validations/appointment';
+import { serializeAppointment } from '@/lib/serialize';
+
+export async function getAppointmentsForRangeAction(input: unknown) {
+  const parsed = appointmentRangeInput.parse(input);
+  const { company } = await requireCurrentCompany();
+
+  const appointments = await listAppointmentsInRange(
+    company.id,
+    { startAt: parsed.startAt, endAt: parsed.endAt },
+    {
+      professionalId: parsed.professionalId,
+      serviceId: parsed.serviceId,
+      status: parsed.status,
+    },
+  );
+
+  return appointments.map(serializeAppointment);
+}
 
 export async function createAppointmentAction(input: unknown) {
   const parsed = createAppointmentInput.parse(input);
@@ -31,7 +51,7 @@ export async function createAppointmentAction(input: unknown) {
   });
 
   revalidatePath('/agenda');
-  return appointment;
+  return serializeAppointment(appointment);
 }
 
 export async function moveAppointmentAction(input: unknown) {
@@ -46,7 +66,7 @@ export async function moveAppointmentAction(input: unknown) {
   });
 
   revalidatePath('/agenda');
-  return appointment;
+  return serializeAppointment(appointment);
 }
 
 export async function updateAppointmentStatusAction(input: unknown) {
@@ -61,7 +81,7 @@ export async function updateAppointmentStatusAction(input: unknown) {
   });
 
   revalidatePath('/agenda');
-  return appointment;
+  return serializeAppointment(appointment);
 }
 
 export async function cancelAppointmentAction(input: unknown) {
@@ -76,5 +96,5 @@ export async function cancelAppointmentAction(input: unknown) {
   });
 
   revalidatePath('/agenda');
-  return appointment;
+  return serializeAppointment(appointment);
 }

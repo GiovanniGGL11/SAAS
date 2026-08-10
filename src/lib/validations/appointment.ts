@@ -26,3 +26,12 @@ export const cancelAppointmentInput = z.object({
   reason: z.string().max(500).optional(),
 });
 export type CancelAppointmentInput = z.infer<typeof cancelAppointmentInput>;
+
+export const appointmentRangeInput = z.object({
+  startAt: z.coerce.date(),
+  endAt: z.coerce.date(),
+  professionalId: z.string().min(1).optional(),
+  serviceId: z.string().min(1).optional(),
+  status: z.enum(['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE', 'CANCELED', 'NO_SHOW']).optional(),
+});
+export type AppointmentRangeInput = z.infer<typeof appointmentRangeInput>;
