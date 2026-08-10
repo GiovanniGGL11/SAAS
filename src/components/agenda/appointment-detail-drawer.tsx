@@ -81,7 +81,7 @@ export function AppointmentDetailDrawer({
 
   return (
     <Drawer direction="right" open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent className="data-[vaul-drawer-direction=right]:w-full! data-[vaul-drawer-direction=right]:sm:w-3/4!">
         <DrawerHeader>
           <div className="flex items-center gap-2">
             <DrawerTitle>{appointment.client.name}</DrawerTitle>

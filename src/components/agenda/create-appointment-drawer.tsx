@@ -138,7 +138,7 @@ export function CreateAppointmentDrawer({
 
   return (
     <Drawer direction="right" open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent className="data-[vaul-drawer-direction=right]:w-full! data-[vaul-drawer-direction=right]:sm:w-3/4!">
         <DrawerHeader>
           <DrawerTitle>Novo agendamento</DrawerTitle>
           <DrawerDescription>Preencha os dados para criar um agendamento.</DrawerDescription>
