@@ -1,14 +1,33 @@
 import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { listActiveProfessionals } from '@/server/data/professionals';
+import { listActiveServices } from '@/server/data/services';
+import { listClients } from '@/server/data/clients';
+import { AgendaView } from '@/components/agenda/agenda-view';
+import { serializeService } from '@/lib/serialize';
 
 export default async function AgendaPage() {
-  await requireCurrentCompany();
+  const { company } = await requireCurrentCompany();
+
+  const [professionals, services, clients] = await Promise.all([
+    listActiveProfessionals(company.id),
+    listActiveServices(company.id),
+    listClients(company.id),
+  ]);
 
   return (
-    <div className="flex flex-col gap-1">
-      <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
-      <p className="text-muted-foreground text-sm">
-        A grade de horários (diária/semanal, arrastar, filtros) chega na próxima etapa desta fase.
-      </p>
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
+        <p className="text-muted-foreground text-sm">
+          Arraste para reagendar, clique para ver detalhes ou alterar o status.
+        </p>
+      </div>
+      <AgendaView
+        timezone={company.timezone}
+        professionals={professionals}
+        services={services.map(serializeService)}
+        clients={clients}
+      />
     </div>
   );
 }
