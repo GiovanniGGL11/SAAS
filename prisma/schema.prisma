@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Company {
+  id         String    @id @default(cuid())
+  clerkOrgId String    @unique
+  name       String
+  slug       String    @unique
+  timezone   String    @default("America/Sao_Paulo")
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  professionals Professional[]
+  services      Service[]
+  clients       Client[]
+  appointments  Appointment[]
+  auditLogs     AuditLog[]
+}
+
+model WebhookEvent {
+  id           String   @id @default(cuid())
+  clerkEventId String   @unique
+  type         String
+  processedAt  DateTime @default(now())
+}
+
+model Professional {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  email     String?
+  color     String
+  avatarUrl String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  availabilities ProfessionalAvailability[]
+  blocks         ScheduleBlock[]
+  appointments   Appointment[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+}
+
+model ProfessionalAvailability {
+  id             String       @id @default(cuid())
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  weekday        Int
+  startTime      String
+  endTime        String
+
+  @@index([professionalId, weekday])
+}
+
+model ScheduleBlock {
+  id             String       @id @default(cuid())
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  startAt        DateTime
+  endAt          DateTime
+  reason         String?
+
+  @@index([professionalId, startAt, endAt])
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  name            String
+  durationMinutes Int
+  price           Decimal  @db.Decimal(10, 2)
+  color           String
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@index([companyId])
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  name      String
+  phone     String?
+  email     String?
+  birthDate DateTime?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  appointments Appointment[]
+
+  @@unique([companyId, phone])
+  @@index([companyId])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  DONE
+  CANCELED
+  NO_SHOW
+}
+
+model Appointment {
+  id             String       @id @default(cuid())
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id])
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id])
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  serviceId      String
+  service        Service      @relation(fields: [serviceId], references: [id])
+
+  startAt DateTime
+  endAt   DateTime
+  status  AppointmentStatus @default(SCHEDULED)
+
+  // Snapshot at creation time so edits to Service later don't rewrite history.
+  serviceNameSnapshot     String
+  durationMinutesSnapshot Int
+  priceSnapshot           Decimal @db.Decimal(10, 2)
+
+  notes String?
+
+  createdByUserId    String
+  updatedByUserId    String?
+  canceledAt         DateTime?
+  canceledByUserId   String?
+  cancellationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, startAt])
+  @@index([companyId, professionalId, startAt])
+  @@index([companyId, status, startAt])
+  @@index([companyId, clientId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  entityType String
+  entityId   String
+  action     String
+  userId     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, entityType, entityId])
+}
