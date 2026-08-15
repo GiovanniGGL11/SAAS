@@ -6,7 +6,18 @@ declare global {
 }
 
 function createPrismaClient() {
-  const adapter = new PrismaPg(process.env.DATABASE_URL!);
+  // Explicit, conservative pool settings: Supabase's pooler (pgbouncer) can
+  // silently close idle connections server-side. node-postgres's default
+  // Pool doesn't validate a connection before handing it back out, so a
+  // connection the server already dropped surfaces as a confusing
+  // "Connection terminated unexpectedly" on the next query. Keeping
+  // idleTimeoutMillis short means the pool recycles connections on its own
+  // schedule instead of finding out they're dead mid-request.
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL!,
+    max: 5,
+    idleTimeoutMillis: 10_000,
+  });
   return new PrismaClient({ adapter });
 }
 
