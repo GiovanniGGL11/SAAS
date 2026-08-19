@@ -60,10 +60,14 @@ function OAuthButtonsView({ sso }: { sso: SsoFn }) {
 // resource that page never uses.
 export function SignInOAuthButtons() {
   const { signIn } = useSignIn();
-  return <OAuthButtonsView sso={signIn.sso} />;
+  // Must call as signIn.sso(...), not pass the method off by reference —
+  // it's a real class method that relies on its `this` binding internally;
+  // detaching it (sso={signIn.sso}) threw "Cannot read properties of
+  // undefined" once invoked without that context.
+  return <OAuthButtonsView sso={(params) => signIn.sso(params)} />;
 }
 
 export function SignUpOAuthButtons() {
   const { signUp } = useSignUp();
-  return <OAuthButtonsView sso={signUp.sso} />;
+  return <OAuthButtonsView sso={(params) => signUp.sso(params)} />;
 }
