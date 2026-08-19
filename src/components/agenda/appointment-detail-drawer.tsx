@@ -32,6 +32,7 @@ import {
   STATUS_BADGE_VARIANT,
   STATUS_LABELS,
 } from '@/components/agenda/status';
+import { AppointmentProductsSection } from '@/components/agenda/appointment-products-section';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
 import type { SerializedAppointment } from '@/lib/serialize';
@@ -119,6 +120,8 @@ export function AppointmentDetailDrawer({
               <div>{appointment.notes}</div>
             </div>
           )}
+
+          <AppointmentProductsSection appointmentId={appointment.id} readOnly={isCanceled} />
 
           {!isCanceled && (
             <div className="flex flex-col gap-1.5">

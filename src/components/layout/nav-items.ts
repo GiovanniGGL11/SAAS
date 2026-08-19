@@ -25,7 +25,7 @@ export const navItems: NavItem[] = [
   { label: 'Clientes', href: '/clientes', icon: Users },
   { label: 'Profissionais', href: '/profissionais', icon: UserRound },
   { label: 'Serviços', href: '/servicos', icon: Scissors },
-  { label: 'Estoque', href: '/estoque', icon: Package, comingSoon: true },
+  { label: 'Estoque', href: '/estoque', icon: Package },
   { label: 'Financeiro', href: '/financeiro', icon: Wallet },
   { label: 'Campanhas', href: '/campanhas', icon: Megaphone, comingSoon: true },
   { label: 'Relatórios', href: '/relatorios', icon: BarChart3 },

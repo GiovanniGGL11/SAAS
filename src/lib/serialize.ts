@@ -1,4 +1,11 @@
-import type { Appointment, Product, Professional, Service, Transaction } from '@/generated/prisma/client';
+import type {
+  Appointment,
+  AppointmentProduct,
+  Product,
+  Professional,
+  Service,
+  Transaction,
+} from '@/generated/prisma/client';
 import type { AppointmentWithRelations } from '@/server/data/appointments';
 
 /**
@@ -62,6 +69,17 @@ export function serializeProduct<T extends Product>(
 export type SerializedProduct = Omit<Product, 'costPrice' | 'salePrice'> & {
   costPrice: number;
   salePrice: number;
+};
+
+/** priceSnapshot on AppointmentProduct is the unit price at time of sale. */
+export function serializeAppointmentProduct<T extends AppointmentProduct>(
+  appointmentProduct: T,
+): Omit<T, 'priceSnapshot'> & { priceSnapshot: number } {
+  return { ...appointmentProduct, priceSnapshot: Number(appointmentProduct.priceSnapshot) };
+}
+
+export type SerializedAppointmentProduct = Omit<AppointmentProduct, 'priceSnapshot'> & {
+  priceSnapshot: number;
 };
 
 export function formatCurrencyBRL(value: number): string {
