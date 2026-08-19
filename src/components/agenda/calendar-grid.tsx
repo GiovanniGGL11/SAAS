@@ -1,7 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { DndContext, useDraggable, type DragEndEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
 import { cn } from '@/lib/utils';
@@ -154,6 +161,13 @@ export function CalendarGrid({
   const columnWidthRef = React.useRef(0);
   const today = React.useMemo(() => utcToCalendarDate(new Date(), timezone), [timezone]);
 
+  // Without an activation distance, dnd-kit's PointerSensor starts a drag on
+  // any pointer movement at all — even the couple of pixels of jitter a
+  // normal click has between mousedown/mouseup — which swallows the click
+  // and appointment-detail onClick never fires. Require an intentional
+  // 5px move before a drag begins; anything less is treated as a plain click.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
   const appointmentsByColumn = React.useMemo(() => {
     const map = new Map<string, SerializedAppointment[]>();
     for (const column of columns) map.set(column.id, []);
@@ -198,7 +212,7 @@ export function CalendarGrid({
   );
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex overflow-auto rounded-lg border">
         <div className="bg-background sticky left-0 z-10 w-14 shrink-0 border-r">
           <div className="h-10 border-b" />
