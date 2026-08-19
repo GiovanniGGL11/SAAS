@@ -11,7 +11,7 @@ Esta é a **Fase 1**: fundação técnica (auth multi-tenant, banco, shell do da
 - Tailwind CSS `^4`
 - **Shadcn/UI**, estilo `radix-nova` (Radix UI) — o estilo padrão atual do CLI (`base-nova`) usa `@base-ui/react` em vez de Radix e tem componentes incompletos no registry (ex: `form` é um stub vazio em todos os estilos no momento); pinado explicitamente para `-b radix` por estabilidade
 - **Prisma `^7.8.0`** + PostgreSQL (Supabase) — Prisma 7 exige driver adapters; `DATABASE_URL`/`DIRECT_URL` vivem em `prisma.config.ts`, não no `schema.prisma`; o client da app usa `@prisma/adapter-pg` (ver `src/lib/db.ts`)
-- **Clerk `^7.7.1`** (auth + Organizations = tenants). API de tema mudou nesta major: `appearance.baseTheme` → `appearance.theme` (ver `src/components/clerk-provider.tsx`)
+- **Clerk `^7.7.1`** (auth + Organizations = tenants). API de tema mudou nesta major: `appearance.baseTheme` → `appearance.theme` (ver `src/components/clerk-provider.tsx`). `/sign-in` e `/sign-up` são telas **100% customizadas** (não usam `<SignIn/>`/`<SignUp/>` do Clerk) — ver seção "Auth customizado" abaixo antes de mexer nelas
 - `next-themes` (dark/light), `motion` (sucessor do framer-motion), `lucide-react`
 - `@dnd-kit/core` (drag-and-drop da agenda), `@tanstack/react-query`
 - `react-hook-form` + `zod` + `@hookform/resolvers`, `cmdk` (combobox de busca)
@@ -55,6 +55,17 @@ Toda leitura/escrita de dados de empresa passa por **`requireCurrentCompany()`**
 
 A camada de acesso a dados (`src/server/data/*.ts`) nunca confia em `id` sozinho: toda leitura/escrita usa `findFirst`/`updateMany` com `{ id, companyId }` — nunca `findUnique`/`update` só por `id`. `createAppointment` revalida que cliente/profissional/serviço pertencem à mesma empresa antes de conectar, mesmo que o chamador já devesse ter escopado a busca.
 
+## Auth customizado (sign-in/sign-up)
+
+O widget pronto do Clerk (`<SignIn/>`/`<SignUp/>`) foi trocado por telas próprias (`src/components/auth/`) para combinar com o design system do projeto e evitar UX genérica do Clerk. Isso ainda usa o Clerk como motor — Organizations, sessão, webhook e `requireCurrentCompany()` continuam exatamente iguais — só a camada visual mudou.
+
+**Isso expôs uma API nova do Clerk que não está nos guias públicos ainda**: `useSignIn()`/`useSignUp()` (de `@clerk/nextjs`, que só re-exporta de `@clerk/react`) retornam `{ signIn, errors, fetchStatus }`, onde `signIn`/`signUp` é um objeto reativo baseado em signals com métodos por fator (`signIn.password({identifier, password})`, `signUp.verifications.sendEmailCode()`, `signIn.resetPasswordEmailCode.sendCode()/.verifyCode()/.submitPassword()`, `signIn.sso({strategy, redirectUrl, redirectCallbackUrl})`) — **não** o `signIn.create()` + `setActive()` clássico documentado na maioria dos exemplos por aí. Cada método retorna `{ error: ClerkError | null }` em vez de lançar. Sessão vira ativa chamando `.finalize()` (substitui o antigo `setActive({session})`).
+
+Outras coisas específicas dessa instância, descobertas consultando `https://<frontend-api>/v1/environment` diretamente (não há como ver isso no dashboard sem clicar em cada seção):
+- Senha obrigatória, verificação de email por código de 6 dígitos (`email_code`), OAuth Google + GitHub habilitados, sem 2FA.
+- **CAPTCHA (Cloudflare Turnstile) ativo no cadastro** — o Clerk detecta e monta o widget automaticamente em qualquer `<div id="clerk-captcha" />` presente no DOM; sem essa div, `signUp.password()` falha silenciosamente em produção. Está presente em `sign-up-form.tsx` (e em `sign-in-form.tsx` para o fluxo de reset de senha, que também pode disparar captcha).
+- OAuth completa via `<AuthenticateWithRedirectCallback signInFallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/dashboard" />` numa rota compartilhada `/sso-callback` — esse componente ainda funciona por baixo do Clerk singleton, independente da API nova de signals.
+
 ## Testes
 
 `npm run test` roda 4 suítes:
@@ -66,11 +77,12 @@ A camada de acesso a dados (`src/server/data/*.ts`) nunca confia em `id` sozinho
 
 ```
 src/
-  app/(auth)/            sign-in, sign-up (Clerk)
+  app/(auth)/            sign-in, sign-up, sso-callback (auth customizado)
   app/(dashboard)/       layout autenticado (sidebar, topbar) + dashboard, agenda
   app/onboarding/        criação/seleção de empresa (Clerk Organizations)
   app/api/webhooks/clerk/  sync Organization → Company
   components/agenda/     grade de horários, toolbar, drawers de criar/editar
+  components/auth/       telas custom de login/cadastro (ver seção acima)
   components/layout/     sidebar, topbar, nav mobile, theme toggle
   components/ui/         primitivos shadcn/ui
   lib/                   db (Prisma client), time (helpers de timezone), serialize, validations
