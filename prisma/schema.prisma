@@ -31,17 +31,25 @@ model WebhookEvent {
   processedAt  DateTime @default(now())
 }
 
+enum CommissionType {
+  FIXED
+  PERCENTAGE
+}
+
 model Professional {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  name      String
-  email     String?
-  color     String
-  avatarUrl String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String          @id @default(cuid())
+  companyId       String
+  company         Company         @relation(fields: [companyId], references: [id])
+  name            String
+  email           String?
+  phone           String?
+  color           String
+  avatarUrl       String?
+  active          Boolean         @default(true)
+  commissionType  CommissionType?
+  commissionValue Decimal?        @db.Decimal(10, 2)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   availabilities ProfessionalAvailability[]
   blocks         ScheduleBlock[]
@@ -78,6 +86,8 @@ model Service {
   companyId       String
   company         Company  @relation(fields: [companyId], references: [id])
   name            String
+  description     String?
+  category        String?
   durationMinutes Int
   price           Decimal  @db.Decimal(10, 2)
   color           String
@@ -97,8 +107,11 @@ model Client {
   name      String
   phone     String?
   email     String?
+  cpf       String?
   birthDate DateTime?
   notes     String?
+  isVip     Boolean   @default(false)
+  active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

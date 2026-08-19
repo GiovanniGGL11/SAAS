@@ -1,4 +1,4 @@
-import type { Appointment, Service } from '@/generated/prisma/client';
+import type { Appointment, Professional, Service } from '@/generated/prisma/client';
 import type { AppointmentWithRelations } from '@/server/data/appointments';
 
 /**
@@ -25,6 +25,21 @@ export function serializeService<T extends Service>(
 }
 
 export type SerializedService = Omit<Service, 'price'> & { price: number };
+
+/** commissionValue is Decimal | null — same cross-boundary problem as price. */
+export function serializeProfessional<T extends Professional>(
+  professional: T,
+): Omit<T, 'commissionValue'> & { commissionValue: number | null } {
+  return {
+    ...professional,
+    commissionValue:
+      professional.commissionValue === null ? null : Number(professional.commissionValue),
+  };
+}
+
+export type SerializedProfessional = Omit<Professional, 'commissionValue'> & {
+  commissionValue: number | null;
+};
 
 export function formatCurrencyBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

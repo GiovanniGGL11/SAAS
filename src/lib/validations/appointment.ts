@@ -32,6 +32,8 @@ export const appointmentRangeInput = z.object({
   endAt: z.coerce.date(),
   professionalId: z.string().min(1).optional(),
   serviceId: z.string().min(1).optional(),
-  status: z.enum(['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE', 'CANCELED', 'NO_SHOW']).optional(),
+  status: z
+    .enum(['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE', 'CANCELED', 'NO_SHOW'])
+    .optional(),
 });
 export type AppointmentRangeInput = z.infer<typeof appointmentRangeInput>;
