@@ -19,16 +19,37 @@ async function main() {
   });
 
   const professionalsData = [
-    { name: 'Carlos Silva', color: '#f97316', email: 'carlos@barbearia-demo.test' },
-    { name: 'Ana Souza', color: '#8b5cf6', email: 'ana@barbearia-demo.test' },
-    { name: 'Bruno Costa', color: '#0ea5e9', email: 'bruno@barbearia-demo.test' },
+    {
+      name: 'Carlos Silva',
+      color: '#f97316',
+      email: 'carlos@barbearia-demo.test',
+      phone: '11988880001',
+      commissionType: 'PERCENTAGE' as const,
+      commissionValue: 40,
+    },
+    {
+      name: 'Ana Souza',
+      color: '#8b5cf6',
+      email: 'ana@barbearia-demo.test',
+      phone: '11988880002',
+      commissionType: 'PERCENTAGE' as const,
+      commissionValue: 35,
+    },
+    {
+      name: 'Bruno Costa',
+      color: '#0ea5e9',
+      email: 'bruno@barbearia-demo.test',
+      phone: '11988880003',
+      commissionType: 'FIXED' as const,
+      commissionValue: 20,
+    },
   ];
 
   const professionals = [];
   for (const data of professionalsData) {
     const professional = await prisma.professional.upsert({
       where: { companyId_email: { companyId: company.id, email: data.email } },
-      update: {},
+      update: data,
       create: { ...data, companyId: company.id },
     });
     professionals.push(professional);
@@ -51,11 +72,23 @@ async function main() {
   }
 
   const servicesData = [
-    { name: 'Corte Masculino', durationMinutes: 30, price: 50, color: '#f97316' },
-    { name: 'Barba', durationMinutes: 20, price: 35, color: '#0ea5e9' },
-    { name: 'Corte + Barba', durationMinutes: 50, price: 80, color: '#22c55e' },
-    { name: 'Sobrancelha', durationMinutes: 15, price: 20, color: '#eab308' },
-    { name: 'Coloração', durationMinutes: 60, price: 100, color: '#a855f7' },
+    {
+      name: 'Corte Masculino',
+      durationMinutes: 30,
+      price: 50,
+      color: '#f97316',
+      category: 'Cabelo',
+    },
+    { name: 'Barba', durationMinutes: 20, price: 35, color: '#0ea5e9', category: 'Barba' },
+    { name: 'Corte + Barba', durationMinutes: 50, price: 80, color: '#22c55e', category: 'Combo' },
+    {
+      name: 'Sobrancelha',
+      durationMinutes: 15,
+      price: 20,
+      color: '#eab308',
+      category: 'Sobrancelha',
+    },
+    { name: 'Coloração', durationMinutes: 60, price: 100, color: '#a855f7', category: 'Cabelo' },
   ];
 
   const services = [];
@@ -63,19 +96,17 @@ async function main() {
     const existing = await prisma.service.findFirst({
       where: { companyId: company.id, name: data.name },
     });
-    const service =
-      existing ??
-      (await prisma.service.create({
-        data: { ...data, companyId: company.id },
-      }));
+    const service = existing
+      ? await prisma.service.update({ where: { id: existing.id }, data })
+      : await prisma.service.create({ data: { ...data, companyId: company.id } });
     services.push(service);
   }
 
   const clientsData = [
-    { name: 'João Pereira', phone: '11999990001' },
+    { name: 'João Pereira', phone: '11999990001', isVip: true },
     { name: 'Marcos Lima', phone: '11999990002' },
     { name: 'Rafael Alves', phone: '11999990003' },
-    { name: 'Fernanda Dias', phone: '11999990004' },
+    { name: 'Fernanda Dias', phone: '11999990004', isVip: true },
     { name: 'Camila Rocha', phone: '11999990005' },
     { name: 'Lucas Martins', phone: '11999990006' },
     { name: 'Beatriz Nunes', phone: '11999990007' },
@@ -86,7 +117,7 @@ async function main() {
   for (const data of clientsData) {
     const client = await prisma.client.upsert({
       where: { companyId_phone: { companyId: company.id, phone: data.phone } },
-      update: {},
+      update: data,
       create: { ...data, companyId: company.id },
     });
     clients.push(client);

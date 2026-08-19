@@ -1,7 +1,7 @@
 import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import { listActiveProfessionals } from '@/server/data/professionals';
 import { listActiveServices } from '@/server/data/services';
-import { listClients } from '@/server/data/clients';
+import { listActiveClients } from '@/server/data/clients';
 import { AgendaView } from '@/components/agenda/agenda-view';
 import { serializeService } from '@/lib/serialize';
 
@@ -11,7 +11,7 @@ export default async function AgendaPage() {
   const [professionals, services, clients] = await Promise.all([
     listActiveProfessionals(company.id),
     listActiveServices(company.id),
-    listClients(company.id),
+    listActiveClients(company.id),
   ]);
 
   return (
