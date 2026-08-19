@@ -21,8 +21,12 @@ import {
   utcToCalendarDate,
   type CalendarDate,
 } from '@/lib/time';
-import type { SerializedAppointment, SerializedService } from '@/lib/serialize';
-import type { Client, Professional } from '@/generated/prisma/client';
+import type {
+  SerializedAppointment,
+  SerializedProfessional,
+  SerializedService,
+} from '@/lib/serialize';
+import type { Client } from '@/generated/prisma/client';
 
 function dateKey(date: CalendarDate): string {
   return `${date.year}-${date.month}-${date.day}`;
@@ -35,7 +39,7 @@ export function AgendaView({
   clients,
 }: {
   timezone: string;
-  professionals: Professional[];
+  professionals: SerializedProfessional[];
   services: SerializedService[];
   clients: Client[];
 }) {

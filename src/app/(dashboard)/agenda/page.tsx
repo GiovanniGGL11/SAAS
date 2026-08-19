@@ -3,7 +3,7 @@ import { listActiveProfessionals } from '@/server/data/professionals';
 import { listActiveServices } from '@/server/data/services';
 import { listActiveClients } from '@/server/data/clients';
 import { AgendaView } from '@/components/agenda/agenda-view';
-import { serializeService } from '@/lib/serialize';
+import { serializeProfessional, serializeService } from '@/lib/serialize';
 
 export default async function AgendaPage() {
   const { company } = await requireCurrentCompany();
@@ -24,7 +24,7 @@ export default async function AgendaPage() {
       </div>
       <AgendaView
         timezone={company.timezone}
-        professionals={professionals}
+        professionals={professionals.map(serializeProfessional)}
         services={services.map(serializeService)}
         clients={clients}
       />

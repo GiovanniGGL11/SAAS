@@ -31,8 +31,8 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { createAppointmentAction } from '@/server/actions/agenda-actions';
 import { calendarDateToUtc, utcToCalendarDate, utcToMinutesSinceMidnight } from '@/lib/time';
 import { formatCurrencyBRL } from '@/lib/serialize';
-import type { SerializedService } from '@/lib/serialize';
-import type { Client, Professional } from '@/generated/prisma/client';
+import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
+import type { Client } from '@/generated/prisma/client';
 
 const formSchema = z.object({
   clientId: z.string().min(1, 'Selecione um cliente'),
@@ -69,7 +69,7 @@ export function CreateAppointmentDrawer({
   defaultStartAt: Date;
   defaultProfessionalId?: string;
   clients: Client[];
-  professionals: Professional[];
+  professionals: SerializedProfessional[];
   services: SerializedService[];
   timezone: string;
 }) {

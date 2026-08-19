@@ -12,8 +12,7 @@ import {
 } from '@/components/ui/select';
 import { STATUS_LABELS, ACTIVE_STATUS_OPTIONS } from '@/components/agenda/status';
 import { type CalendarDate, formatDayMonthInTz } from '@/lib/time';
-import type { Professional } from '@/generated/prisma/client';
-import type { SerializedService } from '@/lib/serialize';
+import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
 
 const ALL = '__all__';
 
@@ -44,7 +43,7 @@ export function AgendaToolbar({
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
-  professionals: Professional[];
+  professionals: SerializedProfessional[];
   professionalFilter: string | undefined;
   onProfessionalFilterChange: (value: string | undefined) => void;
   services: SerializedService[];
