@@ -17,6 +17,9 @@ function createPrismaClient() {
     connectionString: process.env.DATABASE_URL!,
     max: 5,
     idleTimeoutMillis: 10_000,
+    // Detects a dead socket (machine slept, pooler killed it) via TCP
+    // keep-alive probes instead of only finding out on the next query.
+    keepAlive: true,
   });
   return new PrismaClient({ adapter });
 }
