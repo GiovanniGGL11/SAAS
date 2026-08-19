@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { recordAuditLog } from '@/server/data/audit';
+import { createIncomeFromAppointment } from '@/server/data/finance';
 import type { Appointment, AppointmentStatus } from '@/generated/prisma/client';
 
 export class AppointmentConflictError extends Error {
@@ -239,9 +240,15 @@ export async function updateAppointmentStatus(params: {
     metadata: { status: params.status },
   });
 
-  return (await prisma.appointment.findFirst({
+  const updated = (await prisma.appointment.findFirst({
     where: { id: params.id, companyId: params.companyId },
   }))!;
+
+  if (params.status === 'DONE') {
+    await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId);
+  }
+
+  return updated;
 }
 
 export async function cancelAppointment(params: {
