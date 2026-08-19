@@ -121,6 +121,20 @@ export function CreateAppointmentDrawer({
     },
   });
 
+  const watchedServiceId = form.watch('serviceId');
+  const watchedTime = form.watch('time');
+  const selectedService = services.find((s) => s.id === watchedServiceId);
+
+  const estimatedEndTime = React.useMemo(() => {
+    if (!selectedService || !watchedTime) return null;
+    const [hour, minute] = watchedTime.split(':').map(Number);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+    const totalMinutes = hour * 60 + minute + selectedService.durationMinutes;
+    const endHour = Math.floor(totalMinutes / 60) % 24;
+    const endMinute = totalMinutes % 60;
+    return toTimeInputValue(endHour * 60 + endMinute);
+  }, [selectedService, watchedTime]);
+
   const clientOptions: ComboboxOption[] = clients.map((c) => ({
     value: c.id,
     label: c.name,
@@ -237,6 +251,13 @@ export function CreateAppointmentDrawer({
                 )}
               />
             </div>
+
+            {estimatedEndTime && (
+              <p className="text-muted-foreground -mt-2 text-xs">
+                Termina às <span className="text-foreground font-medium">{estimatedEndTime}</span> (
+                {selectedService!.durationMinutes} min de duração)
+              </p>
+            )}
 
             <FormField
               control={form.control}
