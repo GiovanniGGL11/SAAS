@@ -2,18 +2,17 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useSignUp, useClerk } from '@clerk/nextjs';
+import { useSignUp } from '@clerk/nextjs';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { OAuthButtons } from '@/components/auth/oauth-buttons';
+import { SignUpOAuthButtons } from '@/components/auth/oauth-buttons';
 import { getClerkErrorMessage } from '@/lib/clerk-errors';
 
 export function SignUpForm() {
   const { signUp } = useSignUp();
-  const clerk = useClerk();
   const router = useRouter();
 
   const [step, setStep] = React.useState<'form' | 'verify'>('form');
@@ -112,7 +111,7 @@ export function SignUpForm() {
 
   return (
     <div className="flex flex-col gap-4">
-      <OAuthButtons mode="sign-up" />
+      <SignUpOAuthButtons />
       <div className="flex items-center gap-3">
         <Separator className="flex-1" />
         <span className="text-muted-foreground text-xs">ou</span>
@@ -167,7 +166,7 @@ export function SignUpForm() {
         </div>
         {error && <p className="text-destructive text-sm">{error}</p>}
         {captchaSlot}
-        <Button type="submit" disabled={submitting || !clerk.loaded}>
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Criando conta...' : 'Criar conta'}
         </Button>
       </form>

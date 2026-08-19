@@ -1,31 +1,28 @@
 'use client';
 
 import * as React from 'react';
-import { useSignIn, useSignUp, useClerk } from '@clerk/nextjs';
+import { useSignIn, useSignUp } from '@clerk/nextjs';
 
 import { Button } from '@/components/ui/button';
 import { GitHubIcon, GoogleIcon } from '@/components/auth/provider-icons';
 
 type OAuthProvider = 'oauth_google' | 'oauth_github';
+type SsoFn = (params: {
+  strategy: OAuthProvider;
+  redirectUrl: string;
+  redirectCallbackUrl: string;
+}) => Promise<unknown>;
 
-export function OAuthButtons({ mode }: { mode: 'sign-in' | 'sign-up' }) {
-  const { signIn } = useSignIn();
-  const { signUp } = useSignUp();
-  const clerk = useClerk();
+function OAuthButtonsView({ sso }: { sso: SsoFn }) {
   const [pendingProvider, setPendingProvider] = React.useState<OAuthProvider | null>(null);
 
   async function handleOAuth(strategy: OAuthProvider) {
     setPendingProvider(strategy);
-    const params = {
+    await sso({
       strategy,
       redirectUrl: '/sso-callback',
       redirectCallbackUrl: '/sso-callback',
-    };
-    if (mode === 'sign-in') {
-      await signIn.sso(params);
-    } else {
-      await signUp.sso(params);
-    }
+    });
     // On success the browser navigates away to the provider; if we're still
     // here, the request itself failed synchronously (network/config error).
     setPendingProvider(null);
@@ -36,7 +33,7 @@ export function OAuthButtons({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       <Button
         type="button"
         variant="outline"
-        disabled={pendingProvider !== null || !clerk.loaded}
+        disabled={pendingProvider !== null}
         onClick={() => handleOAuth('oauth_google')}
       >
         <GoogleIcon />
@@ -45,7 +42,7 @@ export function OAuthButtons({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       <Button
         type="button"
         variant="outline"
-        disabled={pendingProvider !== null || !clerk.loaded}
+        disabled={pendingProvider !== null}
         onClick={() => handleOAuth('oauth_github')}
       >
         <GitHubIcon />
@@ -53,4 +50,20 @@ export function OAuthButtons({ mode }: { mode: 'sign-in' | 'sign-up' }) {
       </Button>
     </div>
   );
+}
+
+// Two variants instead of one component branching on a `mode` prop: React's
+// rules of hooks mean a single component can't conditionally call
+// useSignIn() OR useSignUp() based on a prop — both would always run,
+// which made Clerk bootstrap a SignUp resource in the background even on
+// the sign-in page (and vice versa), spamming the console with reqs for a
+// resource that page never uses.
+export function SignInOAuthButtons() {
+  const { signIn } = useSignIn();
+  return <OAuthButtonsView sso={signIn.sso} />;
+}
+
+export function SignUpOAuthButtons() {
+  const { signUp } = useSignUp();
+  return <OAuthButtonsView sso={signUp.sso} />;
 }

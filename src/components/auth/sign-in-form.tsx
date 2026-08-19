@@ -2,20 +2,19 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useSignIn, useClerk } from '@clerk/nextjs';
+import { useSignIn } from '@clerk/nextjs';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { OAuthButtons } from '@/components/auth/oauth-buttons';
+import { SignInOAuthButtons } from '@/components/auth/oauth-buttons';
 import { getClerkErrorMessage } from '@/lib/clerk-errors';
 
 type Step = 'password' | 'forgot-email' | 'forgot-code';
 
 export function SignInForm() {
   const { signIn } = useSignIn();
-  const clerk = useClerk();
   const router = useRouter();
 
   const [step, setStep] = React.useState<Step>('password');
@@ -163,7 +162,7 @@ export function SignInForm() {
 
   return (
     <div className="flex flex-col gap-4">
-      <OAuthButtons mode="sign-in" />
+      <SignInOAuthButtons />
       <div className="flex items-center gap-3">
         <Separator className="flex-1" />
         <span className="text-muted-foreground text-xs">ou</span>
@@ -203,7 +202,7 @@ export function SignInForm() {
         </div>
         {error && <p className="text-destructive text-sm">{error}</p>}
         {captchaSlot}
-        <Button type="submit" disabled={submitting || !clerk.loaded}>
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Entrando...' : 'Entrar'}
         </Button>
       </form>
