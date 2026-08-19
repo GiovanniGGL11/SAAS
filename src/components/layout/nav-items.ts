@@ -27,7 +27,7 @@ export const navItems: NavItem[] = [
   { label: 'Serviços', href: '/servicos', icon: Scissors },
   { label: 'Estoque', href: '/estoque', icon: Package },
   { label: 'Financeiro', href: '/financeiro', icon: Wallet },
-  { label: 'Campanhas', href: '/campanhas', icon: Megaphone, comingSoon: true },
+  { label: 'Campanhas', href: '/campanhas', icon: Megaphone },
   { label: 'Relatórios', href: '/relatorios', icon: BarChart3 },
   { label: 'Configurações', href: '/configuracoes', icon: Settings },
 ];

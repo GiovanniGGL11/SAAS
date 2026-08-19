@@ -1,6 +1,7 @@
 import type {
   Appointment,
   AppointmentProduct,
+  Coupon,
   Product,
   Professional,
   Service,
@@ -81,6 +82,14 @@ export function serializeAppointmentProduct<T extends AppointmentProduct>(
 export type SerializedAppointmentProduct = Omit<AppointmentProduct, 'priceSnapshot'> & {
   priceSnapshot: number;
 };
+
+export function serializeCoupon<T extends Coupon>(
+  coupon: T,
+): Omit<T, 'discountValue'> & { discountValue: number } {
+  return { ...coupon, discountValue: Number(coupon.discountValue) };
+}
+
+export type SerializedCoupon = Omit<Coupon, 'discountValue'> & { discountValue: number };
 
 export function formatCurrencyBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
