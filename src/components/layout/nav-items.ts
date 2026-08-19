@@ -29,5 +29,5 @@ export const navItems: NavItem[] = [
   { label: 'Financeiro', href: '/financeiro', icon: Wallet, comingSoon: true },
   { label: 'Campanhas', href: '/campanhas', icon: Megaphone, comingSoon: true },
   { label: 'Relatórios', href: '/relatorios', icon: BarChart3, comingSoon: true },
-  { label: 'Configurações', href: '/configuracoes', icon: Settings, comingSoon: true },
+  { label: 'Configurações', href: '/configuracoes', icon: Settings },
 ];

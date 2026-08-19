@@ -37,3 +37,17 @@ export async function softDeleteCompanyByClerkOrgId(clerkOrgId: string): Promise
     data: { deletedAt: new Date() },
   });
 }
+
+/**
+ * Only `timezone` — `name`/`slug` are mirrored from the Clerk Organization
+ * (see upsertCompanyFromClerkOrg) and edited there (Clerk's
+ * OrganizationProfile UI), so editing them here too would just get
+ * overwritten on the next organization.updated webhook.
+ */
+export async function updateCompanyTimezone(companyId: string, timezone: string): Promise<void> {
+  const result = await prisma.company.updateMany({
+    where: { id: companyId },
+    data: { timezone },
+  });
+  if (result.count === 0) throw new Error('Company not found');
+}
