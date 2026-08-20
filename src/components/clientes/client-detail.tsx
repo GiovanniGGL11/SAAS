@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { StarIcon, PencilIcon } from 'lucide-react';
+import { CalendarDaysIcon, StarIcon, PencilIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import {
   getClientDetailAction,
@@ -164,8 +165,12 @@ export function ClientDetail({
             <TableBody>
               {history.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
-                    Nenhum agendamento ainda.
+                  <TableCell colSpan={5}>
+                    <EmptyState
+                      icon={CalendarDaysIcon}
+                      title="Nenhum agendamento ainda"
+                      description="O histórico de atendimentos desse cliente aparece aqui."
+                    />
                   </TableCell>
                 </TableRow>
               )}

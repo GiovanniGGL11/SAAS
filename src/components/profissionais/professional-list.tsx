@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon } from 'lucide-react';
+import { PlusIcon, UserRoundIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ProfessionalDrawer } from '@/components/profissionais/professional-drawer';
 import {
   listProfessionalsAction,
@@ -94,8 +95,12 @@ export function ProfessionalList({
           <TableBody>
             {professionals.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
-                  Nenhum profissional cadastrado ainda.
+                <TableCell colSpan={5}>
+                  <EmptyState
+                    icon={UserRoundIcon}
+                    title="Nenhum profissional cadastrado"
+                    description="Cadastre sua equipe pra começar a montar a agenda."
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -118,10 +123,10 @@ export function ProfessionalList({
                 <TableCell className="text-muted-foreground">
                   {professional.email || professional.phone || '—'}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-muted-foreground tabular-nums">
                   {formatCommission(professional)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-muted-foreground tabular-nums">
                   {professional.production.appointmentCount} atend. ·{' '}
                   {formatCurrencyBRL(professional.production.revenue)}
                 </TableCell>

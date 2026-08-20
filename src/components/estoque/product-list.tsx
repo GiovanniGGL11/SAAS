@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon, TriangleAlertIcon } from 'lucide-react';
+import { PackageIcon, PlusIcon, TriangleAlertIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ProductDrawer } from '@/components/estoque/product-drawer';
 import { StockMovementDialog } from '@/components/estoque/stock-movement-dialog';
 import { listProductsAction, setProductActiveAction } from '@/server/actions/stock-actions';
@@ -82,8 +83,12 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
           <TableBody>
             {products.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
-                  Nenhum produto cadastrado ainda.
+                <TableCell colSpan={5}>
+                  <EmptyState
+                    icon={PackageIcon}
+                    title="Nenhum produto cadastrado"
+                    description="Cadastre produtos pra controlar estoque e vender durante atendimentos."
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -104,7 +109,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                       {!product.active && <Badge variant="outline">Inativo</Badge>}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="tabular-nums">
                     <div className="flex items-center gap-1.5">
                       {lowStock && <TriangleAlertIcon className="text-destructive size-3.5" />}
                       <span className={lowStock ? 'text-destructive font-medium' : undefined}>
@@ -112,10 +117,10 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground tabular-nums">
                     {formatCurrencyBRL(product.costPrice)}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground tabular-nums">
                     {formatCurrencyBRL(product.salePrice)}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>

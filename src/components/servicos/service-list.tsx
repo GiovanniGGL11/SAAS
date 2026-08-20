@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon } from 'lucide-react';
+import { PlusIcon, ScissorsIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ServiceDrawer } from '@/components/servicos/service-drawer';
 import { listServicesAction, setServiceActiveAction } from '@/server/actions/service-actions';
 import { formatCurrencyBRL } from '@/lib/serialize';
@@ -77,8 +78,12 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
           <TableBody>
             {services.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
-                  Nenhum serviço cadastrado ainda.
+                <TableCell colSpan={5}>
+                  <EmptyState
+                    icon={ScissorsIcon}
+                    title="Nenhum serviço cadastrado"
+                    description="Cadastre os serviços que sua empresa oferece."
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -99,10 +104,10 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{service.category || '—'}</TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-muted-foreground tabular-nums">
                   {service.durationMinutes} min
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-muted-foreground tabular-nums">
                   {formatCurrencyBRL(service.price)}
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>

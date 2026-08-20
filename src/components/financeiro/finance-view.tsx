@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon } from 'lucide-react';
+import { PlusIcon, WalletIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { StatTile } from '@/components/dashboard/stat-tile';
 import { TransactionDrawer } from '@/components/financeiro/transaction-drawer';
 import {
@@ -25,6 +26,7 @@ import {
 } from '@/server/actions/finance-actions';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { SerializedTransaction } from '@/lib/serialize';
+import { cn } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
   PAID: 'Pago',
@@ -101,10 +103,11 @@ export function FinanceView() {
 
       {summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile label="Entradas" value={formatCurrencyBRL(summary.income)} />
-          <StatTile label="Saídas" value={formatCurrencyBRL(summary.expense)} />
-          <StatTile label="Saldo" value={formatCurrencyBRL(summary.balance)} />
+          <StatTile index={0} label="Entradas" value={formatCurrencyBRL(summary.income)} />
+          <StatTile index={1} label="Saídas" value={formatCurrencyBRL(summary.expense)} />
+          <StatTile index={2} label="Saldo" value={formatCurrencyBRL(summary.balance)} />
           <StatTile
+            index={3}
             label="A receber / a pagar"
             value={`${formatCurrencyBRL(summary.pendingReceivables)} / ${formatCurrencyBRL(summary.pendingPayables)}`}
           />
@@ -126,8 +129,12 @@ export function FinanceView() {
           <TableBody>
             {!transactions || transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-muted-foreground py-8 text-center">
-                  Nenhum lançamento ainda.
+                <TableCell colSpan={6}>
+                  <EmptyState
+                    icon={WalletIcon}
+                    title="Nenhum lançamento ainda"
+                    description="Entradas e saídas aparecem aqui, incluindo as geradas pela Agenda."
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -144,7 +151,10 @@ export function FinanceView() {
                     </Badge>
                   </TableCell>
                   <TableCell
-                    className={t.type === 'INCOME' ? 'text-delta-good' : 'text-destructive'}
+                    className={cn(
+                      'tabular-nums',
+                      t.type === 'INCOME' ? 'text-delta-good' : 'text-destructive',
+                    )}
                   >
                     {t.type === 'INCOME' ? '+' : '-'}
                     {formatCurrencyBRL(t.amount)}

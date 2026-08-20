@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon } from 'lucide-react';
+import { MegaphoneIcon, PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CouponDrawer } from '@/components/campanhas/coupon-drawer';
 import { listCouponsAction, setCouponActiveAction } from '@/server/actions/coupon-actions';
 import { formatCurrencyBRL } from '@/lib/serialize';
@@ -81,8 +82,12 @@ export function CouponList({ initialCoupons }: { initialCoupons: SerializedCoupo
           <TableBody>
             {coupons.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
-                  Nenhum cupom cadastrado ainda.
+                <TableCell colSpan={5}>
+                  <EmptyState
+                    icon={MegaphoneIcon}
+                    title="Nenhum cupom cadastrado"
+                    description="Crie um cupom de desconto pra atrair novos clientes."
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -94,13 +99,15 @@ export function CouponList({ initialCoupons }: { initialCoupons: SerializedCoupo
                     {!coupon.active && <Badge variant="outline">Inativo</Badge>}
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{formatDiscount(coupon)}</TableCell>
+                <TableCell className="text-muted-foreground tabular-nums">
+                  {formatDiscount(coupon)}
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   {coupon.expiresAt
                     ? new Intl.DateTimeFormat('pt-BR').format(new Date(coupon.expiresAt))
                     : 'Sem validade'}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-muted-foreground tabular-nums">
                   {coupon.usedCount}
                   {coupon.maxUses ? ` / ${coupon.maxUses}` : ''}
                 </TableCell>

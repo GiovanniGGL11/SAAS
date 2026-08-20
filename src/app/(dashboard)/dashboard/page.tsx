@@ -35,21 +35,25 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
+          index={0}
           label="Faturamento"
           value={formatCurrencyBRL(kpis.revenue)}
           delta={percentDelta(kpis.revenue, kpis.revenuePrev)}
         />
         <StatTile
+          index={1}
           label="Ticket médio"
           value={formatCurrencyBRL(kpis.avgTicket)}
           delta={percentDelta(kpis.avgTicket, kpis.avgTicketPrev)}
         />
         <StatTile
+          index={2}
           label="Atendimentos concluídos"
           value={String(kpis.completedCount)}
           delta={percentDelta(kpis.completedCount, kpis.completedCountPrev)}
         />
         <StatTile
+          index={3}
           label="Novos clientes"
           value={String(kpis.newClientsCount)}
           delta={percentDelta(kpis.newClientsCount, kpis.newClientsCountPrev)}

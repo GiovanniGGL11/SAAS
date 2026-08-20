@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { BarChart3Icon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { StatTile } from '@/components/dashboard/stat-tile';
 import { getReportAction } from '@/server/actions/report-actions';
 import { REPORT_PRESETS, type ReportPreset } from '@/lib/validations/report';
@@ -61,13 +63,19 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
       ) : (
         <div className={isFetching ? 'opacity-60 transition-opacity' : ''}>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="Faturamento no período" value={formatCurrencyBRL(totalRevenue)} />
-            <StatTile label="Atendimentos concluídos" value={String(data.cancellation.completed)} />
+            <StatTile index={0} label="Faturamento no período" value={formatCurrencyBRL(totalRevenue)} />
             <StatTile
+              index={1}
+              label="Atendimentos concluídos"
+              value={String(data.cancellation.completed)}
+            />
+            <StatTile
+              index={2}
               label="Taxa de cancelamento"
               value={`${data.cancellation.cancellationRate.toFixed(1)}%`}
             />
             <StatTile
+              index={3}
               label="Taxa de falta (no-show)"
               value={`${data.cancellation.noShowRate.toFixed(1)}%`}
             />
@@ -77,9 +85,11 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
             <div className="rounded-lg border p-4">
               <h2 className="mb-3 text-sm font-medium">Faturamento por profissional</h2>
               {data.byProfessional.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  Nenhum atendimento concluído no período.
-                </p>
+                <EmptyState
+                  icon={BarChart3Icon}
+                  title="Nenhum atendimento concluído no período"
+                  className="py-6"
+                />
               ) : (
                 <Table>
                   <TableHeader>
@@ -102,11 +112,13 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
                             {p.name}
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{p.count}</TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {p.count}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">
                           {formatCurrencyBRL(p.averageTicket)}
                         </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium tabular-nums">
                           {formatCurrencyBRL(p.revenue)}
                         </TableCell>
                       </TableRow>
@@ -119,9 +131,11 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
             <div className="rounded-lg border p-4">
               <h2 className="mb-3 text-sm font-medium">Faturamento por serviço</h2>
               {data.byService.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  Nenhum atendimento concluído no período.
-                </p>
+                <EmptyState
+                  icon={BarChart3Icon}
+                  title="Nenhum atendimento concluído no período"
+                  className="py-6"
+                />
               ) : (
                 <Table>
                   <TableHeader>
@@ -143,8 +157,10 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
                             {s.name}
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{s.count}</TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {s.count}
+                        </TableCell>
+                        <TableCell className="font-medium tabular-nums">
                           {formatCurrencyBRL(s.revenue)}
                         </TableCell>
                       </TableRow>
@@ -167,7 +183,7 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
                       style={{ width: `${(w.revenue / maxWeekdayRevenue) * 100}%` }}
                     />
                   </div>
-                  <span className="w-24 shrink-0 text-right text-xs font-medium">
+                  <span className="w-24 shrink-0 text-right text-xs font-medium tabular-nums">
                     {formatCurrencyBRL(w.revenue)}
                   </span>
                 </div>

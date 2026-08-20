@@ -3,12 +3,14 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { UserRoundIcon } from 'lucide-react';
 
 import { CalendarGrid, type GridColumn } from '@/components/agenda/calendar-grid';
 import { AgendaToolbar } from '@/components/agenda/agenda-toolbar';
 import { CreateAppointmentDrawer } from '@/components/agenda/create-appointment-drawer';
 import { AppointmentDetailDrawer } from '@/components/agenda/appointment-detail-drawer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   getAppointmentsForRangeAction,
   moveAppointmentAction,
@@ -194,8 +196,13 @@ export function AgendaView({
       {query.isLoading ? (
         <Skeleton className="h-[600px] w-full rounded-lg" />
       ) : columns.length === 0 ? (
-        <div className="text-muted-foreground flex h-40 items-center justify-center rounded-lg border text-sm">
-          Nenhum profissional cadastrado.
+        <div className="flex h-40 items-center justify-center rounded-lg border">
+          <EmptyState
+            icon={UserRoundIcon}
+            title="Nenhum profissional cadastrado"
+            description="Cadastre um profissional pra começar a montar a agenda."
+            className="py-0"
+          />
         </div>
       ) : (
         <CalendarGrid

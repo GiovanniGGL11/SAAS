@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon, SearchIcon, StarIcon } from 'lucide-react';
+import { PlusIcon, SearchIcon, StarIcon, UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { listClientsAction, setClientActiveAction } from '@/server/actions/client-actions';
 import type { Client } from '@/generated/prisma/client';
@@ -78,8 +79,12 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
           <TableBody>
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-muted-foreground py-8 text-center">
-                  Nenhum cliente encontrado.
+                <TableCell colSpan={3}>
+                  <EmptyState
+                    icon={UsersIcon}
+                    title="Nenhum cliente encontrado"
+                    description="Ajuste a busca ou cadastre um novo cliente."
+                  />
                 </TableCell>
               </TableRow>
             )}
