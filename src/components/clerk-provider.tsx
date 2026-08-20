@@ -25,7 +25,7 @@ export function AppClerkProvider({ children }: { children: React.ReactNode }) {
       appearance={{
         theme: isDark ? dark : undefined,
         variables: {
-          colorPrimary: 'oklch(0.205 0 0)',
+          colorPrimary: isDark ? '#6366f1' : '#4f46e5',
           borderRadius: '0.625rem',
         },
       }}
