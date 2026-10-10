@@ -19,6 +19,13 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-delta-good: var(--delta-good);
+  --color-tile: var(--tile);
+  --color-tile-hover: var(--tile-hover);
+  --color-label-secondary: var(--label-secondary);
+  --color-system-blue: var(--system-blue);
+  --color-system-green: var(--system-green);
+  --color-system-indigo: var(--system-indigo);
+  --color-system-red: var(--system-red);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -72,6 +79,14 @@
   --chart-4: #eda100;
   --chart-5: #e87ba4;
   --delta-good: #006300;
+  /* Apple-style surfaces & system colors (HIG light values) */
+  --tile: #f5f5f7;
+  --tile-hover: #efeff2;
+  --label-secondary: #6e6e73;
+  --system-blue: #007aff;
+  --system-green: #34c759;
+  --system-indigo: #5856d6;
+  --system-red: #ff3b30;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -110,6 +125,13 @@
   --chart-4: #c98500;
   --chart-5: #d55181;
   --delta-good: #0ca30c;
+  --tile: #1c1c1e;
+  --tile-hover: #232326;
+  --label-secondary: #98989d;
+  --system-blue: #0a84ff;
+  --system-green: #30d158;
+  --system-indigo: #5e5ce6;
+  --system-red: #ff453a;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: #6366f1;
@@ -130,4 +152,13 @@
   html {
     @apply font-sans;
   }
+}
+
+/* SF Pro on Apple devices, Geist everywhere else. */
+@utility font-apple {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', var(--font-geist-sans),
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+  letter-spacing: -0.011em;
 }
