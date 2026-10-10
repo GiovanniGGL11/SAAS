@@ -7,11 +7,32 @@ import {
   getTopService,
   percentDelta,
 } from '@/server/data/dashboard';
-import { StatTile } from '@/components/dashboard/stat-tile';
+import { KpiTile } from '@/components/dashboard/kpi-tile';
 import { RevenueChart } from '@/components/dashboard/revenue-chart';
 import { BusiestHoursChart } from '@/components/dashboard/busiest-hours-chart';
 import { TopPerformerCard } from '@/components/dashboard/top-performer-card';
+import { DashboardHero } from '@/components/dashboard/dashboard-hero';
+import { AppleTile, TileEyebrow } from '@/components/dashboard/apple-tile';
 import { formatCurrencyBRL } from '@/lib/serialize';
+
+function greetingFor(timezone: string, now: Date) {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      hourCycle: 'h23',
+      timeZone: timezone,
+    }).format(now),
+  );
+  const greeting =
+    hour < 5 ? 'Boa noite' : hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  const date = new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: timezone,
+  }).format(now);
+  return { greeting, date };
+}
 
 export default async function DashboardPage() {
   const { company } = await requireCurrentCompany();
@@ -24,64 +45,98 @@ export default async function DashboardPage() {
     getTopService(company.id),
   ]);
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Olá, {company.name}</h1>
-        <p className="text-muted-foreground text-sm">
-          Visão geral dos últimos 30 dias, comparada aos 30 dias anteriores.
-        </p>
-      </div>
+  const { greeting, date } = greetingFor(company.timezone, new Date());
+  const revenue14d = revenueByDay.reduce((sum, d) => sum + d.revenue, 0);
+  // Same 7h–21h window BusiestHoursChart plots, so the headline matches the highlighted bar.
+  const peak = busiestHours.reduce<(typeof busiestHours)[number] | null>(
+    (best, h) =>
+      h.hour >= 7 && h.hour < 21 && h.count > 0 && (!best || h.count > best.count) ? h : best,
+    null,
+  );
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
+  return (
+    <div className="font-apple mx-auto flex w-full max-w-6xl flex-col gap-4 md:gap-5">
+      <DashboardHero
+        eyebrow={date}
+        title={`${greeting}, ${company.name}.`}
+        subtitle="Visão geral dos últimos 30 dias, comparada aos 30 dias anteriores."
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-5 lg:grid-cols-4">
+        <KpiTile
           index={0}
           label="Faturamento"
-          value={formatCurrencyBRL(kpis.revenue)}
+          value={kpis.revenue}
+          format="currency"
           delta={percentDelta(kpis.revenue, kpis.revenuePrev)}
         />
-        <StatTile
+        <KpiTile
           index={1}
           label="Ticket médio"
-          value={formatCurrencyBRL(kpis.avgTicket)}
+          value={kpis.avgTicket}
+          format="currency"
           delta={percentDelta(kpis.avgTicket, kpis.avgTicketPrev)}
         />
-        <StatTile
+        <KpiTile
           index={2}
           label="Atendimentos concluídos"
-          value={String(kpis.completedCount)}
+          value={kpis.completedCount}
+          format="integer"
           delta={percentDelta(kpis.completedCount, kpis.completedCountPrev)}
         />
-        <StatTile
+        <KpiTile
           index={3}
           label="Novos clientes"
-          value={String(kpis.newClientsCount)}
+          value={kpis.newClientsCount}
+          format="integer"
           delta={percentDelta(kpis.newClientsCount, kpis.newClientsCountPrev)}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <TopPerformerCard
-          label="Profissional destaque"
-          performer={topProfessional}
-          countLabel="atendimentos"
-        />
-        <TopPerformerCard label="Serviço destaque" performer={topService} countLabel="vendas" />
+      <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-3">
+        <AppleTile index={0} interactive={false} className="lg:col-span-2">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <TileEyebrow>Faturamento por dia</TileEyebrow>
+              <div className="mt-1 text-[28px] leading-none font-semibold tracking-[-0.025em] tabular-nums">
+                {formatCurrencyBRL(revenue14d)}
+              </div>
+            </div>
+            <span className="text-label-secondary text-xs">
+              Últimos 14 dias · agendamentos concluídos
+            </span>
+          </div>
+          <RevenueChart data={revenueByDay} />
+        </AppleTile>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-1">
+          <TopPerformerCard
+            index={1}
+            label="Profissional destaque"
+            performer={topProfessional}
+            countLabel="atendimentos"
+          />
+          <TopPerformerCard
+            index={2}
+            label="Serviço destaque"
+            performer={topService}
+            countLabel="vendas"
+          />
+        </div>
       </div>
 
-      <div className="rounded-lg border p-4">
-        <h2 className="text-sm font-medium">Faturamento por dia</h2>
-        <p className="text-muted-foreground mb-4 text-xs">
-          Últimos 14 dias · agendamentos concluídos
-        </p>
-        <RevenueChart data={revenueByDay} />
-      </div>
-
-      <div className="rounded-lg border p-4">
-        <h2 className="text-sm font-medium">Horários mais movimentados</h2>
-        <p className="text-muted-foreground mb-4 text-xs">Últimos 30 dias</p>
+      <AppleTile interactive={false}>
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <TileEyebrow>Horários mais movimentados</TileEyebrow>
+            <div className="mt-1 text-[28px] leading-none font-semibold tracking-[-0.025em]">
+              {peak ? `Pico às ${String(peak.hour).padStart(2, '0')}h` : 'Sem movimento'}
+            </div>
+          </div>
+          <span className="text-label-secondary text-xs">Últimos 30 dias</span>
+        </div>
         <BusiestHoursChart hours={busiestHours} />
-      </div>
+      </AppleTile>
     </div>
   );
 }
