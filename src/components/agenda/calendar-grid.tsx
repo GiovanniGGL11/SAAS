@@ -114,8 +114,8 @@ function DraggableAppointment({
       {...attributes}
       onClick={() => onClick(appointment)}
       className={cn(
-        'absolute overflow-hidden rounded-md border px-2 py-1 text-left text-xs shadow-sm transition-shadow hover:shadow-md',
-        isDragging && 'z-50 opacity-80 shadow-lg',
+        'absolute overflow-hidden rounded-lg border-l-[3px] py-1 pr-2 pl-2 text-left text-xs transition-[box-shadow,transform] duration-200 hover:z-30 hover:shadow-lg',
+        isDragging && 'z-50 scale-[1.02] opacity-90 shadow-xl',
         isCanceled && 'opacity-50',
       )}
       style={{
@@ -123,12 +123,12 @@ function DraggableAppointment({
         height: item.height,
         left: `calc(${(item.lane / item.totalLanes) * 100}% + 2px)`,
         width: `calc(${100 / item.totalLanes}% - 4px)`,
-        backgroundColor: `color-mix(in oklch, ${appointment.professional.color} 16%, var(--card))`,
-        borderColor: `color-mix(in oklch, ${appointment.professional.color} 45%, var(--border))`,
+        backgroundColor: `color-mix(in oklch, ${appointment.professional.color} 18%, var(--background))`,
+        borderLeftColor: appointment.professional.color,
         transform: CSS.Translate.toString(transform),
       }}
     >
-      <div className="truncate font-medium">{appointment.client.name}</div>
+      <div className="truncate font-semibold">{appointment.client.name}</div>
       <div className="text-muted-foreground truncate">
         {formatTimeInTz(appointment.startAt, timezone)} · {appointment.serviceNameSnapshot}
       </div>
@@ -160,6 +160,13 @@ export function CalendarGrid({
 }) {
   const columnWidthRef = React.useRef(0);
   const today = React.useMemo(() => utcToCalendarDate(new Date(), timezone), [timezone]);
+
+  // Re-render every minute so the "now" line keeps moving down the grid.
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // Without an activation distance, dnd-kit's PointerSensor starts a drag on
   // any pointer movement at all — even the couple of pixels of jitter a
@@ -213,9 +220,9 @@ export function CalendarGrid({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex overflow-auto rounded-lg border">
-        <div className="bg-background sticky left-0 z-10 w-14 shrink-0 border-r">
-          <div className="h-10 border-b" />
+      <div className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1">
+        <div className="bg-background sticky left-0 z-20 w-14 shrink-0 border-r">
+          <div className="bg-background sticky top-0 z-10 h-14 border-b" />
           {hourMarks.map((hour) => (
             <div
               key={hour}
@@ -231,7 +238,7 @@ export function CalendarGrid({
           const layout = layoutColumn(appointmentsByColumn.get(column.id) ?? [], timezone);
           const isToday = isSameCalendarDate(column.date, today);
           const nowMinutes = isToday
-            ? utcToMinutesSinceMidnight(new Date(), timezone) - DAY_START_HOUR * 60
+            ? utcToMinutesSinceMidnight(now, timezone) - DAY_START_HOUR * 60
             : null;
 
           return (
@@ -242,10 +249,24 @@ export function CalendarGrid({
               }}
               className="relative min-w-40 flex-1 border-r last:border-r-0"
             >
-              <div className="bg-background sticky top-0 z-10 flex h-10 flex-col items-center justify-center border-b text-xs font-medium">
-                <span className={cn(isToday && 'text-primary')}>{column.label}</span>
+              <div className="bg-background/85 sticky top-0 z-10 flex h-14 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md">
+                <span
+                  className={cn(
+                    'text-[11px] font-semibold uppercase',
+                    isToday ? 'text-system-red' : 'text-label-secondary',
+                  )}
+                >
+                  {column.label}
+                </span>
                 {column.sublabel && (
-                  <span className="text-muted-foreground text-[10px]">{column.sublabel}</span>
+                  <span
+                    className={cn(
+                      'rounded-full px-2 text-[13px] font-semibold tabular-nums',
+                      isToday && 'bg-system-red text-white',
+                    )}
+                  >
+                    {column.sublabel}
+                  </span>
                 )}
               </div>
               <div className="relative" style={{ height: GRID_HEIGHT }}>
@@ -254,9 +275,11 @@ export function CalendarGrid({
                 ))}
                 {nowMinutes !== null && nowMinutes >= 0 && nowMinutes <= TOTAL_MINUTES && (
                   <div
-                    className="bg-destructive pointer-events-none absolute right-0 left-0 z-20 h-px"
+                    className="bg-system-red pointer-events-none absolute right-0 left-0 z-20 h-[2px]"
                     style={{ top: minutesToTop(nowMinutes) }}
-                  />
+                  >
+                    <span className="bg-system-red absolute top-1/2 -left-1 size-2.5 -translate-y-1/2 rounded-full" />
+                  </div>
                 )}
                 {layout.map((item) => (
                   <DraggableAppointment

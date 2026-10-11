@@ -104,6 +104,32 @@ export function RevenueChart({ data }: { data: DailyRevenue[] }) {
   const hoveredPoint = hoverIndex !== null ? points[hoverIndex] : null;
   const shouldDraw = inView || reduceMotion;
 
+  if (!data.some((d) => d.revenue > 0)) {
+    return (
+      <div
+        className="text-label-secondary flex flex-col items-center justify-center gap-2 text-center"
+        style={{ height: CHART_HEIGHT }}
+      >
+        <svg viewBox="0 0 120 40" className="text-foreground/15 h-10 w-32" aria-hidden>
+          <path
+            d="M2 32 C 20 28, 30 12, 48 18 S 80 34, 96 14 S 112 8, 118 10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray="2 7"
+          />
+        </svg>
+        <p className="text-foreground text-[15px] font-semibold">
+          Ainda sem faturamento no período
+        </p>
+        <p className="max-w-xs text-[13px]">
+          Conclua atendimentos na Agenda e o gráfico começa a ganhar forma aqui.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div

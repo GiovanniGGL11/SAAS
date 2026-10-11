@@ -1,15 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon, SearchIcon, StarIcon, UsersIcon } from 'lucide-react';
+import { ChevronRightIcon, PlusIcon, StarIcon, UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Table,
   TableBody,
@@ -19,14 +19,25 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader, Surface } from '@/components/layout/page';
+import {
+  InitialsAvatar,
+  ListToolbar,
+  SearchField,
+  matchesSearch,
+} from '@/components/layout/list-controls';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { listClientsAction, setClientActiveAction } from '@/server/actions/client-actions';
 import type { Client } from '@/generated/prisma/client';
 
+type Filter = 'active' | 'vip' | 'archived' | 'all';
+
 export function ClientList({ initialClients }: { initialClients: Client[] }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
+  const [filter, setFilter] = React.useState<Filter>('active');
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -40,72 +51,101 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
   });
 
-  const filtered = search.trim()
-    ? clients.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
-    : clients;
+  const filtered = clients.filter((client) => {
+    if (filter === 'active' && !client.active) return false;
+    if (filter === 'archived' && client.active) return false;
+    if (filter === 'vip' && !client.isVip) return false;
+    return matchesSearch(search, client.name, client.phone, client.email);
+  });
+
+  const counts = {
+    active: clients.filter((c) => c.active).length,
+    vip: clients.filter((c) => c.isVip).length,
+    archived: clients.filter((c) => !c.active).length,
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
-          <p className="text-muted-foreground text-sm">Base de clientes da empresa.</p>
-        </div>
-        <Button onClick={() => setDrawerOpen(true)}>
-          <PlusIcon className="size-4" />
-          Novo cliente
-        </Button>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Clientes"
+        description={`${counts.active} ${counts.active === 1 ? 'cliente ativo' : 'clientes ativos'} na sua base.`}
+        actions={
+          <Button onClick={() => setDrawerOpen(true)}>
+            <PlusIcon className="size-4" />
+            Novo cliente
+          </Button>
+        }
+      />
 
-      <div className="relative max-w-sm">
-        <SearchIcon className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-        <Input
-          placeholder="Buscar por nome..."
+      <ListToolbar>
+        <SearchField
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
+          onChange={setSearch}
+          placeholder="Buscar por nome, telefone ou e-mail"
         />
-      </div>
+        <SegmentedControl
+          value={filter}
+          onValueChange={setFilter}
+          options={[
+            { value: 'active', label: 'Ativos' },
+            { value: 'vip', label: `VIP${counts.vip ? ` · ${counts.vip}` : ''}` },
+            { value: 'archived', label: 'Arquivados' },
+            { value: 'all', label: 'Todos' },
+          ]}
+        />
+      </ListToolbar>
 
-      <div className="overflow-hidden rounded-lg border">
+      <Surface>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Cliente</TableHead>
               <TableHead>Contato</TableHead>
-              <TableHead>Ativo</TableHead>
+              <TableHead className="w-24">Ativo</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   <EmptyState
                     icon={UsersIcon}
-                    title="Nenhum cliente encontrado"
-                    description="Ajuste a busca ou cadastre um novo cliente."
+                    title={
+                      clients.length === 0 ? 'Nenhum cliente ainda' : 'Nenhum cliente encontrado'
+                    }
+                    description={
+                      clients.length === 0
+                        ? 'Cadastre seu primeiro cliente para começar a agendar.'
+                        : 'Ajuste a busca ou o filtro.'
+                    }
                   />
                 </TableCell>
               </TableRow>
             )}
             {filtered.map((client) => (
-              <TableRow key={client.id}>
+              <TableRow
+                key={client.id}
+                className="group cursor-pointer"
+                onClick={() => router.push(`/clientes/${client.id}`)}
+              >
                 <TableCell>
-                  <Link
-                    href={`/clientes/${client.id}`}
-                    className="flex items-center gap-2 font-medium hover:underline"
-                  >
-                    {client.name}
+                  <div className="flex items-center gap-3">
+                    <InitialsAvatar
+                      name={client.name}
+                      color={client.isVip ? '#ff9500' : undefined}
+                    />
+                    <span className="font-medium">{client.name}</span>
                     {client.isVip && (
                       <StarIcon className="size-3.5 fill-amber-400 text-amber-400" />
                     )}
                     {!client.active && <Badge variant="outline">Arquivado</Badge>}
-                  </Link>
+                  </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-label-secondary">
                   {client.phone || client.email || '—'}
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(event) => event.stopPropagation()}>
                   <Switch
                     checked={client.active}
                     onCheckedChange={(checked: boolean) =>
@@ -113,11 +153,14 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
                     }
                   />
                 </TableCell>
+                <TableCell>
+                  <ChevronRightIcon className="text-label-secondary size-4 transition-transform group-hover:translate-x-0.5" />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      </div>
+      </Surface>
 
       <ClientDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
     </div>

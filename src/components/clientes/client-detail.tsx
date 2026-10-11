@@ -70,7 +70,9 @@ export function ClientDetail({
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+            <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em] md:text-[34px]">
+              {client.name}
+            </h1>
             <button
               type="button"
               onClick={() => toggleVip.mutate(!client.isVip)}
@@ -123,7 +125,7 @@ export function ClientDetail({
       </div>
 
       {client.cpf || client.birthDate || client.notes ? (
-        <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 text-sm sm:grid-cols-3">
+        <div className="bg-tile grid grid-cols-2 gap-4 rounded-[22px] p-5 text-sm sm:grid-cols-3 md:p-6">
           {client.cpf && (
             <div>
               <div className="text-muted-foreground text-xs">CPF</div>
@@ -151,7 +153,7 @@ export function ClientDetail({
 
       <div>
         <h2 className="mb-2 text-sm font-medium">Histórico de agendamentos</h2>
-        <div className="overflow-hidden rounded-lg border">
+        <div className="bg-tile overflow-hidden rounded-[22px]">
           <Table>
             <TableHeader>
               <TableRow>
@@ -206,7 +208,7 @@ export function ClientDetail({
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border p-4">
+    <div className="bg-tile rounded-[22px] p-5 md:p-6">
       <div className="text-muted-foreground text-xs">{label}</div>
       <div className="text-lg font-semibold">{value}</div>
     </div>

@@ -16,18 +16,43 @@ export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Tint of the icon chip, Apple Settings–style. */
+  color: string;
+  group: NavGroup;
   comingSoon?: boolean;
 };
 
+export type NavGroup = 'Visão geral' | 'Operação' | 'Gestão';
+
+export const navGroups: NavGroup[] = ['Visão geral', 'Operação', 'Gestão'];
+
 export const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Agenda', href: '/agenda', icon: CalendarDays },
-  { label: 'Clientes', href: '/clientes', icon: Users },
-  { label: 'Profissionais', href: '/profissionais', icon: UserRound },
-  { label: 'Serviços', href: '/servicos', icon: Scissors },
-  { label: 'Estoque', href: '/estoque', icon: Package },
-  { label: 'Financeiro', href: '/financeiro', icon: Wallet },
-  { label: 'Campanhas', href: '/campanhas', icon: Megaphone },
-  { label: 'Relatórios', href: '/relatorios', icon: BarChart3 },
-  { label: 'Configurações', href: '/configuracoes', icon: Settings },
+  {
+    label: 'Dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+    color: '#007aff',
+    group: 'Visão geral',
+  },
+  { label: 'Agenda', href: '/agenda', icon: CalendarDays, color: '#ff3b30', group: 'Visão geral' },
+  { label: 'Clientes', href: '/clientes', icon: Users, color: '#34c759', group: 'Operação' },
+  {
+    label: 'Profissionais',
+    href: '/profissionais',
+    icon: UserRound,
+    color: '#af52de',
+    group: 'Operação',
+  },
+  { label: 'Serviços', href: '/servicos', icon: Scissors, color: '#ff9500', group: 'Operação' },
+  { label: 'Estoque', href: '/estoque', icon: Package, color: '#5856d6', group: 'Operação' },
+  { label: 'Financeiro', href: '/financeiro', icon: Wallet, color: '#30b0c7', group: 'Gestão' },
+  { label: 'Campanhas', href: '/campanhas', icon: Megaphone, color: '#ff2d55', group: 'Gestão' },
+  { label: 'Relatórios', href: '/relatorios', icon: BarChart3, color: '#5ac8fa', group: 'Gestão' },
+  {
+    label: 'Configurações',
+    href: '/configuracoes',
+    icon: Settings,
+    color: '#8e8e93',
+    group: 'Gestão',
+  },
 ];
