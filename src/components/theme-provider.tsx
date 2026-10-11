@@ -1,12 +1,16 @@
 'use client';
 
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 
 type Theme = 'light' | 'dark' | 'system';
 
+/** Viewport point the theme change radiates from (e.g. the toggle that was clicked). */
+export type ThemeOrigin = { x: number; y: number };
+
 type ThemeContextValue = {
   theme: Theme;
-  setTheme: (theme: Theme) => void;
+  setTheme: (theme: Theme, origin?: ThemeOrigin) => void;
   resolvedTheme: 'light' | 'dark' | undefined;
 };
 
@@ -40,6 +44,49 @@ function disableTransitionsTemporarily() {
  */
 const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}")||"system";var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
 
+/**
+ * Reveals the new theme with a circle that grows from `origin` (View
+ * Transitions API, the macOS/Telegram-style effect). Browsers without it get a
+ * short color crossfade instead; reduced-motion users get an instant swap.
+ */
+function animateThemeChange(apply: (suppressTransitions?: boolean) => void, origin?: ThemeOrigin) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    apply();
+    return;
+  }
+
+  if (typeof document.startViewTransition !== 'function') {
+    const root = document.documentElement;
+    root.classList.add('theme-fade');
+    apply(false);
+    window.setTimeout(() => root.classList.remove('theme-fade'), 450);
+    return;
+  }
+
+  const x = origin?.x ?? window.innerWidth - 40;
+  const y = origin?.y ?? 28;
+  const radius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y),
+  );
+
+  const transition = document.startViewTransition(() => apply());
+  transition.ready
+    .then(() => {
+      document.documentElement.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+        {
+          duration: 650,
+          easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
+          pseudoElement: '::view-transition-new(root)',
+        },
+      );
+    })
+    .catch(() => {
+      // Transition skipped (e.g. tab hidden) — the theme was still applied.
+    });
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
     if (typeof window === 'undefined') return 'system';
@@ -53,18 +100,31 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     typeof window === 'undefined' ? undefined : resolve(theme),
   );
 
-  const setTheme = React.useCallback((next: Theme) => {
-    const restore = disableTransitionsTemporarily();
-    setThemeState(next);
+  const setTheme = React.useCallback((next: Theme, origin?: ThemeOrigin) => {
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {
       // localStorage unavailable (private mode, disabled) — theme just won't persist.
     }
     const nextResolved = resolve(next);
-    document.documentElement.classList.toggle('dark', nextResolved === 'dark');
-    setResolvedTheme(nextResolved);
-    restore();
+    const changesAppearance =
+      document.documentElement.classList.contains('dark') !== (nextResolved === 'dark');
+
+    const apply = (suppressTransitions = true) => {
+      const restore = suppressTransitions ? disableTransitionsTemporarily() : null;
+      document.documentElement.classList.toggle('dark', nextResolved === 'dark');
+      flushSync(() => {
+        setThemeState(next);
+        setResolvedTheme(nextResolved);
+      });
+      restore?.();
+    };
+
+    if (!changesAppearance) {
+      apply();
+      return;
+    }
+    animateThemeChange(apply, origin);
   }, []);
 
   React.useEffect(() => {

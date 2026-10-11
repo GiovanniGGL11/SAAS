@@ -183,3 +183,23 @@
     animation: none;
   }
 }
+
+/* Theme switch: the circular reveal is driven from theme-provider.tsx; turn off
+   the default root crossfade so only the clip-path animation shows. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Fallback for browsers without View Transitions: brief color crossfade. */
+.theme-fade,
+.theme-fade *,
+.theme-fade *::before,
+.theme-fade *::after {
+  transition:
+    background-color 0.4s ease,
+    border-color 0.4s ease,
+    color 0.4s ease,
+    fill 0.4s ease !important;
+}

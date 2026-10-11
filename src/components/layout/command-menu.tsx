@@ -92,7 +92,14 @@ export function CommandMenu() {
           <CommandGroup heading="Preferências">
             <CommandItem
               value="Alternar tema claro escuro"
-              onSelect={() => run(() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'))}
+              onSelect={() =>
+                run(() =>
+                  setTheme(resolvedTheme === 'dark' ? 'light' : 'dark', {
+                    x: window.innerWidth / 2,
+                    y: window.innerHeight / 3,
+                  }),
+                )
+              }
             >
               {resolvedTheme === 'dark' ? <SunIcon /> : <MoonIcon />}
               {resolvedTheme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
