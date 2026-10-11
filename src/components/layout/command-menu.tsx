@@ -25,7 +25,10 @@ export function CommandMenu() {
 
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey)) {
+      // event.key can be missing on synthetic keydown events some browser
+      // extensions/autofill dispatch — this listener is global, so a crash
+      // here takes down every page that renders the topbar.
+      if (event.key?.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         setOpen((value) => !value);
       }
