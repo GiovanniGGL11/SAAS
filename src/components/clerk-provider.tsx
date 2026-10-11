@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
+import { ptBR } from '@clerk/localizations';
 import { dark } from '@clerk/themes';
 import { useTheme } from '@/components/theme-provider';
 
@@ -22,11 +23,15 @@ export function AppClerkProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ClerkProvider
+      localization={ptBR}
       appearance={{
         theme: isDark ? dark : undefined,
         variables: {
-          colorPrimary: isDark ? '#6366f1' : '#4f46e5',
-          borderRadius: '0.625rem',
+          // Apple system blue, matching --primary in globals.css.
+          colorPrimary: isDark ? '#0a84ff' : '#007aff',
+          borderRadius: '0.875rem',
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-geist-sans), sans-serif",
         },
       }}
     >

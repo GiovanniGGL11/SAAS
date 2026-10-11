@@ -28,6 +28,7 @@ import type {
   SerializedProfessional,
   SerializedService,
 } from '@/lib/serialize';
+import { formatCurrencyBRL } from '@/lib/serialize';
 import type { Client } from '@/generated/prisma/client';
 
 function dateKey(date: CalendarDate): string {
@@ -158,11 +159,7 @@ export function AgendaView({
           label: new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, weekday: 'short' }).format(
             startOfCalendarDateUtc(date, timezone),
           ),
-          sublabel: new Intl.DateTimeFormat('pt-BR', {
-            timeZone: timezone,
-            day: '2-digit',
-            month: '2-digit',
-          }).format(startOfCalendarDateUtc(date, timezone)),
+          sublabel: String(date.day),
           date,
         }));
 
@@ -177,6 +174,7 @@ export function AgendaView({
         view={view}
         onViewChange={setView}
         anchorDate={anchorDate}
+        weekStartDate={weekStart}
         weekEndDate={addDays(weekStart, 6)}
         timezone={timezone}
         onPrev={() => setAnchorDate((d) => addDays(d, view === 'day' ? -1 : -7))}
@@ -193,10 +191,12 @@ export function AgendaView({
         onNewAppointment={() => setCreateOpen(true)}
       />
 
+      {query.data && query.data.length > 0 && <AgendaSummary appointments={query.data} />}
+
       {query.isLoading ? (
-        <Skeleton className="h-[600px] w-full rounded-lg" />
+        <Skeleton className="h-[600px] w-full rounded-[22px]" />
       ) : columns.length === 0 ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border">
+        <div className="bg-tile flex h-56 items-center justify-center rounded-[22px]">
           <EmptyState
             icon={UserRoundIcon}
             title="Nenhum profissional cadastrado"
@@ -235,6 +235,33 @@ export function AgendaView({
         }}
         timezone={timezone}
       />
+    </div>
+  );
+}
+
+/** At-a-glance counts for the visible range (canceled and no-shows excluded from revenue). */
+function AgendaSummary({ appointments }: { appointments: SerializedAppointment[] }) {
+  const active = appointments.filter((a) => a.status !== 'CANCELED' && a.status !== 'NO_SHOW');
+  const done = appointments.filter((a) => a.status === 'DONE').length;
+  const expected = active.reduce((sum, a) => sum + a.priceSnapshot, 0);
+
+  const items = [
+    { label: 'Agendamentos', value: String(active.length) },
+    { label: 'Concluídos', value: String(done) },
+    { label: 'Previsto no período', value: formatCurrencyBRL(expected) },
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="bg-tile flex items-baseline gap-2 rounded-full px-4 py-1.5 text-[13px]"
+        >
+          <span className="text-label-secondary">{item.label}</span>
+          <span className="font-semibold tabular-nums">{item.value}</span>
+        </div>
+      ))}
     </div>
   );
 }

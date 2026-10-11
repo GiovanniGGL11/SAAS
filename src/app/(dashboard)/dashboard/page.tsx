@@ -13,7 +13,10 @@ import { BusiestHoursChart } from '@/components/dashboard/busiest-hours-chart';
 import { TopPerformerCard } from '@/components/dashboard/top-performer-card';
 import { DashboardHero } from '@/components/dashboard/dashboard-hero';
 import { AppleTile, TileEyebrow } from '@/components/dashboard/apple-tile';
+import { TodayAgendaCard } from '@/components/dashboard/today-agenda-card';
 import { formatCurrencyBRL } from '@/lib/serialize';
+import { listAppointmentsInRange } from '@/server/data/appointments';
+import { addDays, getTodayInTz, startOfCalendarDateUtc } from '@/lib/time';
 
 function greetingFor(timezone: string, now: Date) {
   const hour = Number(
@@ -37,13 +40,19 @@ function greetingFor(timezone: string, now: Date) {
 export default async function DashboardPage() {
   const { company } = await requireCurrentCompany();
 
-  const [kpis, revenueByDay, busiestHours, topProfessional, topService] = await Promise.all([
-    getDashboardKpis(company.id),
-    getRevenueByDay(company.id, company.timezone, 14),
-    getBusiestHours(company.id, company.timezone),
-    getTopProfessional(company.id),
-    getTopService(company.id),
-  ]);
+  const today = getTodayInTz(company.timezone);
+  const [kpis, revenueByDay, busiestHours, topProfessional, topService, todayAppointments] =
+    await Promise.all([
+      getDashboardKpis(company.id),
+      getRevenueByDay(company.id, company.timezone, 14),
+      getBusiestHours(company.id, company.timezone),
+      getTopProfessional(company.id),
+      getTopService(company.id),
+      listAppointmentsInRange(company.id, {
+        startAt: startOfCalendarDateUtc(today, company.timezone),
+        endAt: startOfCalendarDateUtc(addDays(today, 1), company.timezone),
+      }),
+    ]);
 
   const { greeting, date } = greetingFor(company.timezone, new Date());
   const revenue14d = revenueByDay.reduce((sum, d) => sum + d.revenue, 0);
@@ -55,7 +64,7 @@ export default async function DashboardPage() {
   );
 
   return (
-    <div className="font-apple mx-auto flex w-full max-w-6xl flex-col gap-4 md:gap-5">
+    <div className="flex w-full flex-col gap-4 md:gap-5">
       <DashboardHero
         eyebrow={date}
         title={`${greeting}, ${company.name}.`}
@@ -125,18 +134,32 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <AppleTile interactive={false}>
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <TileEyebrow>Horários mais movimentados</TileEyebrow>
-            <div className="mt-1 text-[28px] leading-none font-semibold tracking-[-0.025em]">
-              {peak ? `Pico às ${String(peak.hour).padStart(2, '0')}h` : 'Sem movimento'}
+      <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-3">
+        <AppleTile interactive={false} className="lg:col-span-2">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <TileEyebrow>Horários mais movimentados</TileEyebrow>
+              <div className="mt-1 text-[28px] leading-none font-semibold tracking-[-0.025em]">
+                {peak ? `Pico às ${String(peak.hour).padStart(2, '0')}h` : 'Sem movimento'}
+              </div>
             </div>
+            <span className="text-label-secondary text-xs">Últimos 30 dias</span>
           </div>
-          <span className="text-label-secondary text-xs">Últimos 30 dias</span>
-        </div>
-        <BusiestHoursChart hours={busiestHours} />
-      </AppleTile>
+          <BusiestHoursChart hours={busiestHours} />
+        </AppleTile>
+        <TodayAgendaCard
+          timezone={company.timezone}
+          appointments={todayAppointments.map((a) => ({
+            id: a.id,
+            startAt: a.startAt,
+            status: a.status,
+            clientName: a.client.name,
+            serviceName: a.serviceNameSnapshot,
+            professionalName: a.professional.name,
+            professionalColor: a.professional.color,
+          }))}
+        />
+      </div>
     </div>
   );
 }

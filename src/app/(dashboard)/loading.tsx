@@ -10,7 +10,7 @@ export default function DashboardLoading() {
         </div>
         <Skeleton className="h-9 w-32" />
       </div>
-      <div className="flex flex-col gap-2 rounded-lg border p-4">
+      <div className="bg-tile flex flex-col gap-2 rounded-[22px] p-5 md:p-6">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-10 w-full" />
         ))}

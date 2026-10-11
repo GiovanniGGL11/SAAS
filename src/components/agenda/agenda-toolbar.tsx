@@ -3,6 +3,7 @@
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ export function AgendaToolbar({
   view,
   onViewChange,
   anchorDate,
+  weekStartDate,
   weekEndDate,
   timezone,
   onPrev,
@@ -38,6 +40,7 @@ export function AgendaToolbar({
   view: 'day' | 'week';
   onViewChange: (view: 'day' | 'week') => void;
   anchorDate: CalendarDate;
+  weekStartDate: CalendarDate;
   weekEndDate: CalendarDate;
   timezone: string;
   onPrev: () => void;
@@ -56,48 +59,42 @@ export function AgendaToolbar({
   const rangeLabel =
     view === 'day'
       ? formatDayMonthInTz(anchorDate, timezone)
-      : `${formatDayMonthInTz(anchorDate, timezone)} – ${formatDayMonthInTz(weekEndDate, timezone)}`;
+      : `${formatDayMonthInTz(weekStartDate, timezone)} – ${formatDayMonthInTz(weekEndDate, timezone)}`;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" onClick={onPrev} aria-label="Período anterior">
-          <ChevronLeftIcon className="size-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={onNext} aria-label="Próximo período">
-          <ChevronRightIcon className="size-4" />
-        </Button>
-        <Button variant="outline" size="sm" onClick={onToday}>
-          Hoje
-        </Button>
-        <span className="ml-1 text-sm font-medium">{rangeLabel}</span>
+        <div className="bg-foreground/[0.06] flex items-center rounded-full p-0.5">
+          <Button variant="ghost" size="icon-sm" onClick={onPrev} aria-label="Período anterior">
+            <ChevronLeftIcon className="size-4" />
+          </Button>
+          <Button variant="ghost" size="sm" className="px-3" onClick={onToday}>
+            Hoje
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={onNext} aria-label="Próximo período">
+            <ChevronRightIcon className="size-4" />
+          </Button>
+        </div>
+        <span className="ml-2 text-[17px] font-semibold tracking-[-0.01em] tabular-nums">
+          {rangeLabel}
+        </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="bg-muted flex rounded-md p-0.5">
-          <Button
-            size="sm"
-            variant={view === 'day' ? 'default' : 'ghost'}
-            className="h-7"
-            onClick={() => onViewChange('day')}
-          >
-            Dia
-          </Button>
-          <Button
-            size="sm"
-            variant={view === 'week' ? 'default' : 'ghost'}
-            className="h-7"
-            onClick={() => onViewChange('week')}
-          >
-            Semana
-          </Button>
-        </div>
+        <SegmentedControl
+          value={view}
+          onValueChange={onViewChange}
+          options={[
+            { value: 'day', label: 'Dia' },
+            { value: 'week', label: 'Semana' },
+          ]}
+        />
 
         <Select
           value={professionalFilter ?? ALL}
           onValueChange={(v: string) => onProfessionalFilterChange(v === ALL ? undefined : v)}
         >
-          <SelectTrigger className="h-8 w-40 text-xs">
+          <SelectTrigger size="sm" className="w-44 text-xs">
             <SelectValue placeholder="Profissional" />
           </SelectTrigger>
           <SelectContent>
@@ -114,7 +111,7 @@ export function AgendaToolbar({
           value={serviceFilter ?? ALL}
           onValueChange={(v: string) => onServiceFilterChange(v === ALL ? undefined : v)}
         >
-          <SelectTrigger className="h-8 w-40 text-xs">
+          <SelectTrigger size="sm" className="w-44 text-xs">
             <SelectValue placeholder="Serviço" />
           </SelectTrigger>
           <SelectContent>
@@ -131,7 +128,7 @@ export function AgendaToolbar({
           value={statusFilter ?? ALL}
           onValueChange={(v: string) => onStatusFilterChange(v === ALL ? undefined : v)}
         >
-          <SelectTrigger className="h-8 w-36 text-xs">
+          <SelectTrigger size="sm" className="w-36 text-xs">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -144,7 +141,7 @@ export function AgendaToolbar({
           </SelectContent>
         </Select>
 
-        <Button size="sm" onClick={onNewAppointment}>
+        <Button onClick={onNewAppointment}>
           <PlusIcon className="size-4" />
           Novo agendamento
         </Button>

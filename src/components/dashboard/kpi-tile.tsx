@@ -23,7 +23,8 @@ export function KpiTile({
   index?: number;
 }) {
   const hasDelta = delta !== undefined && delta !== null;
-  const isPositive = hasDelta && delta >= 0;
+  const isFlat = hasDelta && Math.abs(delta) < 0.05;
+  const isPositive = hasDelta && delta > 0;
 
   return (
     <AppleTile index={index} className="flex flex-col justify-between gap-5 p-4 md:p-6">
@@ -39,16 +40,19 @@ export function KpiTile({
             <span
               className={cn(
                 'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
-                isPositive
-                  ? 'bg-system-green/15 text-delta-good'
-                  : 'bg-system-red/12 text-destructive',
+                isFlat
+                  ? 'bg-foreground/[0.06] text-label-secondary'
+                  : isPositive
+                    ? 'bg-system-green/15 text-delta-good'
+                    : 'bg-system-red/12 text-destructive',
               )}
             >
-              {isPositive ? (
-                <ArrowUpRightIcon className="size-3" strokeWidth={2.5} />
-              ) : (
-                <ArrowDownRightIcon className="size-3" strokeWidth={2.5} />
-              )}
+              {!isFlat &&
+                (isPositive ? (
+                  <ArrowUpRightIcon className="size-3" strokeWidth={2.5} />
+                ) : (
+                  <ArrowDownRightIcon className="size-3" strokeWidth={2.5} />
+                ))}
               {Math.abs(delta).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
             </span>
           ) : null}

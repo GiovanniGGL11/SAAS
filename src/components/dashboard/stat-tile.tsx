@@ -1,49 +1,85 @@
 'use client';
 
-import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react';
-import { motion } from 'motion/react';
+import type { LucideIcon } from 'lucide-react';
+import { ArrowDownRightIcon, ArrowUpRightIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { AppleTile, TileEyebrow } from '@/components/dashboard/apple-tile';
 
 export function StatTile({
   label,
   value,
   delta,
+  hint,
+  icon: Icon,
+  iconColor = 'var(--system-blue)',
+  valueClassName,
   index = 0,
 }: {
   label: string;
   value: string;
   /** Percentage change vs. the prior period. null = no comparable prior data. */
   delta?: number | null;
+  /** Small secondary line under the value. */
+  hint?: React.ReactNode;
+  icon?: LucideIcon;
+  iconColor?: string;
+  valueClassName?: string;
   /** Position in a group of tiles, used to stagger the entrance animation. */
   index?: number;
 }) {
   const hasDelta = delta !== undefined && delta !== null;
-  const isPositive = hasDelta && delta >= 0;
+  const isFlat = hasDelta && Math.abs(delta) < 0.05;
+  const isPositive = hasDelta && delta > 0;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.05, ease: [0.34, 1.56, 0.64, 1] }}
-      className="hover:border-primary/30 rounded-lg border p-4 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5"
-    >
-      <div className="text-muted-foreground text-sm">{label}</div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tracking-tight tabular-nums">{value}</span>
-        {hasDelta && (
+    <AppleTile index={index} className="flex flex-col justify-between gap-4 p-4 md:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <TileEyebrow>{label}</TileEyebrow>
+        {Icon && (
           <span
-            className={cn(
-              'flex items-center gap-0.5 text-xs font-medium tabular-nums',
-              isPositive ? 'text-delta-good' : 'text-destructive',
-            )}
+            className="flex size-7 items-center justify-center rounded-full text-white"
+            style={{ backgroundColor: iconColor }}
           >
-            {isPositive ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />}
-            {Math.abs(delta).toFixed(1)}%
+            <Icon className="size-3.5" strokeWidth={2.5} />
           </span>
         )}
       </div>
-      {hasDelta && <div className="text-muted-foreground mt-1 text-xs">vs. 30 dias anteriores</div>}
-    </motion.div>
+      <div>
+        <div
+          className={cn(
+            'truncate text-[22px] leading-none font-semibold tracking-[-0.025em] tabular-nums md:text-[26px]',
+            valueClassName,
+          )}
+        >
+          {value}
+        </div>
+        {(hasDelta || hint) && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {hasDelta && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
+                  isFlat
+                    ? 'bg-foreground/[0.06] text-label-secondary'
+                    : isPositive
+                      ? 'bg-system-green/15 text-delta-good'
+                      : 'bg-system-red/12 text-destructive',
+                )}
+              >
+                {!isFlat &&
+                  (isPositive ? (
+                    <ArrowUpRightIcon className="size-3" strokeWidth={2.5} />
+                  ) : (
+                    <ArrowDownRightIcon className="size-3" strokeWidth={2.5} />
+                  ))}
+                {Math.abs(delta).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+              </span>
+            )}
+            {hint && <span className="text-label-secondary text-xs">{hint}</span>}
+          </div>
+        )}
+      </div>
+    </AppleTile>
   );
 }

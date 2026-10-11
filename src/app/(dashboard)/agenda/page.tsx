@@ -17,8 +17,10 @@ export default async function AgendaPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Agenda</h1>
-        <p className="text-muted-foreground text-sm">
+        <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em] md:text-[34px]">
+          Agenda
+        </h1>
+        <p className="text-label-secondary mt-1 text-[15px]">
           Arraste para reagendar, clique para ver detalhes ou alterar o status.
         </p>
       </div>
