@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@/generated/prisma/client';
 
-export type AuditAction = 'created' | 'moved' | 'status_changed' | 'canceled';
+export type AuditAction = 'created' | 'moved' | 'status_changed' | 'canceled' | 'deleted';
 
 export async function recordAuditLog(params: {
   companyId: string;

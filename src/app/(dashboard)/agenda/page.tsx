@@ -16,14 +16,8 @@ export default async function AgendaPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em] md:text-[34px]">
-          Agenda
-        </h1>
-        <p className="text-label-secondary mt-1 text-[15px]">
-          Arraste para reagendar, clique para ver detalhes ou alterar o status.
-        </p>
-      </div>
+      {/* O título visível é o período no topo da agenda, como no Google Agenda. */}
+      <h1 className="sr-only">Agenda</h1>
       <AgendaView
         timezone={company.timezone}
         professionals={professionals.map(serializeProfessional)}

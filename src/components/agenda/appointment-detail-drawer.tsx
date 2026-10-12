@@ -4,6 +4,8 @@ import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
+
 import {
   Drawer,
   DrawerClose,
@@ -30,7 +32,9 @@ import {
 import {
   ACTIVE_STATUS_OPTIONS,
   STATUS_BADGE_VARIANT,
+  STATUS_COLORS,
   STATUS_LABELS,
+  quickStatusActions,
 } from '@/components/agenda/status';
 import { AppointmentProductsSection } from '@/components/agenda/appointment-products-section';
 import { formatCurrencyBRL } from '@/lib/serialize';
@@ -55,7 +59,7 @@ export function AppointmentDetailDrawer({
 
   const statusMutation = useMutation({
     mutationFn: (status: Exclude<AppointmentStatus, 'CANCELED'>) =>
-      updateAppointmentStatusAction({ id: appointment!.id, status }),
+      updateAppointmentStatusAction({ id: appointment!.id, status }).then(unwrapResult),
     onSuccess: () => {
       toast.success('Status atualizado.');
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -65,7 +69,9 @@ export function AppointmentDetailDrawer({
 
   const cancelMutation = useMutation({
     mutationFn: () =>
-      cancelAppointmentAction({ id: appointment!.id, reason: cancelReason || undefined }),
+      cancelAppointmentAction({ id: appointment!.id, reason: cancelReason || undefined }).then(
+        unwrapResult,
+      ),
     onSuccess: () => {
       toast.success('Agendamento cancelado.');
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -97,6 +103,32 @@ export function AppointmentDetailDrawer({
         </DrawerHeader>
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 text-sm">
+          {/* O próximo passo do atendimento em um clique — a lista completa continua abaixo. */}
+          {!isCanceled && quickStatusActions(appointment.status).length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {quickStatusActions(appointment.status).map((action) => (
+                <Button
+                  key={action.status}
+                  size="sm"
+                  variant={action.primary ? 'default' : 'outline'}
+                  disabled={statusMutation.isPending}
+                  onClick={() => statusMutation.mutate(action.status)}
+                >
+                  <span
+                    className="size-2 rounded-full"
+                    style={{
+                      backgroundColor: action.primary
+                        ? 'currentColor'
+                        : STATUS_COLORS[action.status],
+                    }}
+                    aria-hidden
+                  />
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="text-muted-foreground text-xs">Profissional</div>
@@ -125,7 +157,7 @@ export function AppointmentDetailDrawer({
 
           {!isCanceled && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-muted-foreground text-xs">Status</span>
+              <span className="text-muted-foreground text-xs">Mudar status</span>
               <Select
                 value={appointment.status}
                 disabled={statusMutation.isPending}

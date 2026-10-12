@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
+
 import {
   Drawer,
   DrawerClose,
@@ -28,8 +30,17 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { createAppointmentAction } from '@/server/actions/agenda-actions';
-import { calendarDateToUtc, utcToCalendarDate, utcToMinutesSinceMidnight } from '@/lib/time';
+import {
+  createAppointmentAction,
+  findNextAvailableSlotAction,
+} from '@/server/actions/agenda-actions';
+import { createClientAction } from '@/server/actions/client-actions';
+import {
+  calendarDateToUtc,
+  formatTimeInTz,
+  utcToCalendarDate,
+  utcToMinutesSinceMidnight,
+} from '@/lib/time';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
 import type { Client } from '@/generated/prisma/client';
@@ -59,6 +70,8 @@ export function CreateAppointmentDrawer({
   onOpenChange,
   defaultStartAt,
   defaultProfessionalId,
+  defaultClientId,
+  defaultServiceId,
   clients,
   professionals,
   services,
@@ -68,12 +81,21 @@ export function CreateAppointmentDrawer({
   onOpenChange: (open: boolean) => void;
   defaultStartAt: Date;
   defaultProfessionalId?: string;
+  /** Vêm preenchidos quando a pessoa começou pelo cartão rápido e clicou em "Mais opções". */
+  defaultClientId?: string;
+  defaultServiceId?: string;
   clients: Client[];
   professionals: SerializedProfessional[];
   services: SerializedService[];
   timezone: string;
 }) {
   const queryClient = useQueryClient();
+
+  // Cliente criado aqui ainda não está na lista que veio do servidor; entra na hora.
+  const [createdClients, setCreatedClients] = React.useState<Client[]>([]);
+  const [newClientOpen, setNewClientOpen] = React.useState(false);
+  const [newClientName, setNewClientName] = React.useState('');
+  const [newClientPhone, setNewClientPhone] = React.useState('');
 
   const defaultDate = React.useMemo(
     () => utcToCalendarDate(defaultStartAt, timezone),
@@ -87,9 +109,9 @@ export function CreateAppointmentDrawer({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     values: {
-      clientId: '',
+      clientId: defaultClientId ?? '',
       professionalId: defaultProfessionalId ?? '',
-      serviceId: '',
+      serviceId: defaultServiceId ?? '',
       date: toDateInputValue(defaultDate),
       time: toTimeInputValue(defaultMinutes),
       notes: '',
@@ -102,13 +124,15 @@ export function CreateAppointmentDrawer({
       const [hour, minute] = values.time.split(':').map(Number);
       const startAt = calendarDateToUtc({ year, month, day }, hour * 60 + minute, timezone);
 
-      return createAppointmentAction({
-        clientId: values.clientId,
-        professionalId: values.professionalId,
-        serviceId: values.serviceId,
-        startAt,
-        notes: values.notes,
-      });
+      return unwrapResult(
+        await createAppointmentAction({
+          clientId: values.clientId,
+          professionalId: values.professionalId,
+          serviceId: values.serviceId,
+          startAt,
+          notes: values.notes,
+        }),
+      );
     },
     onSuccess: () => {
       toast.success('Agendamento criado com sucesso.');
@@ -119,6 +143,48 @@ export function CreateAppointmentDrawer({
     onError: (error: Error) => {
       toast.error(error.message || 'Não foi possível criar o agendamento.');
     },
+  });
+
+  const createClientMutation = useMutation({
+    mutationFn: () =>
+      createClientAction({ name: newClientName.trim(), phone: newClientPhone.trim() || undefined }),
+    onSuccess: (client) => {
+      setCreatedClients((list) => [...list, client]);
+      form.setValue('clientId', client.id, { shouldValidate: true });
+      setNewClientOpen(false);
+      setNewClientName('');
+      setNewClientPhone('');
+      toast.success(`Cliente ${client.name} cadastrado.`);
+    },
+    onError: (error: Error) =>
+      toast.error(error.message || 'Não foi possível cadastrar o cliente.'),
+  });
+
+  /** "Quando tem vaga?" — o primeiro horário em que o serviço cabe, com o profissional escolhido ou qualquer um. */
+  const nextSlotMutation = useMutation({
+    mutationFn: async () =>
+      unwrapResult(
+        await findNextAvailableSlotAction({
+          serviceId: form.getValues('serviceId'),
+          professionalId: form.getValues('professionalId') || undefined,
+          from: new Date(),
+        }),
+      ),
+    onSuccess: (slot) => {
+      if (!slot) {
+        toast.info('Nenhum horário livre nos próximos 14 dias.');
+        return;
+      }
+      const day = utcToCalendarDate(slot.startAt, timezone);
+      form.setValue('date', toDateInputValue(day), { shouldValidate: true });
+      form.setValue('time', formatTimeInTz(slot.startAt, timezone), { shouldValidate: true });
+      form.setValue('professionalId', slot.professionalId, { shouldValidate: true });
+      const name = professionals.find((p) => p.id === slot.professionalId)?.name;
+      toast.success(
+        `Próximo horário livre: ${String(day.day).padStart(2, '0')}/${String(day.month).padStart(2, '0')} às ${formatTimeInTz(slot.startAt, timezone)}${name ? ` com ${name}` : ''}.`,
+      );
+    },
+    onError: (error: Error) => toast.error(error.message || 'Não foi possível buscar horários.'),
   });
 
   const watchedServiceId = form.watch('serviceId');
@@ -135,7 +201,7 @@ export function CreateAppointmentDrawer({
     return toTimeInputValue(endHour * 60 + endMinute);
   }, [selectedService, watchedTime]);
 
-  const clientOptions: ComboboxOption[] = clients.map((c) => ({
+  const clientOptions: ComboboxOption[] = [...clients, ...createdClients].map((c) => ({
     value: c.id,
     label: c.name,
     description: c.phone ?? undefined,
@@ -168,16 +234,55 @@ export function CreateAppointmentDrawer({
               name="clientId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cliente</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={clientOptions}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Selecionar cliente"
-                      searchPlaceholder="Buscar cliente..."
-                    />
-                  </FormControl>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Cliente</FormLabel>
+                    <button
+                      type="button"
+                      onClick={() => setNewClientOpen((open) => !open)}
+                      className="text-system-blue text-xs font-medium hover:underline"
+                    >
+                      {newClientOpen ? 'Escolher existente' : '+ Novo cliente'}
+                    </button>
+                  </div>
+                  {newClientOpen ? (
+                    // Cliente que liga pela primeira vez: cadastra aqui, sem sair da agenda.
+                    <div className="bg-foreground/[0.03] ring-foreground/[0.06] flex flex-col gap-2 rounded-xl p-3 ring-1">
+                      <Input
+                        autoFocus
+                        placeholder="Nome do cliente"
+                        value={newClientName}
+                        onChange={(e) => setNewClientName(e.target.value)}
+                        maxLength={200}
+                      />
+                      <Input
+                        placeholder="Telefone (opcional)"
+                        inputMode="tel"
+                        value={newClientPhone}
+                        onChange={(e) => setNewClientPhone(e.target.value)}
+                        maxLength={30}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!newClientName.trim() || createClientMutation.isPending}
+                        onClick={() => createClientMutation.mutate()}
+                      >
+                        {createClientMutation.isPending
+                          ? 'Cadastrando...'
+                          : 'Cadastrar e selecionar'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <FormControl>
+                      <Combobox
+                        options={clientOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Selecionar cliente"
+                        searchPlaceholder="Buscar cliente..."
+                      />
+                    </FormControl>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -251,6 +356,18 @@ export function CreateAppointmentDrawer({
                 )}
               />
             </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="-mt-1 self-start"
+              disabled={!watchedServiceId || nextSlotMutation.isPending}
+              title={watchedServiceId ? undefined : 'Escolha o serviço primeiro'}
+              onClick={() => nextSlotMutation.mutate()}
+            >
+              {nextSlotMutation.isPending ? 'Buscando...' : 'Próximo horário livre'}
+            </Button>
 
             {estimatedEndTime && (
               <p className="text-muted-foreground -mt-2 text-xs">
