@@ -4,19 +4,33 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 // unauthenticated users never render dashboard pages. It does not replace
 // the mandatory `requireCurrentCompany()` check inside every Server Action,
 // Route Handler and server-rendered page (see src/server/auth/require-current-company.ts).
+// Cada rota exata e suas subpáginas — "/agenda(.*)" também casaria com "/agendar", a página
+// pública de agendamento, e mandaria o cliente para o login.
 const isProtectedRoute = createRouteMatcher([
-  '/dashboard(.*)',
-  '/onboarding(.*)',
-  '/agenda(.*)',
-  '/clientes(.*)',
-  '/profissionais(.*)',
-  '/servicos(.*)',
-  '/estoque(.*)',
-  '/financeiro(.*)',
-  '/campanhas(.*)',
-  '/fidelidade(.*)',
-  '/relatorios(.*)',
-  '/configuracoes(.*)',
+  '/dashboard',
+  '/dashboard/(.*)',
+  '/onboarding',
+  '/onboarding/(.*)',
+  '/agenda',
+  '/agenda/(.*)',
+  '/clientes',
+  '/clientes/(.*)',
+  '/profissionais',
+  '/profissionais/(.*)',
+  '/servicos',
+  '/servicos/(.*)',
+  '/estoque',
+  '/estoque/(.*)',
+  '/financeiro',
+  '/financeiro/(.*)',
+  '/campanhas',
+  '/campanhas/(.*)',
+  '/fidelidade',
+  '/fidelidade/(.*)',
+  '/relatorios',
+  '/relatorios/(.*)',
+  '/configuracoes',
+  '/configuracoes/(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

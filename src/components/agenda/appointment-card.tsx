@@ -26,6 +26,7 @@ import {
 } from '@/server/actions/agenda-actions';
 import { formatTimeInTz } from '@/lib/time';
 import { formatPhone, whatsappLink } from '@/lib/phone';
+import { getConfirmationLinkAction } from '@/server/actions/public-booking-actions';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { AppointmentStatus } from '@/generated/prisma/client';
 
@@ -62,6 +63,7 @@ export function AppointmentCard({
   });
 
   const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [sendingWhatsapp, setSendingWhatsapp] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState('');
   const cancelMutation = useMutation({
     mutationFn: () =>
@@ -139,19 +141,27 @@ export function AppointmentCard({
                 {formatPhone(appointment.client.phone)}
               </a>
               {whatsappLink(appointment.client.phone) && (
-                // Confirmação pelo WhatsApp com um clique, sem integração: abre a conversa com a
-                // mensagem pronta.
-                <a
-                  href={whatsappLink(
-                    appointment.client.phone,
-                    `Olá, ${appointment.client.name.split(' ')[0]}! Confirmando seu horário: ${appointment.serviceNameSnapshot}, ${dateLabel} às ${formatTimeInTz(appointment.startAt, timezone)}. Podemos confirmar?`,
-                  )!}
-                  target="_blank"
-                  rel="noreferrer"
+                // Mensagem de confirmação pronta, com o link para o cliente confirmar ou cancelar
+                // sozinho (a agenda atualiza quando ele responde).
+                <button
+                  type="button"
+                  disabled={sendingWhatsapp}
+                  onClick={async () => {
+                    // Abre a aba já no clique: depois de esperar o link, o navegador bloquearia.
+                    const tab = window.open('about:blank', '_blank');
+                    setSendingWhatsapp(true);
+                    const link = await getConfirmationLinkAction(appointment.id)
+                      .then((r) => (r.ok ? r.data.url : null))
+                      .finally(() => setSendingWhatsapp(false));
+                    const message = `Olá, ${appointment.client.name.split(' ')[0]}! Seu horário: ${appointment.serviceNameSnapshot}, ${dateLabel} às ${formatTimeInTz(appointment.startAt, timezone)}.${link ? ` Confirme ou cancele por aqui: ${link}` : ' Podemos confirmar?'}`;
+                    const url = whatsappLink(appointment.client.phone, message)!;
+                    if (tab) tab.location.href = url;
+                    else window.location.href = url;
+                  }}
                   className="text-system-green font-medium hover:underline"
                 >
                   WhatsApp
-                </a>
+                </button>
               )}
             </span>
           </Row>
