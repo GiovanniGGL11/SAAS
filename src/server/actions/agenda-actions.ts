@@ -11,6 +11,9 @@ import {
   deleteScheduleBlock,
   findNextAvailableSlot,
   getScheduleContext,
+  getProfessionalAvailability,
+  resizeAppointment,
+  setProfessionalAvailability,
   listAppointmentsInRange,
   moveAppointment,
   updateAppointmentStatus,
@@ -23,6 +26,8 @@ import {
   deleteScheduleBlockInput,
   moveAppointmentInput,
   nextAvailableSlotInput,
+  professionalAvailabilityInput,
+  resizeAppointmentInput,
   scheduleContextInput,
   updateAppointmentStatusInput,
 } from '@/lib/validations/appointment';
@@ -174,5 +179,35 @@ export async function findNextAvailableSlotAction(input: unknown) {
     const parsed = nextAvailableSlotInput.parse(input);
     const { company } = await requireCurrentCompany();
     return findNextAvailableSlot({ companyId: company.id, timezone: company.timezone, ...parsed });
+  });
+}
+
+export async function resizeAppointmentAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = resizeAppointmentInput.parse(input);
+    const { userId, company } = await requireCurrentCompany();
+    const appointment = await resizeAppointment({
+      companyId: company.id,
+      ...parsed,
+      updatedByUserId: userId,
+    });
+    revalidatePath('/agenda');
+    return serializeAppointment(appointment);
+  });
+}
+
+export async function getProfessionalAvailabilityAction(professionalId: string) {
+  const { company } = await requireCurrentCompany();
+  return getProfessionalAvailability(company.id, professionalId);
+}
+
+export async function setProfessionalAvailabilityAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = professionalAvailabilityInput.parse(input);
+    const { company } = await requireCurrentCompany();
+    await setProfessionalAvailability({ companyId: company.id, ...parsed });
+    revalidatePath('/agenda');
+    revalidatePath('/profissionais');
+    return { ok: true };
   });
 }

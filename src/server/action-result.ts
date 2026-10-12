@@ -5,6 +5,7 @@ import {
   AppointmentNotFoundError,
   ForeignEntityMismatchError,
   InvalidBlockRangeError,
+  InvalidDurationError,
 } from '@/server/data/appointments';
 
 /**
@@ -23,6 +24,7 @@ const EXPECTED_ERRORS = [
   AppointmentNotFoundError,
   ForeignEntityMismatchError,
   InvalidBlockRangeError,
+  InvalidDurationError,
 ];
 
 export async function toActionResult<T>(run: () => Promise<T>): Promise<ActionResult<T>> {

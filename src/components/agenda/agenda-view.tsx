@@ -34,6 +34,7 @@ import {
   getAppointmentsForRangeAction,
   getScheduleContextAction,
   moveAppointmentAction,
+  resizeAppointmentAction,
   updateAppointmentStatusAction,
 } from '@/server/actions/agenda-actions';
 import {
@@ -248,6 +249,25 @@ export function AgendaView({
       if (context?.previous) queryClient.setQueryData(appointmentsKey, context.previous);
     },
     onSuccess: () => toast.success('Agendamento movido.'),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+  });
+
+  const resizeMutation = useMutation({
+    mutationFn: (input: { id: string; endAt: Date }) =>
+      resizeAppointmentAction(input).then(unwrapResult),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: ['appointments'] });
+      const previous = query.data;
+      queryClient.setQueryData<GridAppointment[]>(appointmentsKey, (current) =>
+        current?.map((a) => (a.id === input.id ? { ...a, endAt: input.endAt } : a)),
+      );
+      return { previous };
+    },
+    onError: (error: Error, _input, context) => {
+      toast.error(error.message || 'Não foi possível mudar a duração.');
+      if (context?.previous) queryClient.setQueryData(appointmentsKey, context.previous);
+    },
+    onSuccess: () => toast.success('Duração atualizada.'),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['appointments'] }),
   });
 
@@ -519,7 +539,42 @@ export function AgendaView({
           onCreate={() => openFullCreate({ startAt: suggestedStartAt() })}
         />
 
-        {appointments.length > 0 && <AgendaSummary appointments={appointments} />}
+        {/* No celular a coluna esquerda some: os profissionais viram chips para mostrar/esconder. */}
+        {professionals.length > 1 && (
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:hidden">
+            {professionals.map((professional) => {
+              const visible = !hiddenProfessionalIds.has(professional.id);
+              return (
+                <button
+                  key={professional.id}
+                  type="button"
+                  aria-pressed={visible}
+                  onClick={() => {
+                    const next = new Set(hiddenProfessionalIds);
+                    if (next.has(professional.id)) next.delete(professional.id);
+                    else next.add(professional.id);
+                    setHidden(next);
+                  }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-colors"
+                  style={{
+                    backgroundColor: visible ? professional.color : 'transparent',
+                    color: visible ? 'white' : undefined,
+                    borderColor: professional.color,
+                    boxShadow: `inset 0 0 0 1px ${professional.color}`,
+                  }}
+                >
+                  {professional.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {appointments.length > 0 && (
+          <div className="hidden sm:block">
+            <AgendaSummary appointments={appointments} />
+          </div>
+        )}
 
         {query.isLoading ? (
           <Skeleton className="h-[600px] w-full rounded-[22px]" />
@@ -577,12 +632,18 @@ export function AgendaView({
                 professionalId: view === 'day' ? targetColumn.id : undefined,
               })
             }
-            onSlotClick={(column, startAt, point) =>
+            onAppointmentResize={(appointment, endAt) =>
+              resizeMutation.mutate({ id: appointment.id, endAt })
+            }
+            onSlotClick={(column, startAt, point, endAt) =>
               setPanel({
                 kind: 'quick-create',
                 point,
                 defaults: {
                   startAt,
+                  durationMinutes: endAt
+                    ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
+                    : undefined,
                   professionalId:
                     view === 'day'
                       ? column.id

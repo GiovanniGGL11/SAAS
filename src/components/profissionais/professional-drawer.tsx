@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { AvailabilityEditor } from '@/components/profissionais/availability-editor';
 import { ColorPicker, PRESET_COLORS } from '@/components/ui/color-picker';
 import {
   Select,
@@ -203,6 +204,15 @@ export function ProfessionalDrawer({
                 />
               )}
             </div>
+
+            {/* Expediente tem gravação própria: precisa do profissional já salvo. */}
+            {isEdit ? (
+              <AvailabilityEditor professionalId={professional.id} />
+            ) : (
+              <p className="text-label-secondary text-xs">
+                Depois de salvar, abra o profissional de novo para definir o expediente da semana.
+              </p>
+            )}
           </form>
         </Form>
 

@@ -495,3 +495,76 @@ export async function findNextAvailableSlot(params: {
   }
   return null;
 }
+
+export class InvalidDurationError extends Error {
+  constructor() {
+    super('O atendimento precisa durar pelo menos 15 minutos.');
+    this.name = 'InvalidDurationError';
+  }
+}
+
+/** Puxar a borda do card: muda só o fim, conferindo conflito com o novo intervalo. */
+export async function resizeAppointment(params: {
+  companyId: string;
+  id: string;
+  endAt: Date;
+  updatedByUserId: string;
+}): Promise<Appointment> {
+  const existing = await prisma.appointment.findFirst({
+    where: { id: params.id, companyId: params.companyId },
+  });
+  if (!existing) throw new AppointmentNotFoundError();
+  if (params.endAt.getTime() - existing.startAt.getTime() < 15 * 60_000) throw new InvalidDurationError();
+
+  await assertNoConflict({
+    companyId: params.companyId,
+    professionalId: existing.professionalId,
+    startAt: existing.startAt,
+    endAt: params.endAt,
+    excludeAppointmentId: existing.id,
+  });
+
+  await prisma.appointment.updateMany({
+    where: { id: params.id, companyId: params.companyId },
+    data: { endAt: params.endAt, updatedByUserId: params.updatedByUserId },
+  });
+  await recordAuditLog({
+    companyId: params.companyId,
+    entityType: 'Appointment',
+    entityId: params.id,
+    action: 'moved',
+    userId: params.updatedByUserId,
+    metadata: { endAt: params.endAt.toISOString(), resized: true },
+  });
+  return (await prisma.appointment.findFirst({ where: { id: params.id, companyId: params.companyId } }))!;
+}
+
+export type AvailabilityInput = { weekday: number; startTime: string; endTime: string }[];
+
+/** Expediente semanal do profissional: substitui tudo de uma vez, numa transação. */
+export async function setProfessionalAvailability(params: {
+  companyId: string;
+  professionalId: string;
+  availabilities: AvailabilityInput;
+}) {
+  const professional = await prisma.professional.findFirst({
+    where: { id: params.professionalId, companyId: params.companyId },
+    select: { id: true },
+  });
+  if (!professional) throw new ForeignEntityMismatchError('professional');
+
+  await prisma.$transaction([
+    prisma.professionalAvailability.deleteMany({ where: { professionalId: params.professionalId } }),
+    prisma.professionalAvailability.createMany({
+      data: params.availabilities.map((a) => ({ ...a, professionalId: params.professionalId })),
+    }),
+  ]);
+}
+
+export async function getProfessionalAvailability(companyId: string, professionalId: string) {
+  return prisma.professionalAvailability.findMany({
+    where: { professionalId, professional: { companyId } },
+    select: { weekday: true, startTime: true, endTime: true },
+    orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+  });
+}

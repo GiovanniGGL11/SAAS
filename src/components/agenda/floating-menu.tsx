@@ -30,7 +30,10 @@ export function FloatingPanel({
   children: React.ReactNode;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
-  const [placed, setPlaced] = React.useState<{ left: number; top: number } | null>(null);
+  // No celular o cartão vira painel de baixo, como nos apps de calendário: o ponto do toque não
+  // deixa espaço para um cartão de 360px na tela estreita. Só renderiza depois de um clique, então
+  // `window` existe.
+  const isSheet = position !== null && typeof window !== 'undefined' && window.innerWidth < 640;
 
   React.useEffect(() => {
     if (!position) return;
@@ -53,21 +56,28 @@ export function FloatingPanel({
     };
   }, [position, onClose]);
 
-  // Mede depois de montar para saber a altura real e caber na tela.
+  // Mede e reposiciona direto no elemento para caber na tela — de novo sempre que o conteúdo muda
+  // de tamanho (abrir a confirmação de cancelar, trocar de aba), senão a parte de baixo some.
   React.useLayoutEffect(() => {
-    if (!position || !ref.current) {
-      setPlaced(null);
-      return;
-    }
-    const height = ref.current.offsetHeight;
-    const margin = 12;
-    let left = position.x + 8;
-    if (left + width > window.innerWidth - margin) left = Math.max(margin, position.x - width - 8);
-    let top = position.y - 24;
-    if (top + height > window.innerHeight - margin)
-      top = Math.max(margin, window.innerHeight - height - margin);
-    setPlaced({ left, top: Math.max(margin, top) });
-  }, [position, width, children]);
+    const el = ref.current;
+    if (!position || !el || isSheet) return;
+    const place = () => {
+      const margin = 12;
+      let left = position.x + 8;
+      if (left + width > window.innerWidth - margin)
+        left = Math.max(margin, position.x - width - 8);
+      let top = position.y - 24;
+      if (top + el.offsetHeight > window.innerHeight - margin)
+        top = Math.max(margin, window.innerHeight - el.offsetHeight - margin);
+      el.style.left = `${left}px`;
+      el.style.top = `${Math.max(margin, top)}px`;
+      el.style.visibility = 'visible';
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [position, width, isSheet]);
 
   if (!position) return null;
 
@@ -77,10 +87,13 @@ export function FloatingPanel({
       role="dialog"
       className={cn(
         'bg-background ring-foreground/10 fixed z-50 rounded-2xl shadow-2xl ring-1',
-        !placed && 'invisible',
+        isSheet &&
+          'right-0 bottom-0 left-0 max-h-[85svh] overflow-y-auto rounded-b-none pb-[env(safe-area-inset-bottom)]',
         className,
       )}
-      style={{ width, left: placed?.left ?? position.x, top: placed?.top ?? position.y }}
+      style={
+        isSheet ? undefined : { width, left: position.x, top: position.y, visibility: 'hidden' }
+      }
     >
       {children}
     </div>

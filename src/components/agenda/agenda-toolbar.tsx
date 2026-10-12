@@ -93,7 +93,7 @@ export function AgendaToolbar({
         >
           <ChevronRightIcon className="size-5" />
         </Button>
-        <h2 className="ml-1 text-[22px] font-semibold tracking-[-0.02em] first-letter:uppercase">
+        <h2 className="ml-1 text-[18px] font-semibold tracking-[-0.02em] first-letter:uppercase sm:text-[22px]">
           {periodTitle(view, anchorDate, weekStartDate)}
         </h2>
       </div>

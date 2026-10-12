@@ -15,10 +15,14 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { STATUS_COLORS, STATUS_LABELS, quickStatusActions } from '@/components/agenda/status';
 import type { GridAppointment } from '@/components/agenda/calendar-grid';
 import { unwrapResult } from '@/lib/action-result';
-import { updateAppointmentStatusAction } from '@/server/actions/agenda-actions';
+import {
+  cancelAppointmentAction,
+  updateAppointmentStatusAction,
+} from '@/server/actions/agenda-actions';
 import { formatTimeInTz } from '@/lib/time';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { AppointmentStatus } from '@/generated/prisma/client';
@@ -49,6 +53,22 @@ export function AppointmentCard({
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
+  });
+
+  const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState('');
+  const cancelMutation = useMutation({
+    mutationFn: () =>
+      cancelAppointmentAction({
+        id: appointment.id,
+        reason: cancelReason.trim() || undefined,
+      }).then(unwrapResult),
+    onSuccess: () => {
+      toast.success('Agendamento cancelado.');
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      onClose();
+    },
+    onError: (error: Error) => toast.error(error.message || 'Não foi possível cancelar.'),
   });
 
   const dateLabel = new Intl.DateTimeFormat('pt-BR', {
@@ -141,13 +161,50 @@ export function AppointmentCard({
             ))}
           </div>
         )}
-        <button
-          type="button"
-          onClick={onOpenDetails}
-          className="text-system-blue self-start text-[13px] font-medium hover:underline"
-        >
-          Mais detalhes, produtos e cancelamento
-        </button>
+        {confirmCancel ? (
+          <div className="bg-destructive/[0.06] flex flex-col gap-2 rounded-xl p-3">
+            <span className="text-[13px] font-medium">Cancelar este agendamento?</span>
+            <Input
+              autoFocus
+              placeholder="Motivo (opcional)"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              maxLength={500}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={cancelMutation.isPending}
+                onClick={() => cancelMutation.mutate()}
+              >
+                {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar agendamento'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmCancel(false)}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={onOpenDetails}
+              className="text-system-blue text-[13px] font-medium hover:underline"
+            >
+              Mais detalhes e produtos
+            </button>
+            {appointment.status !== 'CANCELED' && appointment.status !== 'DONE' && (
+              <button
+                type="button"
+                onClick={() => setConfirmCancel(true)}
+                className="text-destructive text-[13px] font-medium hover:underline"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

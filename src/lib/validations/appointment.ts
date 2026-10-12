@@ -59,3 +59,25 @@ export const nextAvailableSlotInput = z.object({
   professionalId: z.string().min(1).optional(),
   from: z.coerce.date(),
 });
+
+export const resizeAppointmentInput = z.object({
+  id: z.string().min(1),
+  endAt: z.coerce.date(),
+});
+
+const timeString = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido');
+
+export const professionalAvailabilityInput = z.object({
+  professionalId: z.string().min(1),
+  availabilities: z
+    .array(
+      z
+        .object({
+          weekday: z.number().int().min(0).max(6),
+          startTime: timeString,
+          endTime: timeString,
+        })
+        .refine((a) => a.endTime > a.startTime, 'O fim precisa ser depois do início'),
+    )
+    .max(28),
+});

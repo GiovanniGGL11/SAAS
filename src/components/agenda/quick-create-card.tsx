@@ -14,6 +14,7 @@ import {
   createAppointmentAction,
   createScheduleBlockAction,
 } from '@/server/actions/agenda-actions';
+import { createClientAction } from '@/server/actions/client-actions';
 import { formatTimeInTz } from '@/lib/time';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
@@ -23,6 +24,8 @@ const REASON_SUGGESTIONS = ['Almoço', 'Folga', 'Consulta médica'];
 
 export type QuickCreateDefaults = {
   startAt: Date;
+  /** Quando a pessoa arrastou um intervalo: vira a duração do bloqueio. */
+  durationMinutes?: number;
   professionalId?: string;
   clientId?: string;
   serviceId?: string;
@@ -55,7 +58,11 @@ export function QuickCreateCard({
   const [clientId, setClientId] = React.useState('');
   const [serviceId, setServiceId] = React.useState('');
   const [professionalId, setProfessionalId] = React.useState(defaults.professionalId ?? '');
-  const [blockMinutes, setBlockMinutes] = React.useState(60);
+  const [blockMinutes, setBlockMinutes] = React.useState(defaults.durationMinutes ?? 60);
+  // Cliente que liga pela primeira vez: cadastra aqui mesmo, junto com o agendamento.
+  const [newClient, setNewClient] = React.useState(false);
+  const [newClientName, setNewClientName] = React.useState('');
+  const [newClientPhone, setNewClientPhone] = React.useState('');
   const [reason, setReason] = React.useState('');
 
   const service = services.find((s) => s.id === serviceId);
@@ -71,15 +78,24 @@ export function QuickCreateCard({
   }).format(defaults.startAt);
 
   const createAppointment = useMutation({
-    mutationFn: async () =>
-      unwrapResult(
+    mutationFn: async () => {
+      let id = clientId;
+      if (newClient) {
+        const created = await createClientAction({
+          name: newClientName.trim(),
+          phone: newClientPhone.trim() || undefined,
+        });
+        id = created.id;
+      }
+      return unwrapResult(
         await createAppointmentAction({
-          clientId,
+          clientId: id,
           serviceId,
           professionalId,
           startAt: defaults.startAt,
         }),
-      ),
+      );
+    },
     onSuccess: () => {
       toast.success('Agendamento criado.');
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -124,7 +140,7 @@ export function QuickCreateCard({
 
   const canSave =
     tab === 'appointment'
-      ? Boolean(clientId && serviceId && professionalId)
+      ? Boolean((newClient ? newClientName.trim() : clientId) && serviceId && professionalId)
       : Boolean(professionalId);
   const saving = createAppointment.isPending || createBlock.isPending;
 
@@ -176,13 +192,39 @@ export function QuickCreateCard({
 
       {tab === 'appointment' ? (
         <>
-          <Combobox
-            options={clientOptions}
-            value={clientId}
-            onChange={setClientId}
-            placeholder="Cliente"
-            searchPlaceholder="Buscar cliente..."
-          />
+          {newClient ? (
+            <div className="flex flex-col gap-2">
+              <Input
+                autoFocus
+                placeholder="Nome do cliente novo"
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                maxLength={200}
+              />
+              <Input
+                placeholder="Telefone (opcional)"
+                inputMode="tel"
+                value={newClientPhone}
+                onChange={(e) => setNewClientPhone(e.target.value)}
+                maxLength={30}
+              />
+            </div>
+          ) : (
+            <Combobox
+              options={clientOptions}
+              value={clientId}
+              onChange={setClientId}
+              placeholder="Cliente"
+              searchPlaceholder="Buscar cliente..."
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => setNewClient((v) => !v)}
+            className="text-system-blue -mt-1 self-start text-[12px] font-medium hover:underline"
+          >
+            {newClient ? 'Escolher cliente cadastrado' : '+ Cliente novo'}
+          </button>
           <Combobox
             options={serviceOptions}
             value={serviceId}
@@ -194,20 +236,24 @@ export function QuickCreateCard({
       ) : (
         <>
           <div className="flex flex-wrap gap-1.5">
-            {[30, 60, 90, 120].map((minutes) => (
-              <button
-                key={minutes}
-                type="button"
-                onClick={() => setBlockMinutes(minutes)}
-                className={
-                  minutes === blockMinutes
-                    ? 'bg-foreground text-background rounded-full px-2.5 py-1 text-[12px]'
-                    : 'bg-foreground/[0.06] hover:bg-foreground/[0.1] rounded-full px-2.5 py-1 text-[12px]'
-                }
-              >
-                {minutes < 60 ? `${minutes} min` : `${minutes / 60}h${minutes % 60 ? '30' : ''}`}
-              </button>
-            ))}
+            {[...new Set([30, 60, 90, 120, blockMinutes])]
+              .sort((a, b) => a - b)
+              .map((minutes) => (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => setBlockMinutes(minutes)}
+                  className={
+                    minutes === blockMinutes
+                      ? 'bg-foreground text-background rounded-full px-2.5 py-1 text-[12px]'
+                      : 'bg-foreground/[0.06] hover:bg-foreground/[0.1] rounded-full px-2.5 py-1 text-[12px]'
+                  }
+                >
+                  {minutes < 60
+                    ? `${minutes} min`
+                    : `${Math.floor(minutes / 60)}h${minutes % 60 ? String(minutes % 60).padStart(2, '0') : ''}`}
+                </button>
+              ))}
           </div>
           <Input
             placeholder="Motivo (opcional)"
