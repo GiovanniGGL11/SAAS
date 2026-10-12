@@ -113,3 +113,13 @@ export function formatDayMonthInTz(date: CalendarDate, timeZone: string): string
     instant,
   );
 }
+
+export function formatDayMonthYearInTz(date: CalendarDate, timeZone: string): string {
+  const instant = startOfCalendarDateUtc(date, timeZone);
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(instant);
+}

@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { STATUS_LABELS, ACTIVE_STATUS_OPTIONS } from '@/components/agenda/status';
-import { type CalendarDate, formatDayMonthInTz } from '@/lib/time';
+import { type CalendarDate, formatDayMonthYearInTz } from '@/lib/time';
 import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
 
 const ALL = '__all__';
@@ -58,8 +58,8 @@ export function AgendaToolbar({
 }) {
   const rangeLabel =
     view === 'day'
-      ? formatDayMonthInTz(anchorDate, timezone)
-      : `${formatDayMonthInTz(weekStartDate, timezone)} – ${formatDayMonthInTz(weekEndDate, timezone)}`;
+      ? formatDayMonthYearInTz(anchorDate, timezone)
+      : `${formatDayMonthYearInTz(weekStartDate, timezone)} – ${formatDayMonthYearInTz(weekEndDate, timezone)}`;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
