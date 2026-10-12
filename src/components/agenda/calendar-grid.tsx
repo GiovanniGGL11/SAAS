@@ -141,22 +141,35 @@ function DraggableAppointment({
   );
 }
 
+/** Minutos desde a meia-noite do horário sob o ponteiro, arredondado para baixo no slot. */
+function minutesAtPointer(event: React.MouseEvent<HTMLElement>): number {
+  const offsetY = event.clientY - event.currentTarget.getBoundingClientRect().top;
+  const slot = Math.floor(offsetY / (PIXELS_PER_HOUR / 60) / SLOT_MINUTES) * SLOT_MINUTES;
+  return DAY_START_HOUR * 60 + Math.min(Math.max(0, slot), TOTAL_MINUTES - SLOT_MINUTES);
+}
+
+function formatMinutes(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
 export function CalendarGrid({
   columns,
   appointments,
   timezone,
-  allowColumnChange,
   getColumnIdForAppointment,
   onAppointmentClick,
   onAppointmentMove,
+  onSlotClick,
 }: {
   columns: GridColumn[];
   appointments: SerializedAppointment[];
   timezone: string;
-  allowColumnChange: boolean;
   getColumnIdForAppointment: (appointment: SerializedAppointment) => string;
   onAppointmentClick: (appointment: SerializedAppointment) => void;
-  onAppointmentMove: (appointmentId: string, newStartAt: Date) => void;
+  /** `targetColumn` é a coluna onde o card foi solto: outro dia na semana, outro profissional no dia. */
+  onAppointmentMove: (appointmentId: string, newStartAt: Date, targetColumn: GridColumn) => void;
+  /** Clique num horário vazio: agendar ali, sem digitar data e hora. */
+  onSlotClick: (column: GridColumn, startAt: Date) => void;
 }) {
   const columnWidthRef = React.useRef(0);
   const today = React.useMemo(() => utcToCalendarDate(new Date(), timezone), [timezone]);
@@ -174,6 +187,9 @@ export function CalendarGrid({
   // and appointment-detail onClick never fires. Require an intentional
   // 5px move before a drag begins; anything less is treated as a plain click.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // Prévia "+ 09:30" do horário sob o mouse, para o clique no vazio ser descoberto sem explicação.
+  const [hoverSlot, setHoverSlot] = React.useState<{ columnId: string; minutes: number } | null>(null);
 
   const appointmentsByColumn = React.useMemo(() => {
     const map = new Map<string, SerializedAppointment[]>();
@@ -195,7 +211,7 @@ export function CalendarGrid({
     let targetColumnIndex = columns.findIndex(
       (c) => c.id === getColumnIdForAppointment(appointment),
     );
-    if (allowColumnChange && columnWidthRef.current > 0) {
+    if (columnWidthRef.current > 0) {
       const columnDelta = Math.round(event.delta.x / columnWidthRef.current);
       targetColumnIndex = Math.min(
         columns.length - 1,
@@ -209,8 +225,9 @@ export function CalendarGrid({
     const newMinutes = originalMinutes + minutesDelta;
     const newStartAt = calendarDateToUtc(targetColumn.date, newMinutes, timezone);
 
-    if (newStartAt.getTime() === appointment.startAt.getTime()) return;
-    onAppointmentMove(appointment.id, newStartAt);
+    const sameColumn = targetColumn.id === getColumnIdForAppointment(appointment);
+    if (sameColumn && newStartAt.getTime() === appointment.startAt.getTime()) return;
+    onAppointmentMove(appointment.id, newStartAt, targetColumn);
   }
 
   const hourMarks = Array.from(
@@ -269,7 +286,26 @@ export function CalendarGrid({
                   </span>
                 )}
               </div>
-              <div className="relative" style={{ height: GRID_HEIGHT }}>
+              <div
+                className="relative cursor-pointer"
+                style={{ height: GRID_HEIGHT }}
+                onClick={(event) => {
+                  // Clique em cima de um agendamento é do card, não do horário vazio.
+                  if ((event.target as HTMLElement).closest('button')) return;
+                  onSlotClick(column, calendarDateToUtc(column.date, minutesAtPointer(event), timezone));
+                }}
+                onMouseMove={(event) => {
+                  if ((event.target as HTMLElement).closest('button')) {
+                    if (hoverSlot) setHoverSlot(null);
+                    return;
+                  }
+                  const minutes = minutesAtPointer(event);
+                  if (hoverSlot?.columnId !== column.id || hoverSlot.minutes !== minutes) {
+                    setHoverSlot({ columnId: column.id, minutes });
+                  }
+                }}
+                onMouseLeave={() => setHoverSlot(null)}
+              >
                 {hourMarks.slice(0, -1).map((hour) => (
                   <div key={hour} className="border-b" style={{ height: PIXELS_PER_HOUR }} />
                 ))}
@@ -279,6 +315,17 @@ export function CalendarGrid({
                     style={{ top: minutesToTop(nowMinutes) }}
                   >
                     <span className="bg-system-red absolute top-1/2 -left-1 size-2.5 -translate-y-1/2 rounded-full" />
+                  </div>
+                )}
+                {hoverSlot?.columnId === column.id && (
+                  <div
+                    className="border-system-blue/40 bg-system-blue/[0.06] text-system-blue pointer-events-none absolute right-1 left-1 z-10 flex items-center rounded-md border border-dashed px-2 text-[11px] font-medium"
+                    style={{
+                      top: minutesToTop(hoverSlot.minutes - DAY_START_HOUR * 60),
+                      height: minutesToTop(SLOT_MINUTES * 2),
+                    }}
+                  >
+                    + {formatMinutes(hoverSlot.minutes)}
                   </div>
                 )}
                 {layout.map((item) => (

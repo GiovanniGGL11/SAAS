@@ -12,6 +12,8 @@ export type CreateAppointmentInput = z.infer<typeof createAppointmentInput>;
 export const moveAppointmentInput = z.object({
   id: z.string().min(1),
   startAt: z.coerce.date(),
+  // Arrastar para a coluna de outro profissional (visão Dia) troca quem atende.
+  professionalId: z.string().min(1).optional(),
 });
 export type MoveAppointmentInput = z.infer<typeof moveAppointmentInput>;
 

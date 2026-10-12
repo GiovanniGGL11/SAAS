@@ -62,6 +62,7 @@ export async function moveAppointmentAction(input: unknown) {
     companyId: company.id,
     id: parsed.id,
     startAt: parsed.startAt,
+    professionalId: parsed.professionalId,
     updatedByUserId: userId,
   });
 

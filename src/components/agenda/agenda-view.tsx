@@ -17,10 +17,12 @@ import {
 } from '@/server/actions/agenda-actions';
 import {
   addDays,
+  calendarDateToUtc,
   getTodayInTz,
   startOfCalendarDateUtc,
   startOfWeek,
   utcToCalendarDate,
+  utcToMinutesSinceMidnight,
   type CalendarDate,
 } from '@/lib/time';
 import type {
@@ -34,6 +36,34 @@ import type { Client } from '@/generated/prisma/client';
 function dateKey(date: CalendarDate): string {
   return `${date.year}-${date.month}-${date.day}`;
 }
+
+const VIEW_STORAGE_KEY = 'agenda:view';
+const VIEW_CHANGE_EVENT = 'agenda:view-change';
+const DEFAULT_VIEW = 'day' as const;
+
+// Usada quando o navegador bloqueia o localStorage: a troca de visão continua funcionando na visita.
+let viewWithoutStorage: 'day' | 'week' | null = null;
+
+function readSavedView(): 'day' | 'week' {
+  if (viewWithoutStorage) return viewWithoutStorage;
+  try {
+    return localStorage.getItem(VIEW_STORAGE_KEY) === 'week' ? 'week' : DEFAULT_VIEW;
+  } catch {
+    return DEFAULT_VIEW;
+  }
+}
+
+function subscribeView(onChange: () => void) {
+  window.addEventListener(VIEW_CHANGE_EVENT, onChange);
+  window.addEventListener('storage', onChange);
+  return () => {
+    window.removeEventListener(VIEW_CHANGE_EVENT, onChange);
+    window.removeEventListener('storage', onChange);
+  };
+}
+const SLOT_MINUTES = 15;
+const OPENING_MINUTES = 9 * 60;
+const CLOSING_MINUTES = 21 * 60;
 
 export function AgendaView({
   timezone,
@@ -49,13 +79,27 @@ export function AgendaView({
   const queryClient = useQueryClient();
   const today = React.useMemo(() => getTodayInTz(timezone), [timezone]);
 
-  const [view, setView] = React.useState<'day' | 'week'>('week');
+  // Dia, com uma coluna por profissional, é como salão e barbearia olham a agenda no balcão.
+  // A escolha fica lembrada no navegador; no servidor (e na hidratação) vale o padrão.
+  const view = React.useSyncExternalStore(subscribeView, readSavedView, () => DEFAULT_VIEW);
+  const setView = React.useCallback((next: 'day' | 'week') => {
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      viewWithoutStorage = next;
+    }
+    window.dispatchEvent(new Event(VIEW_CHANGE_EVENT));
+  }, []);
   const [anchorDate, setAnchorDate] = React.useState<CalendarDate>(today);
   const [professionalFilter, setProfessionalFilter] = React.useState<string | undefined>();
   const [serviceFilter, setServiceFilter] = React.useState<string | undefined>();
   const [statusFilter, setStatusFilter] = React.useState<string | undefined>();
 
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [createDefaults, setCreateDefaults] = React.useState<{
+    startAt: Date;
+    professionalId?: string;
+  } | null>(null);
   const [selectedAppointment, setSelectedAppointment] =
     React.useState<SerializedAppointment | null>(null);
 
@@ -92,7 +136,8 @@ export function AgendaView({
   });
 
   const moveMutation = useMutation({
-    mutationFn: (input: { id: string; startAt: Date }) => moveAppointmentAction(input),
+    mutationFn: (input: { id: string; startAt: Date; professionalId?: string }) =>
+      moveAppointmentAction(input),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: ['appointments'] });
       const previous = query.data;
@@ -109,10 +154,19 @@ export function AgendaView({
           current?.map((appointment) => {
             if (appointment.id !== input.id) return appointment;
             const durationMs = appointment.endAt.getTime() - appointment.startAt.getTime();
+            const target = input.professionalId
+              ? professionals.find((p) => p.id === input.professionalId)
+              : undefined;
             return {
               ...appointment,
               startAt: input.startAt,
               endAt: new Date(input.startAt.getTime() + durationMs),
+              ...(target
+                ? {
+                    professionalId: target.id,
+                    professional: { id: target.id, name: target.name, color: target.color },
+                  }
+                : {}),
             };
           }),
       );
@@ -163,6 +217,31 @@ export function AgendaView({
           date,
         }));
 
+  /**
+   * Horário sugerido pelo botão "Novo agendamento": o próximo slot livre de hoje quando o período
+   * visível é hoje; senão 09:00 do dia visível. Antes abria na meia-noite do primeiro dia da semana.
+   */
+  function suggestedStartAt(): Date {
+    const day = view === 'day' ? anchorDate : today;
+    const showingToday = view === 'day' ? dateKey(anchorDate) === dateKey(today) : true;
+    if (showingToday) {
+      const nowMinutes = utcToMinutesSinceMidnight(new Date(), timezone);
+      const next = Math.ceil(nowMinutes / SLOT_MINUTES) * SLOT_MINUTES;
+      if (next >= OPENING_MINUTES && next < CLOSING_MINUTES) {
+        return calendarDateToUtc(today, next, timezone);
+      }
+    }
+    const isTodayInWeek =
+      view === 'week' &&
+      Array.from({ length: 7 }, (_, i) => dateKey(addDays(weekStart, i))).includes(dateKey(today));
+    return calendarDateToUtc(view === 'week' && !isTodayInWeek ? weekStart : day, OPENING_MINUTES, timezone);
+  }
+
+  function openCreate(startAt: Date, professionalId?: string) {
+    setCreateDefaults({ startAt, professionalId: professionalId ?? professionalFilter });
+    setCreateOpen(true);
+  }
+
   function getColumnIdForAppointment(appointment: SerializedAppointment): string {
     if (view === 'day') return appointment.professionalId;
     return dateKey(utcToCalendarDate(appointment.startAt, timezone));
@@ -188,7 +267,8 @@ export function AgendaView({
         onServiceFilterChange={setServiceFilter}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
-        onNewAppointment={() => setCreateOpen(true)}
+        onDateSelect={setAnchorDate}
+        onNewAppointment={() => openCreate(suggestedStartAt())}
       />
 
       {query.data && query.data.length > 0 && <AgendaSummary appointments={query.data} />}
@@ -209,18 +289,27 @@ export function AgendaView({
           columns={columns}
           appointments={query.data ?? []}
           timezone={timezone}
-          allowColumnChange={view === 'week'}
           getColumnIdForAppointment={getColumnIdForAppointment}
           onAppointmentClick={setSelectedAppointment}
-          onAppointmentMove={(id, startAt) => moveMutation.mutate({ id, startAt })}
+          onAppointmentMove={(id, startAt, targetColumn) =>
+            // Na visão Dia cada coluna é um profissional: soltar em outra coluna troca quem atende.
+            moveMutation.mutate({
+              id,
+              startAt,
+              professionalId: view === 'day' ? targetColumn.id : undefined,
+            })
+          }
+          onSlotClick={(column, startAt) =>
+            openCreate(startAt, view === 'day' ? column.id : undefined)
+          }
         />
       )}
 
       <CreateAppointmentDrawer
         open={createOpen}
         onOpenChange={setCreateOpen}
-        defaultStartAt={rangeStartAt}
-        defaultProfessionalId={professionalFilter}
+        defaultStartAt={createDefaults?.startAt ?? rangeStartAt}
+        defaultProfessionalId={createDefaults?.professionalId}
         clients={clients}
         professionals={professionals}
         services={services}

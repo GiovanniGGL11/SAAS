@@ -1,9 +1,13 @@
 'use client';
 
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from 'lucide-react';
+import * as React from 'react';
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from 'lucide-react';
+import { ptBR } from 'react-day-picker/locale';
 
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -35,6 +39,7 @@ export function AgendaToolbar({
   onServiceFilterChange,
   statusFilter,
   onStatusFilterChange,
+  onDateSelect,
   onNewAppointment,
 }: {
   view: 'day' | 'week';
@@ -54,6 +59,8 @@ export function AgendaToolbar({
   onServiceFilterChange: (value: string | undefined) => void;
   statusFilter: string | undefined;
   onStatusFilterChange: (value: string | undefined) => void;
+  /** Pular direto para um dia, sem clicar ‹ › semana a semana. */
+  onDateSelect: (date: CalendarDate) => void;
   onNewAppointment: () => void;
 }) {
   const rangeLabel =
@@ -75,9 +82,7 @@ export function AgendaToolbar({
             <ChevronRightIcon className="size-4" />
           </Button>
         </div>
-        <span className="ml-2 text-[17px] font-semibold tracking-[-0.01em] tabular-nums">
-          {rangeLabel}
-        </span>
+        <DateJumpPicker anchorDate={anchorDate} label={rangeLabel} onSelect={onDateSelect} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -147,5 +152,47 @@ export function AgendaToolbar({
         </Button>
       </div>
     </div>
+  );
+}
+
+function DateJumpPicker({
+  anchorDate,
+  label,
+  onSelect,
+}: {
+  anchorDate: CalendarDate;
+  label: string;
+  onSelect: (date: CalendarDate) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  // O calendário trabalha com Date local; só dia/mês/ano atravessam — o fuso da empresa é aplicado
+  // por quem consome a CalendarDate.
+  const selected = new Date(anchorDate.year, anchorDate.month - 1, anchorDate.day);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          className="ml-1 gap-1 px-2 text-[17px] font-semibold tracking-[-0.01em] tabular-nums"
+        >
+          {label}
+          <ChevronDownIcon className="text-label-secondary size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="bg-background w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          locale={ptBR}
+          selected={selected}
+          defaultMonth={selected}
+          onSelect={(date) => {
+            if (!date) return;
+            onSelect({ year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() });
+            setOpen(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
