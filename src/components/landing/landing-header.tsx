@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { CalendarCheck2Icon } from 'lucide-react';
+import Image from 'next/image';
 
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
@@ -29,9 +29,7 @@ export function LandingHeader() {
     >
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
         <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
-          <span className="bg-system-blue flex size-7 items-center justify-center rounded-lg text-white">
-            <CalendarCheck2Icon className="size-4" />
-          </span>
+          <Image src="/images/logo.png" alt="" width={28} height={28} className="size-7" />
           <span>
             Atenda<span className="text-system-blue">fy</span>
           </span>
