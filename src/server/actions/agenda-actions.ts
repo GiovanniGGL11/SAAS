@@ -8,6 +8,8 @@ import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/requir
 import { prisma } from '@/lib/db';
 import {
   cancelAppointment,
+  checkoutAppointment,
+  updateAppointmentDetails,
   createAppointment,
   createScheduleBlock,
   deleteScheduleBlock,
@@ -23,6 +25,8 @@ import {
 import {
   appointmentRangeInput,
   cancelAppointmentInput,
+  checkoutAppointmentInput,
+  updateAppointmentDetailsInput,
   createAppointmentInput,
   createScheduleBlockInput,
   deleteScheduleBlockInput,
@@ -212,5 +216,34 @@ export async function setProfessionalAvailabilityAction(input: unknown) {
     revalidatePath('/agenda');
     revalidatePath('/profissionais');
     return { ok: true };
+  });
+}
+
+export async function checkoutAppointmentAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = checkoutAppointmentInput.parse(input);
+    const { userId, company } = await requireCurrentCompany();
+    const result = await checkoutAppointment({
+      companyId: company.id,
+      ...parsed,
+      updatedByUserId: userId,
+    });
+    revalidatePath('/agenda');
+    revalidatePath('/financeiro');
+    return { total: result.total };
+  });
+}
+
+export async function updateAppointmentDetailsAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = updateAppointmentDetailsInput.parse(input);
+    const { userId, company } = await requireCurrentCompany();
+    const appointment = await updateAppointmentDetails({
+      companyId: company.id,
+      ...parsed,
+      updatedByUserId: userId,
+    });
+    revalidatePath('/agenda');
+    return serializeAppointment(appointment);
   });
 }

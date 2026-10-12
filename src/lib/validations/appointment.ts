@@ -81,3 +81,18 @@ export const professionalAvailabilityInput = z.object({
     )
     .max(28),
 });
+
+export const checkoutAppointmentInput = z.object({
+  id: z.string().min(1).max(64),
+  paymentMethod: z.enum(['CASH', 'PIX', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'OTHER']),
+  discount: z.number().min(0).max(99_999).optional(),
+  couponCode: z.string().trim().max(40).optional(),
+  tip: z.number().min(0).max(99_999).optional(),
+});
+
+export const updateAppointmentDetailsInput = z.object({
+  id: z.string().min(1).max(64),
+  clientId: z.string().min(1).max(64).optional(),
+  serviceId: z.string().min(1).max(64).optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});

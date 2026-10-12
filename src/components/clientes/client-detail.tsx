@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDaysIcon, StarIcon, PencilIcon } from 'lucide-react';
@@ -7,6 +9,7 @@ import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
+import { formatPhone, whatsappLink } from '@/lib/phone';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -93,7 +96,8 @@ export function ClientDetail({
             {!client.active && <Badge variant="outline">Arquivado</Badge>}
           </div>
           <p className="text-muted-foreground text-sm">
-            {client.phone || '—'} {client.email ? `· ${client.email}` : ''}
+            {client.phone ? formatPhone(client.phone) : '—'}{' '}
+            {client.email ? `· ${client.email}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -104,6 +108,16 @@ export function ClientDetail({
               onCheckedChange={(v: boolean) => toggleActive.mutate(v)}
             />
           </div>
+          {whatsappLink(client.phone) && (
+            <Button variant="outline" asChild>
+              <a href={whatsappLink(client.phone)!} target="_blank" rel="noreferrer">
+                WhatsApp
+              </a>
+            </Button>
+          )}
+          <Button variant="outline" asChild>
+            <Link href={`/agenda?cliente=${client.id}`}>Agendar</Link>
+          </Button>
           <Button variant="outline" onClick={() => setDrawerOpen(true)}>
             <PencilIcon className="size-4" />
             Editar

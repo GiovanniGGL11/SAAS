@@ -1,8 +1,14 @@
 import { z } from 'zod';
 
+import { normalizePhone } from '@/lib/phone';
+
 export const clientInput = z.object({
   name: z.string().min(1, 'Informe o nome').max(200),
-  phone: z.string().max(30).optional(),
+  phone: z
+    .string()
+    .max(30)
+    .optional()
+    .transform((v) => normalizePhone(v)),
   email: z.union([z.email(), z.literal('')]).optional(),
   cpf: z.string().max(20).optional(),
   birthDate: z.coerce.date().optional(),

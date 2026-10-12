@@ -1,5 +1,7 @@
 'use client';
 
+import { StockHistoryDialog } from '@/components/estoque/stock-history-dialog';
+
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -37,6 +39,7 @@ import type { SerializedProduct } from '@/lib/serialize';
 export function ProductList({ initialProducts }: { initialProducts: SerializedProduct[] }) {
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const [movementDialogOpen, setMovementDialogOpen] = React.useState(false);
   const [editingProduct, setEditingProduct] = React.useState<SerializedProduct | null>(null);
   const [search, setSearch] = React.useState('');
@@ -86,6 +89,9 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
         description={`${products.filter((p) => p.active).length} produtos ativos · ${formatCurrencyBRL(stockValue)} em estoque (preço de custo).`}
         actions={
           <>
+            <Button variant="outline" onClick={() => setHistoryOpen(true)}>
+              Histórico
+            </Button>
             <Button variant="outline" onClick={() => setMovementDialogOpen(true)}>
               <ArrowLeftRightIcon className="size-4" />
               Nova movimentação
@@ -247,6 +253,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
         onOpenChange={setMovementDialogOpen}
         products={products}
       />
+      <StockHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   );
 }

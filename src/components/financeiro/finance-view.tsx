@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -48,6 +50,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function FinanceView() {
+  const [toCancel, setToCancel] = React.useState<{ id: string; description: string } | null>(null);
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [editingTransaction, setEditingTransaction] = React.useState<SerializedTransaction | null>(
@@ -318,11 +321,7 @@ export function FinanceView() {
                           size="sm"
                           variant="ghost"
                           className="text-destructive"
-                          onClick={() => {
-                            if (window.confirm(`Cancelar o lançamento "${t.description}"?`)) {
-                              cancel.mutate(t.id);
-                            }
-                          }}
+                          onClick={() => setToCancel({ id: t.id, description: t.description })}
                         >
                           Cancelar
                         </Button>
@@ -341,6 +340,21 @@ export function FinanceView() {
         onOpenChange={setDrawerOpen}
         transaction={editingTransaction}
         defaultType={defaultType}
+      />
+      <ConfirmDialog
+        open={toCancel !== null}
+        title="Cancelar lançamento?"
+        description={toCancel ? `"${toCancel.description}" sai das contas do período.` : undefined}
+        confirmLabel="Cancelar lançamento"
+        destructive
+        pending={cancel.isPending}
+        onConfirm={() => {
+          if (toCancel) cancel.mutate(toCancel.id);
+          setToCancel(null);
+        }}
+        onOpenChange={(open) => {
+          if (!open) setToCancel(null);
+        }}
       />
     </div>
   );

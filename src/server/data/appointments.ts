@@ -2,7 +2,14 @@ import { prisma } from '@/lib/db';
 import { recordAuditLog } from '@/server/data/audit';
 import { createIncomeFromAppointment, reverseIncomeFromAppointment } from '@/server/data/finance';
 import { earnLoyaltyFromAppointment, reverseLoyaltyFromAppointment } from '@/server/data/loyalty';
-import type { Appointment, AppointmentStatus, Prisma } from '@/generated/prisma/client';
+import { Prisma as PrismaNamespace } from '@/generated/prisma/client';
+import type {
+  Appointment,
+  AppointmentStatus,
+  PaymentMethod,
+  Prisma,
+} from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 import { addDays, calendarDateToUtc, utcToCalendarDate } from '@/lib/time';
 
 export class AppointmentConflictError extends Error {
@@ -320,6 +327,201 @@ export async function updateAppointmentStatus(params: {
       tx,
     );
     return updated;
+  });
+}
+
+/**
+ * Trocar cliente, serviço ou observação de um agendamento marcado. Trocar o serviço refaz a
+ * duração, o nome e o preço gravados no agendamento, e confere conflito com a nova duração.
+ * Concluído ou cancelado não muda: o caixa já foi lançado com os dados de antes.
+ */
+export async function updateAppointmentDetails(params: {
+  companyId: string;
+  id: string;
+  clientId?: string;
+  serviceId?: string;
+  notes?: string | null;
+  updatedByUserId: string;
+}): Promise<Appointment> {
+  return prisma.$transaction(async (tx) => {
+    await lockAppointment(tx, params.companyId, params.id);
+    const current = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+    if (current.status === 'DONE' || current.status === 'CANCELED') {
+      throw new UserError('Atendimento concluído ou cancelado não pode ser editado.');
+    }
+
+    const data: Prisma.AppointmentUncheckedUpdateManyInput = {
+      updatedByUserId: params.updatedByUserId,
+    };
+    if (params.notes !== undefined) data.notes = params.notes || null;
+
+    if (params.clientId && params.clientId !== current.clientId) {
+      const client = await tx.client.findFirst({
+        where: { id: params.clientId, companyId: params.companyId },
+      });
+      if (!client) throw new ForeignEntityMismatchError('client');
+      data.clientId = client.id;
+    }
+
+    if (params.serviceId && params.serviceId !== current.serviceId) {
+      const service = await tx.service.findFirst({
+        where: { id: params.serviceId, companyId: params.companyId },
+      });
+      if (!service) throw new ForeignEntityMismatchError('service');
+      const endAt = new Date(current.startAt.getTime() + service.durationMinutes * 60_000);
+      await lockProfessionalSchedule(tx, current.professionalId);
+      await assertNoConflict(
+        {
+          companyId: params.companyId,
+          professionalId: current.professionalId,
+          startAt: current.startAt,
+          endAt,
+          excludeAppointmentId: current.id,
+        },
+        tx,
+      );
+      Object.assign(data, {
+        serviceId: service.id,
+        endAt,
+        serviceNameSnapshot: service.name,
+        durationMinutesSnapshot: service.durationMinutes,
+        priceSnapshot: service.price,
+      });
+    }
+
+    await tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data,
+    });
+    await recordAuditLog(
+      {
+        companyId: params.companyId,
+        entityType: 'Appointment',
+        entityId: params.id,
+        action: 'moved',
+        userId: params.updatedByUserId,
+        metadata: {
+          edited: true,
+          clientId: params.clientId ?? null,
+          serviceId: params.serviceId ?? null,
+        },
+      },
+      tx,
+    );
+    return (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+  });
+}
+
+export type CheckoutInput = {
+  companyId: string;
+  id: string;
+  paymentMethod: PaymentMethod;
+  /** Desconto em reais, além do cupom. */
+  discount?: number;
+  couponCode?: string;
+  tip?: number;
+  updatedByUserId: string;
+};
+
+/**
+ * "Concluir e cobrar": a comanda do atendimento. Conclui, lança a receita com a forma de
+ * pagamento e o valor já com desconto e cupom, a gorjeta à parte, e credita a fidelidade —
+ * tudo numa transação. Cupom é conferido (ativo, validade, limite de usos) e gasto aqui.
+ */
+export async function checkoutAppointment(params: CheckoutInput) {
+  return prisma.$transaction(async (tx) => {
+    await lockAppointment(tx, params.companyId, params.id);
+    const appointment = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+    if (appointment.status === 'CANCELED') throw new UserError('Este agendamento está cancelado.');
+    if (appointment.status === 'DONE')
+      throw new UserError('Este atendimento já foi concluído e cobrado.');
+
+    const price = new PrismaNamespace.Decimal(appointment.priceSnapshot);
+    let discount = new PrismaNamespace.Decimal(params.discount ?? 0);
+    const notes: string[] = [];
+
+    if (params.couponCode?.trim()) {
+      const code = params.couponCode.trim().toUpperCase();
+      const coupon = await tx.coupon.findFirst({ where: { companyId: params.companyId, code } });
+      if (!coupon || !coupon.active) throw new UserError('Cupom inválido ou desativado.');
+      if (coupon.expiresAt && coupon.expiresAt < new Date())
+        throw new UserError('Este cupom expirou.');
+      // Gasta o cupom só se ainda houver uso disponível — conferido no próprio UPDATE.
+      const used = await tx.coupon.updateMany({
+        where: {
+          id: coupon.id,
+          ...(coupon.maxUses !== null ? { usedCount: { lt: coupon.maxUses } } : {}),
+        },
+        data: { usedCount: { increment: 1 } },
+      });
+      if (used.count === 0) throw new UserError('Este cupom já atingiu o limite de usos.');
+      const couponDiscount =
+        coupon.discountType === 'PERCENTAGE'
+          ? price.mul(coupon.discountValue).div(100).toDecimalPlaces(2)
+          : new PrismaNamespace.Decimal(coupon.discountValue);
+      discount = discount.add(couponDiscount);
+      notes.push(`cupom:${coupon.code} (−R$ ${couponDiscount.toFixed(2).replace('.', ',')})`);
+    } else if (discount.gt(0)) {
+      notes.push(`Desconto de R$ ${discount.toFixed(2).replace('.', ',')}`);
+    }
+
+    const total = PrismaNamespace.Decimal.max(0, price.sub(discount));
+
+    await tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data: { status: 'DONE', updatedByUserId: params.updatedByUserId },
+    });
+    const done = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+
+    await createIncomeFromAppointment(params.companyId, done, params.updatedByUserId, tx, {
+      amount: total,
+      paymentMethod: params.paymentMethod,
+      notes: notes.join(' · ') || null,
+    });
+    if (params.tip && params.tip > 0) {
+      await tx.transaction.create({
+        data: {
+          companyId: params.companyId,
+          appointmentId: params.id,
+          type: 'INCOME',
+          status: 'PAID',
+          description: `Gorjeta — ${done.serviceNameSnapshot}`,
+          category: 'Gorjeta',
+          amount: params.tip,
+          paymentMethod: params.paymentMethod,
+          paidAt: new Date(),
+          createdByUserId: params.updatedByUserId,
+        },
+      });
+    }
+    await earnLoyaltyFromAppointment(params.companyId, done, params.updatedByUserId, tx);
+    await recordAuditLog(
+      {
+        companyId: params.companyId,
+        entityType: 'Appointment',
+        entityId: params.id,
+        action: 'status_changed',
+        userId: params.updatedByUserId,
+        metadata: {
+          from: appointment.status,
+          status: 'DONE',
+          total: total.toString(),
+          paymentMethod: params.paymentMethod,
+          coupon: params.couponCode ?? null,
+          tip: params.tip ?? 0,
+        },
+      },
+      tx,
+    );
+    return { appointment: done, total: Number(total) };
   });
 }
 

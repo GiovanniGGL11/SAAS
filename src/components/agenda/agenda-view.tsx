@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EyeIcon, Trash2Icon, UserRoundIcon } from 'lucide-react';
@@ -119,7 +120,7 @@ const DEFAULT_END_HOUR = 21;
 
 type Panel =
   | { kind: 'quick-create'; point: ScreenPoint; defaults: QuickCreateDefaults }
-  | { kind: 'appointment'; point: ScreenPoint; appointmentId: string }
+  | { kind: 'appointment'; point: ScreenPoint; appointmentId: string; checkout?: boolean }
   | { kind: 'appointment-menu'; point: ScreenPoint; appointment: GridAppointment }
   | { kind: 'block-menu'; point: ScreenPoint; block: GridBlock };
 
@@ -160,7 +161,14 @@ export function AgendaView({
   const [panel, setPanel] = React.useState<Panel | null>(null);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const closePanel = React.useCallback(() => setPanel(null), []);
-  const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(null);
+  // Vindo do "Agendar" da página do cliente (/agenda?cliente=…): já abre o formulário com ele.
+  const searchParams = useSearchParams();
+  const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(() => {
+    const clientId = searchParams.get('cliente');
+    return clientId
+      ? { startAt: calendarDateToUtc(today, OPENING_MINUTES, timezone), clientId }
+      : null;
+  });
   // Guarda o id, não o objeto: depois de "Confirmar" o painel mostra o status novo, não uma cópia velha.
   const [detailId, setDetailId] = React.useState<string | null>(null);
 
@@ -473,7 +481,14 @@ export function AgendaView({
               />
             ),
             onSelect: () =>
-              statusMutation.mutate({ id: panel.appointment.id, status: action.status }),
+              action.status === 'DONE'
+                ? setPanel({
+                    kind: 'appointment',
+                    point: panel.point,
+                    appointmentId: panel.appointment.id,
+                    checkout: true,
+                  })
+                : statusMutation.mutate({ id: panel.appointment.id, status: action.status }),
           })),
           {
             label: 'Mais detalhes',
@@ -697,6 +712,7 @@ export function AgendaView({
             timezone={timezone}
             color={colorFor(panelAppointment)}
             onClose={closePanel}
+            startInCheckout={panel?.kind === 'appointment' && panel.checkout}
             onOpenDetails={() => {
               setPanel(null);
               setDetailId(panelAppointment.id);
@@ -764,6 +780,8 @@ export function AgendaView({
           if (!open) setDetailId(null);
         }}
         timezone={timezone}
+        clients={clients}
+        services={services}
       />
     </div>
   );

@@ -188,12 +188,21 @@ export async function getCashFlowSummary(
  * be marked DONE more than once across status changes (e.g. DONE -> back to
  * CONFIRMED by mistake -> DONE again) and this must never double-book revenue.
  */
+/** O que a comanda define na cobrança; sem ela, vale o preço do atendimento sem forma de pagamento. */
+export type IncomeCheckout = {
+  amount?: Prisma.Decimal | number;
+  paymentMethod?: PaymentMethod | null;
+  notes?: string | null;
+};
+
 export async function createIncomeFromAppointment(
   companyId: string,
   appointment: Appointment,
   createdByUserId: string,
   db: Prisma.TransactionClient = prisma,
+  checkout: IncomeCheckout = {},
 ): Promise<void> {
+  const amount = checkout.amount ?? appointment.priceSnapshot;
   const existing = await db.transaction.findFirst({
     where: { companyId, appointmentId: appointment.id, category: 'Atendimento' },
     select: { id: true, status: true },
@@ -203,7 +212,13 @@ export async function createIncomeFromAppointment(
     if (existing.status === 'CANCELED') {
       await db.transaction.update({
         where: { id: existing.id },
-        data: { status: 'PAID', paidAt: new Date(), amount: appointment.priceSnapshot },
+        data: {
+          status: 'PAID',
+          paidAt: new Date(),
+          amount,
+          paymentMethod: checkout.paymentMethod ?? null,
+          notes: checkout.notes ?? null,
+        },
       });
     }
     return;
@@ -217,7 +232,9 @@ export async function createIncomeFromAppointment(
       status: 'PAID',
       description: appointment.serviceNameSnapshot,
       category: 'Atendimento',
-      amount: appointment.priceSnapshot,
+      amount,
+      paymentMethod: checkout.paymentMethod ?? null,
+      notes: checkout.notes ?? null,
       paidAt: new Date(),
       createdByUserId,
     },
@@ -233,8 +250,26 @@ export async function reverseIncomeFromAppointment(
   appointmentId: string,
   db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  await db.transaction.updateMany({
+  // Cupom usado na cobrança volta a ficar disponível (o código fica anotado no lançamento).
+  const charged = await db.transaction.findFirst({
     where: { companyId, appointmentId, category: 'Atendimento', status: { not: 'CANCELED' } },
+    select: { notes: true },
+  });
+  const couponCode = charged?.notes?.match(/cupom:(\S+)/)?.[1];
+  if (couponCode) {
+    await db.coupon.updateMany({
+      where: { companyId, code: couponCode, usedCount: { gt: 0 } },
+      data: { usedCount: { decrement: 1 } },
+    });
+  }
+  // Serviço e gorjeta saem juntos; produto vendido continua (a mercadoria saiu).
+  await db.transaction.updateMany({
+    where: {
+      companyId,
+      appointmentId,
+      category: { in: ['Atendimento', 'Gorjeta'] },
+      status: { not: 'CANCELED' },
+    },
     data: { status: 'CANCELED' },
   });
 }

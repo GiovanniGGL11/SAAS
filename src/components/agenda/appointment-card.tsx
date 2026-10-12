@@ -16,6 +16,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CheckoutForm } from '@/components/agenda/checkout-form';
 import { STATUS_COLORS, STATUS_LABELS, quickStatusActions } from '@/components/agenda/status';
 import type { GridAppointment } from '@/components/agenda/calendar-grid';
 import { unwrapResult } from '@/lib/action-result';
@@ -24,6 +25,7 @@ import {
   updateAppointmentStatusAction,
 } from '@/server/actions/agenda-actions';
 import { formatTimeInTz } from '@/lib/time';
+import { formatPhone, whatsappLink } from '@/lib/phone';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { AppointmentStatus } from '@/generated/prisma/client';
 
@@ -37,13 +39,17 @@ export function AppointmentCard({
   color,
   onClose,
   onOpenDetails,
+  startInCheckout = false,
 }: {
   appointment: GridAppointment;
   timezone: string;
   color: string;
   onClose: () => void;
   onOpenDetails: () => void;
+  /** Aberto pelo "Concluir e cobrar" do botão direito: já mostra a comanda. */
+  startInCheckout?: boolean;
 }) {
+  const [showCheckout, setShowCheckout] = React.useState(startInCheckout);
   const queryClient = useQueryClient();
   const statusMutation = useMutation({
     mutationFn: (status: Exclude<AppointmentStatus, 'CANCELED'>) =>
@@ -128,9 +134,26 @@ export function AppointmentCard({
         </Row>
         {appointment.client.phone && (
           <Row icon={<PhoneIcon className="size-4" />}>
-            <a href={`tel:${appointment.client.phone}`} className="hover:underline">
-              {appointment.client.phone}
-            </a>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <a href={`tel:${appointment.client.phone}`} className="hover:underline">
+                {formatPhone(appointment.client.phone)}
+              </a>
+              {whatsappLink(appointment.client.phone) && (
+                // Confirmação pelo WhatsApp com um clique, sem integração: abre a conversa com a
+                // mensagem pronta.
+                <a
+                  href={whatsappLink(
+                    appointment.client.phone,
+                    `Olá, ${appointment.client.name.split(' ')[0]}! Confirmando seu horário: ${appointment.serviceNameSnapshot}, ${dateLabel} às ${formatTimeInTz(appointment.startAt, timezone)}. Podemos confirmar?`,
+                  )!}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-system-green font-medium hover:underline"
+                >
+                  WhatsApp
+                </a>
+              )}
+            </span>
           </Row>
         )}
         {appointment.notes && (
@@ -146,7 +169,15 @@ export function AppointmentCard({
           </span>
         </Row>
 
-        {actions.length > 0 && (
+        {showCheckout && (
+          <CheckoutForm
+            appointmentId={appointment.id}
+            price={appointment.priceSnapshot}
+            onDone={onClose}
+            onCancel={() => setShowCheckout(false)}
+          />
+        )}
+        {!showCheckout && actions.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
             {actions.map((action) => (
               <Button
@@ -154,7 +185,11 @@ export function AppointmentCard({
                 size="sm"
                 variant={action.primary ? 'default' : 'outline'}
                 disabled={statusMutation.isPending}
-                onClick={() => statusMutation.mutate(action.status)}
+                onClick={() =>
+                  action.status === 'DONE'
+                    ? setShowCheckout(true)
+                    : statusMutation.mutate(action.status)
+                }
               >
                 {action.label}
               </Button>

@@ -1,4 +1,6 @@
 import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { prisma } from '@/lib/db';
+import { SetupChecklist } from '@/components/dashboard/setup-checklist';
 import {
   getBusiestHours,
   getDashboardKpis,
@@ -54,6 +56,47 @@ export default async function DashboardPage() {
       }),
     ]);
 
+  const [serviceCount, professionalCount, availabilityCount, clientCount, appointmentCount] =
+    await Promise.all([
+      prisma.service.count({ where: { companyId: company.id, active: true } }),
+      prisma.professional.count({ where: { companyId: company.id, active: true } }),
+      prisma.professionalAvailability.count({ where: { professional: { companyId: company.id } } }),
+      prisma.client.count({ where: { companyId: company.id } }),
+      prisma.appointment.count({ where: { companyId: company.id } }),
+    ]);
+  const setupSteps = [
+    {
+      label: 'Cadastre seus serviços',
+      hint: 'Nome, duração e preço de cada um.',
+      href: '/servicos',
+      done: serviceCount > 0,
+    },
+    {
+      label: 'Cadastre a equipe',
+      hint: 'Cada profissional vira uma coluna da agenda.',
+      href: '/profissionais',
+      done: professionalCount > 0,
+    },
+    {
+      label: 'Defina o expediente',
+      hint: 'Em Profissionais → Editar. A agenda fica cinza fora do horário.',
+      href: '/profissionais',
+      done: availabilityCount > 0,
+    },
+    {
+      label: 'Cadastre ou importe clientes',
+      hint: 'Ou cadastre na hora de agendar.',
+      href: '/clientes',
+      done: clientCount > 0,
+    },
+    {
+      label: 'Faça o primeiro agendamento',
+      hint: 'Clique num horário vazio da agenda.',
+      href: '/agenda',
+      done: appointmentCount > 0,
+    },
+  ];
+
   const { greeting, date } = greetingFor(company.timezone, new Date());
   const revenue14d = revenueByDay.reduce((sum, d) => sum + d.revenue, 0);
   // Same 7h–21h window BusiestHoursChart plots, so the headline matches the highlighted bar.
@@ -65,6 +108,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex w-full flex-col gap-4 md:gap-5">
+      <SetupChecklist steps={setupSteps} />
       <DashboardHero
         eyebrow={date}
         title={`${greeting}, ${company.name}.`}
