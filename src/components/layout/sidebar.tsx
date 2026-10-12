@@ -15,7 +15,7 @@ export function Sidebar() {
         <span className="bg-system-blue flex size-8 items-center justify-center rounded-[10px] text-white shadow-[0_4px_12px_-4px_var(--system-blue)]">
           <CalendarCheck2Icon className="size-4" />
         </span>
-        Meu Negócio
+        Atendafy
       </Link>
       <NavList layoutId="sidebar-active" />
     </aside>

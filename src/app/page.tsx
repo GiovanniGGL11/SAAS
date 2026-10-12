@@ -40,7 +40,7 @@ export default function Home() {
 
       <footer className="border-foreground/[0.06] border-t">
         <div className="text-label-secondary mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-6 text-[13px] sm:flex-row">
-          <span>© {new Date().getFullYear()} Meu Negócio</span>
+          <span>© {new Date().getFullYear()} Atendafy</span>
           <span>Gestão completa para negócios baseados em agendamento.</span>
         </div>
       </footer>
