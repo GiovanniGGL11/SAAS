@@ -23,6 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AvailabilityEditor } from '@/components/profissionais/availability-editor';
@@ -71,7 +72,10 @@ export function ProfessionalDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
-      isEdit ? updateProfessionalAction(professional.id, values) : createProfessionalAction(values),
+      (isEdit
+        ? updateProfessionalAction(professional.id, values)
+        : createProfessionalAction(values)
+      ).then(unwrapResult),
     onSuccess: () => {
       toast.success(isEdit ? 'Profissional atualizado.' : 'Profissional criado.');
       queryClient.invalidateQueries({ queryKey: ['professionals'] });

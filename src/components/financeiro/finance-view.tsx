@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -69,7 +70,7 @@ export function FinanceView() {
   });
 
   const markPaid = useMutation({
-    mutationFn: (id: string) => markTransactionPaidAction(id),
+    mutationFn: (id: string) => markTransactionPaidAction(id).then(unwrapResult),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['cash-flow'] });
@@ -78,7 +79,7 @@ export function FinanceView() {
   });
 
   const cancel = useMutation({
-    mutationFn: (id: string) => cancelTransactionAction(id),
+    mutationFn: (id: string) => cancelTransactionAction(id).then(unwrapResult),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['cash-flow'] });

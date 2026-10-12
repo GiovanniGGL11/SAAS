@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
@@ -38,7 +39,7 @@ export function AppointmentProductsSection({
   });
 
   const sellMutation = useMutation({
-    mutationFn: () => sellProductAction({ appointmentId, productId, quantity }),
+    mutationFn: () => sellProductAction({ appointmentId, productId, quantity }).then(unwrapResult),
     onSuccess: () => {
       toast.success('Produto adicionado ao atendimento.');
       queryClient.invalidateQueries({ queryKey: ['appointment-products', appointmentId] });

@@ -14,7 +14,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -62,7 +70,10 @@ export function TransactionDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
-      isEdit ? updateTransactionAction(transaction.id, values) : createTransactionAction(values),
+      (isEdit
+        ? updateTransactionAction(transaction.id, values)
+        : createTransactionAction(values)
+      ).then(unwrapResult),
     onSuccess: () => {
       toast.success(isEdit ? 'Lançamento atualizado.' : 'Lançamento criado.');
       queryClient.invalidateQueries({ queryKey: ['transactions'] });

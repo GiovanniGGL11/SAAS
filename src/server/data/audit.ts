@@ -3,15 +3,18 @@ import type { Prisma } from '@/generated/prisma/client';
 
 export type AuditAction = 'created' | 'moved' | 'status_changed' | 'canceled' | 'deleted';
 
-export async function recordAuditLog(params: {
-  companyId: string;
-  entityType: string;
-  entityId: string;
-  action: AuditAction;
-  userId: string;
-  metadata?: Prisma.InputJsonValue;
-}): Promise<void> {
-  await prisma.auditLog.create({
+export async function recordAuditLog(
+  params: {
+    companyId: string;
+    entityType: string;
+    entityId: string;
+    action: AuditAction;
+    userId: string;
+    metadata?: Prisma.InputJsonValue;
+  },
+  db: Prisma.TransactionClient = prisma,
+): Promise<void> {
+  await db.auditLog.create({
     data: {
       companyId: params.companyId,
       entityType: params.entityType,

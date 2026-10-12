@@ -23,6 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,9 @@ export function ServiceDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: ServiceFormInput) =>
-      isEdit ? updateServiceAction(service.id, values) : createServiceAction(values),
+      (isEdit ? updateServiceAction(service.id, values) : createServiceAction(values)).then(
+        unwrapResult,
+      ),
     onSuccess: () => {
       toast.success(isEdit ? 'Serviço atualizado.' : 'Serviço criado.');
       queryClient.invalidateQueries({ queryKey: ['services'] });

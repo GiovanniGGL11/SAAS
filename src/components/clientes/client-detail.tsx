@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDaysIcon, StarIcon, PencilIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -49,13 +50,14 @@ export function ClientDetail({
   });
 
   const toggleVip = useMutation({
-    mutationFn: (isVip: boolean) => setClientVipAction({ id: clientId, isVip }),
+    mutationFn: (isVip: boolean) => setClientVipAction({ id: clientId, isVip }).then(unwrapResult),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] }),
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
   });
 
   const toggleActive = useMutation({
-    mutationFn: (active: boolean) => setClientActiveAction({ id: clientId, active }),
+    mutationFn: (active: boolean) =>
+      setClientActiveAction({ id: clientId, active }).then(unwrapResult),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] }),
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
   });
@@ -139,7 +141,9 @@ export function ClientDetail({
             <div>
               <div className="text-muted-foreground text-xs">Nascimento</div>
               <div>
-                {new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
+                {/* A data de nascimento é gravada como meia-noite UTC; no fuso de São Paulo ela
+                    aparecia um dia antes. */}
+                {new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(
                   new Date(client.birthDate),
                 )}
               </div>

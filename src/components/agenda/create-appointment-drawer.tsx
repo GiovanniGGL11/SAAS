@@ -147,7 +147,10 @@ export function CreateAppointmentDrawer({
 
   const createClientMutation = useMutation({
     mutationFn: () =>
-      createClientAction({ name: newClientName.trim(), phone: newClientPhone.trim() || undefined }),
+      createClientAction({
+        name: newClientName.trim(),
+        phone: newClientPhone.trim() || undefined,
+      }).then(unwrapResult),
     onSuccess: (client) => {
       setCreatedClients((list) => [...list, client]);
       form.setValue('clientId', client.id, { shouldValidate: true });

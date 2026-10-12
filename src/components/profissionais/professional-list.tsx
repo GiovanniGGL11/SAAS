@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlusIcon, UserRoundIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -57,7 +58,8 @@ export function ProfessionalList({
   });
 
   const toggleActive = useMutation({
-    mutationFn: (input: { id: string; active: boolean }) => setProfessionalActiveAction(input),
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setProfessionalActiveAction(input).then(unwrapResult),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['professionals'] }),
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
   });

@@ -1,8 +1,11 @@
 'use server';
 
+import { toActionResult } from '@/server/action-result';
+import { parseId } from '@/server/errors';
+
 import { revalidatePath } from 'next/cache';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createService,
   listAllServices,
@@ -19,30 +22,37 @@ export async function listServicesAction() {
 }
 
 export async function createServiceAction(input: unknown) {
-  const parsed = serviceInput.parse(input);
-  const { company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = serviceInput.parse(input);
+    const { company } = await requireCompanyAdmin();
 
-  const service = await createService(company.id, parsed);
-  revalidatePath('/servicos');
-  revalidatePath('/agenda');
-  return serializeService(service);
+    const service = await createService(company.id, parsed);
+    revalidatePath('/servicos');
+    revalidatePath('/agenda');
+    return serializeService(service);
+  });
 }
 
-export async function updateServiceAction(id: string, input: unknown) {
-  const parsed = serviceInput.parse(input);
-  const { company } = await requireCurrentCompany();
+export async function updateServiceAction(rawId: unknown, input: unknown) {
+  return toActionResult(async () => {
+    const id = parseId(rawId);
+    const parsed = serviceInput.parse(input);
+    const { company } = await requireCompanyAdmin();
 
-  const service = await updateService(company.id, id, parsed);
-  revalidatePath('/servicos');
-  revalidatePath('/agenda');
-  return serializeService(service);
+    const service = await updateService(company.id, id, parsed);
+    revalidatePath('/servicos');
+    revalidatePath('/agenda');
+    return serializeService(service);
+  });
 }
 
 export async function setServiceActiveAction(input: unknown) {
-  const parsed = setServiceActiveInput.parse(input);
-  const { company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = setServiceActiveInput.parse(input);
+    const { company } = await requireCompanyAdmin();
 
-  await setServiceActive(company.id, parsed.id, parsed.active);
-  revalidatePath('/servicos');
-  revalidatePath('/agenda');
+    await setServiceActive(company.id, parsed.id, parsed.active);
+    revalidatePath('/servicos');
+    revalidatePath('/agenda');
+  });
 }

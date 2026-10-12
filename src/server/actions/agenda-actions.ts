@@ -1,8 +1,10 @@
 'use server';
 
+import { parseId } from '@/server/errors';
+
 import { revalidatePath } from 'next/cache';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { prisma } from '@/lib/db';
 import {
   cancelAppointment,
@@ -196,7 +198,8 @@ export async function resizeAppointmentAction(input: unknown) {
   });
 }
 
-export async function getProfessionalAvailabilityAction(professionalId: string) {
+export async function getProfessionalAvailabilityAction(rawProfessionalId: unknown) {
+  const professionalId = parseId(rawProfessionalId);
   const { company } = await requireCurrentCompany();
   return getProfessionalAvailability(company.id, professionalId);
 }
@@ -204,7 +207,7 @@ export async function getProfessionalAvailabilityAction(professionalId: string) 
 export async function setProfessionalAvailabilityAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = professionalAvailabilityInput.parse(input);
-    const { company } = await requireCurrentCompany();
+    const { company } = await requireCompanyAdmin();
     await setProfessionalAvailability({ companyId: company.id, ...parsed });
     revalidatePath('/agenda');
     revalidatePath('/profissionais');

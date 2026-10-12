@@ -1,11 +1,11 @@
 import { OrganizationProfile } from '@clerk/nextjs';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireAdminPage } from '@/server/auth/require-current-company';
 import { TimezoneCard } from '@/components/configuracoes/timezone-card';
 import { PageHeader } from '@/components/layout/page';
 
 export default async function ConfiguracoesPage() {
-  const { company } = await requireCurrentCompany();
+  const { company } = await requireAdminPage();
 
   return (
     <div className="flex w-full flex-col gap-8">

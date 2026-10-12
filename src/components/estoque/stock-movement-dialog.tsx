@@ -14,7 +14,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -52,7 +60,7 @@ export function StockMovementDialog({
   });
 
   const mutation = useMutation({
-    mutationFn: (values: unknown) => adjustStockAction(values),
+    mutationFn: (values: unknown) => adjustStockAction(values).then(unwrapResult),
     onSuccess: () => {
       toast.success('Movimentação registrada.');
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -152,7 +160,11 @@ export function StockMovementDialog({
                 <FormItem>
                   <FormLabel>Motivo (opcional)</FormLabel>
                   <FormControl>
-                    <Textarea rows={2} placeholder="Ex: compra de fornecedor, perda..." {...field} />
+                    <Textarea
+                      rows={2}
+                      placeholder="Ex: compra de fornecedor, perda..."
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

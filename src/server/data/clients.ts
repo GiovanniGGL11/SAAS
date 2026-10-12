@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import type { Client } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 
 const INACTIVE_AFTER_DAYS = 60;
 
@@ -72,7 +73,7 @@ export async function updateClient(
       notes: data.notes || null,
     },
   });
-  if (result.count === 0) throw new Error('Client not found');
+  if (result.count === 0) throw new UserError('Cliente não encontrado.');
 
   return (await getClientById(companyId, id))!;
 }
@@ -86,7 +87,7 @@ export async function setClientActive(
     where: { id, companyId },
     data: { active },
   });
-  if (result.count === 0) throw new Error('Client not found');
+  if (result.count === 0) throw new UserError('Cliente não encontrado.');
 }
 
 export async function setClientVip(companyId: string, id: string, isVip: boolean): Promise<void> {
@@ -94,7 +95,7 @@ export async function setClientVip(companyId: string, id: string, isVip: boolean
     where: { id, companyId },
     data: { isVip },
   });
-  if (result.count === 0) throw new Error('Client not found');
+  if (result.count === 0) throw new UserError('Cliente não encontrado.');
 }
 
 export type ClientStats = {

@@ -4,7 +4,20 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 // unauthenticated users never render dashboard pages. It does not replace
 // the mandatory `requireCurrentCompany()` check inside every Server Action,
 // Route Handler and server-rendered page (see src/server/auth/require-current-company.ts).
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/onboarding(.*)']);
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/onboarding(.*)',
+  '/agenda(.*)',
+  '/clientes(.*)',
+  '/profissionais(.*)',
+  '/servicos(.*)',
+  '/estoque(.*)',
+  '/financeiro(.*)',
+  '/campanhas(.*)',
+  '/fidelidade(.*)',
+  '/relatorios(.*)',
+  '/configuracoes(.*)',
+]);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {

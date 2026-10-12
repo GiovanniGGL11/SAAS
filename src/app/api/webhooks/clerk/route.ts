@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyWebhook } from '@clerk/nextjs/webhooks';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@/generated/prisma/client';
 import { softDeleteCompanyByClerkOrgId, upsertCompanyFromClerkOrg } from '@/server/data/company';
 
 export async function POST(request: NextRequest) {
@@ -17,17 +18,9 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Invalid signature', { status: 400 });
   }
 
-  // Idempotency: Svix retries deliveries on timeout/5xx, and Clerk may
-  // redeliver events. Record the delivery id before doing any writes so a
-  // retry of an already-processed event is a no-op.
-  try {
-    await prisma.webhookEvent.create({
-      data: { clerkEventId: svixId, type: event.type },
-    });
-  } catch {
-    // Unique constraint violation => already processed this delivery.
-    return NextResponse.json({ received: true, deduped: true });
-  }
+  // Idempotência: o Svix reenvia em timeout/5xx. Já processado → nada a fazer.
+  const already = await prisma.webhookEvent.findUnique({ where: { clerkEventId: svixId } });
+  if (already) return NextResponse.json({ received: true, deduped: true });
 
   switch (event.type) {
     case 'organization.created':
@@ -47,6 +40,18 @@ export async function POST(request: NextRequest) {
     }
     default:
       break;
+  }
+
+  /*
+    Registra a entrega só depois de processar. Antes registrava primeiro: se o processamento
+    falhasse, o reenvio do Svix era tratado como duplicado e o evento se perdia (empresa renomeada
+    ou excluída sem sincronizar). As operações acima são idempotentes, então reprocessar é seguro.
+  */
+  try {
+    await prisma.webhookEvent.create({ data: { clerkEventId: svixId, type: event.type } });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'))
+      throw error;
   }
 
   return NextResponse.json({ received: true });

@@ -21,6 +21,8 @@ export type NavItem = {
   color: string;
   group: NavGroup;
   comingSoon?: boolean;
+  /** Só para dono/gerente (admin da organização); a equipe não vê no menu. */
+  adminOnly?: boolean;
 };
 
 export type NavGroup = 'Visão geral' | 'Operação' | 'Gestão';
@@ -46,15 +48,44 @@ export const navItems: NavItem[] = [
   },
   { label: 'Serviços', href: '/servicos', icon: Scissors, color: '#ff9500', group: 'Operação' },
   { label: 'Estoque', href: '/estoque', icon: Package, color: '#5856d6', group: 'Operação' },
-  { label: 'Financeiro', href: '/financeiro', icon: Wallet, color: '#30b0c7', group: 'Gestão' },
-  { label: 'Campanhas', href: '/campanhas', icon: Megaphone, color: '#ff2d55', group: 'Gestão' },
-  { label: 'Fidelidade', href: '/fidelidade', icon: Gift, color: '#ff9f0a', group: 'Gestão' },
-  { label: 'Relatórios', href: '/relatorios', icon: BarChart3, color: '#5ac8fa', group: 'Gestão' },
+  {
+    label: 'Financeiro',
+    href: '/financeiro',
+    icon: Wallet,
+    color: '#30b0c7',
+    group: 'Gestão',
+    adminOnly: true,
+  },
+  {
+    label: 'Campanhas',
+    href: '/campanhas',
+    icon: Megaphone,
+    color: '#ff2d55',
+    group: 'Gestão',
+    adminOnly: true,
+  },
+  {
+    label: 'Fidelidade',
+    href: '/fidelidade',
+    icon: Gift,
+    color: '#ff9f0a',
+    group: 'Gestão',
+    adminOnly: true,
+  },
+  {
+    label: 'Relatórios',
+    href: '/relatorios',
+    icon: BarChart3,
+    color: '#5ac8fa',
+    group: 'Gestão',
+    adminOnly: true,
+  },
   {
     label: 'Configurações',
     href: '/configuracoes',
     icon: Settings,
     color: '#8e8e93',
     group: 'Gestão',
+    adminOnly: true,
   },
 ];

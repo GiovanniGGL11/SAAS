@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRightIcon, PlusIcon, StarIcon, UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -46,7 +47,8 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
   });
 
   const toggleActive = useMutation({
-    mutationFn: (input: { id: string; active: boolean }) => setClientActiveAction(input),
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setClientActiveAction(input).then(unwrapResult),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
   });

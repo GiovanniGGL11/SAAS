@@ -81,10 +81,12 @@ export function QuickCreateCard({
     mutationFn: async () => {
       let id = clientId;
       if (newClient) {
-        const created = await createClientAction({
-          name: newClientName.trim(),
-          phone: newClientPhone.trim() || undefined,
-        });
+        const created = unwrapResult(
+          await createClientAction({
+            name: newClientName.trim(),
+            phone: newClientPhone.trim() || undefined,
+          }),
+        );
         id = created.id;
       }
       return unwrapResult(

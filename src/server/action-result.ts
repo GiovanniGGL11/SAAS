@@ -1,5 +1,8 @@
 import { ZodError } from 'zod';
 
+import { Prisma } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
+
 import {
   AppointmentConflictError,
   AppointmentNotFoundError,
@@ -32,9 +35,15 @@ export async function toActionResult<T>(run: () => Promise<T>): Promise<ActionRe
     return { ok: true, data: await run() };
   } catch (error) {
     if (error instanceof ZodError) {
-      return { ok: false, error: 'Confira os dados informados.' };
+      return { ok: false, error: error.issues[0]?.message || 'Confira os dados informados.' };
     }
-    if (EXPECTED_ERRORS.some((Expected) => error instanceof Expected)) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return { ok: false, error: 'Já existe um registro com esses dados.' };
+    }
+    if (
+      error instanceof UserError ||
+      EXPECTED_ERRORS.some((Expected) => error instanceof Expected)
+    ) {
       return { ok: false, error: (error as Error).message };
     }
     throw error;
