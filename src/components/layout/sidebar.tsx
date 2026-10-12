@@ -19,7 +19,9 @@ export function Sidebar() {
           height={32}
           className="size-8 rounded-[10px] shadow-[0_4px_12px_-4px_var(--system-blue)]"
         />
-        Atenda<span className="text-system-blue">fy</span>
+        <span>
+          Atenda<span className="text-system-blue">fy</span>
+        </span>
       </Link>
       <NavList layoutId="sidebar-active" />
     </aside>
