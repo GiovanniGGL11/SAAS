@@ -32,7 +32,20 @@ export type GridColumn = {
   sublabel?: string;
   date: CalendarDate;
   accentColor?: string;
+  /** Linha de apoio no cabeçalho do profissional ("3 atendimentos"). */
+  caption?: string;
 };
+
+function initials(name: string): string {
+  const parts = name
+    .replace(/\(.*?\)/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (
+    (parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')
+  ).toUpperCase();
+}
 
 export type GridAppointment = SerializedAppointment & { isFirstVisit?: boolean };
 
@@ -419,18 +432,45 @@ export function CalendarGrid({
 
   const hourMarks = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
 
+  // Ao abrir (e ao trocar de dia), rola até uma hora antes de agora quando hoje está na tela —
+  // senão até o primeiro agendamento — como o Google faz, em vez de abrir no começo do dia.
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollKey = columns.map((c) => `${c.date.year}-${c.date.month}-${c.date.day}`).join('|');
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const showsToday = columns.some((c) => isSameCalendarDate(c.date, today));
+    const firstAppointment = appointments.reduce<number | null>((min, a) => {
+      const m = utcToMinutesSinceMidnight(a.startAt, timezone);
+      return min === null || m < min ? m : min;
+    }, null);
+    const target = showsToday
+      ? utcToMinutesSinceMidnight(new Date(), timezone) - 60
+      : (firstAppointment ?? startHour * 60) - 30;
+    el.scrollTop = Math.max(0, minutesToTop(target - startHour * 60));
+    // Só ao trocar o período: rolar de novo a cada atualização da lista atrapalharia quem está usando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollKey]);
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1">
+      <div
+        ref={scrollRef}
+        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1"
+      >
         <div className="bg-background sticky left-0 z-20 w-14 shrink-0 border-r">
           <div className="bg-background sticky top-0 z-10 h-16 border-b" />
-          {hourMarks.map((hour) => (
+          {hourMarks.map((hour, index) => (
             <div
               key={hour}
               className="text-muted-foreground relative border-b text-right text-xs"
               style={{ height: PIXELS_PER_HOUR }}
             >
-              <span className="absolute -top-2 right-1">{`${String(hour).padStart(2, '0')}:00`}</span>
+              {/* As outras horas ficam centradas na linha; a primeira desce para dentro da faixa, senão o
+                  cabeçalho fixo (nome do profissional / dia) cobre o rótulo. */}
+              <span className={cn('absolute right-1', index === 0 ? 'top-0.5' : '-top-2')}>
+                {`${String(hour).padStart(2, '0')}:00`}
+              </span>
             </div>
           ))}
         </div>
@@ -456,21 +496,44 @@ export function CalendarGrid({
               {/* Cabeçalho como o do Google Agenda: dia da semana pequeno, número grande num círculo
                   (cheio quando é hoje). Na visão Dia, a coluna é o profissional. */}
               <div className="bg-background/85 sticky top-0 z-10 flex h-16 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md">
-                <span
-                  className={cn(
-                    'flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase',
-                    column.sublabel && isToday ? 'text-system-blue' : 'text-label-secondary',
-                  )}
-                >
-                  {column.accentColor && (
+                {!column.sublabel && column.accentColor ? (
+                  // Visão Dia, "agenda por pessoas": avatar de iniciais, nome e o total do dia.
+                  <div className="flex max-w-full items-center gap-2 px-2">
                     <span
-                      className="size-2 rounded-full"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
                       style={{ backgroundColor: column.accentColor }}
                       aria-hidden
-                    />
-                  )}
-                  {column.label}
-                </span>
+                    >
+                      {initials(column.label)}
+                    </span>
+                    <span className="min-w-0 text-left">
+                      <span className="block truncate text-[13px] font-semibold">
+                        {column.label}
+                      </span>
+                      {column.caption && (
+                        <span className="text-label-secondary block truncate text-[11px]">
+                          {column.caption}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <span
+                    className={cn(
+                      'flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase',
+                      column.sublabel && isToday ? 'text-system-blue' : 'text-label-secondary',
+                    )}
+                  >
+                    {column.accentColor && (
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: column.accentColor }}
+                        aria-hidden
+                      />
+                    )}
+                    {column.label}
+                  </span>
+                )}
                 {column.sublabel && (
                   <span
                     className={cn(

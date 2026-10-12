@@ -158,6 +158,7 @@ export function AgendaView({
   const [statusFilter, setStatusFilter] = React.useState<string | undefined>();
 
   const [panel, setPanel] = React.useState<Panel | null>(null);
+  const [showShortcuts, setShowShortcuts] = React.useState(false);
   const closePanel = React.useCallback(() => setPanel(null), []);
   const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(null);
   // Guarda o id, não o objeto: depois de "Confirmar" o painel mostra o status novo, não uma cópia velha.
@@ -292,12 +293,18 @@ export function AgendaView({
 
   const columns: GridColumn[] =
     view === 'day'
-      ? visibleProfessionals.map((professional) => ({
-          id: professional.id,
-          label: professional.name,
-          date: anchorDate,
-          accentColor: professional.color,
-        }))
+      ? visibleProfessionals.map((professional) => {
+          const count = appointments.filter(
+            (a) => a.professionalId === professional.id && a.status !== 'CANCELED',
+          ).length;
+          return {
+            id: professional.id,
+            label: professional.name,
+            date: anchorDate,
+            accentColor: professional.color,
+            caption: count === 0 ? 'Agenda livre' : `${count} atendimento${count > 1 ? 's' : ''}`,
+          };
+        })
       : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((date) => ({
           id: dateKey(date),
           label: new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, weekday: 'short' })
@@ -436,6 +443,7 @@ export function AgendaView({
       else if (key === 'arrowleft' || key === 'k') navigate(-1);
       else if (key === 'arrowright' || key === 'j') navigate(1);
       else if (key === 'c') openFullCreate({ startAt: suggestedStartAt() });
+      else if (event.key === '?') setShowShortcuts((v) => !v);
       else return;
       event.preventDefault();
     };
@@ -537,6 +545,7 @@ export function AgendaView({
             setAnchorDate(today);
           }}
           onCreate={() => openFullCreate({ startAt: suggestedStartAt() })}
+          onShowShortcuts={() => setShowShortcuts(true)}
         />
 
         {/* No celular a coluna esquerda some: os profissionais viram chips para mostrar/esconder. */}
@@ -694,6 +703,31 @@ export function AgendaView({
             }}
           />
         )}
+      </FloatingPanel>
+
+      <FloatingPanel
+        position={showShortcuts ? { x: window.innerWidth / 2 - 160, y: 140 } : null}
+        onClose={() => setShowShortcuts(false)}
+        width={320}
+      >
+        <div className="flex flex-col gap-2 p-5 text-[13px]">
+          <h3 className="text-[15px] font-semibold">Atalhos de teclado</h3>
+          {[
+            ['T', 'Ir para hoje'],
+            ['D · W · M', 'Visão dia, semana ou mês'],
+            ['← → (ou K J)', 'Período anterior / próximo'],
+            ['C', 'Criar agendamento'],
+            ['Esc', 'Fechar cartão'],
+            ['?', 'Mostrar esta lista'],
+          ].map(([keys, label]) => (
+            <div key={keys} className="flex items-center justify-between gap-4">
+              <span className="text-label-secondary">{label}</span>
+              <kbd className="bg-foreground/[0.06] rounded-md px-2 py-0.5 font-mono text-[12px]">
+                {keys}
+              </kbd>
+            </div>
+          ))}
+        </div>
       </FloatingPanel>
 
       <FloatingMenu
