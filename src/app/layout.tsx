@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Meu Negócio',
+  title: 'Atendafy',
   description: 'Gestão completa para negócios baseados em agendamento.',
 };
 

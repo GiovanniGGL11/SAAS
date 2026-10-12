@@ -1,4 +1,4 @@
-# Meu Negócio
+# Atendafy
 
 SaaS multi-tenant de agendamentos para barbearias, salões, clínicas de estética, manicures, lash designers e qualquer negócio baseado em hora marcada.
 

@@ -15,6 +15,9 @@ type ThemeContextValue = {
 };
 
 const STORAGE_KEY = 'theme';
+// Claro para quem ainda não escolheu. Quem trocou pelo botão continua com a própria escolha,
+// guardada em STORAGE_KEY; "system" (seguir o aparelho) só vale se for escolhido explicitamente.
+const DEFAULT_THEME: Theme = 'light';
 const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefined);
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -42,7 +45,7 @@ function disableTransitionsTemporarily() {
  * rendered by a component: text/javascript so the browser executes it on the
  * initial HTML parse, text/plain (inert) on later client renders.
  */
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}")||"system";var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}")||"${DEFAULT_THEME}";var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
 
 /**
  * Reveals the new theme with a circle that grows from `origin` (View
@@ -89,11 +92,11 @@ function animateThemeChange(apply: (suppressTransitions?: boolean) => void, orig
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'system';
+    if (typeof window === 'undefined') return DEFAULT_THEME;
     try {
-      return (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'system';
+      return (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? DEFAULT_THEME;
     } catch {
-      return 'system';
+      return DEFAULT_THEME;
     }
   });
   const [resolvedTheme, setResolvedTheme] = React.useState<'light' | 'dark' | undefined>(() =>
