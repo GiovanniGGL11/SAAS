@@ -4,10 +4,12 @@ import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createClient,
+  importClients,
   getClientById,
   getClientStats,
   listClientAppointmentHistory,
@@ -20,6 +22,7 @@ import { clientInput, setClientActiveInput, setClientVipInput } from '@/lib/vali
 import { serializeAppointment } from '@/lib/serialize';
 import { Prisma } from '@/generated/prisma/client';
 import { UserError } from '@/server/errors';
+import { normalizePhone } from '@/lib/phone';
 
 function toFriendlyError(error: unknown): Error {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -112,4 +115,37 @@ export async function getClientDetailAction(rawId: unknown) {
     stats,
     history: history.map(serializeAppointment),
   };
+}
+
+const importRowSchema = z.object({
+  name: z.string().max(200),
+  phone: z.string().max(30).optional(),
+  email: z.string().max(200).optional(),
+  cpf: z.string().max(20).optional(),
+  birthDate: z.string().max(10).optional(),
+});
+
+export async function importClientsAction(input: unknown) {
+  return toActionResult(async () => {
+    const rows = z
+      .array(importRowSchema)
+      .max(5000, 'Importe no máximo 5.000 clientes por vez.')
+      .parse(input);
+    const { company } = await requireCompanyAdmin();
+    const result = await importClients(
+      company.id,
+      rows.map((r) => ({
+        name: r.name,
+        phone: normalizePhone(r.phone),
+        email: r.email?.includes('@') ? r.email.trim().toLowerCase() : undefined,
+        cpf: r.cpf?.replace(/\D/g, '') || undefined,
+        birthDate:
+          r.birthDate && /^\d{4}-\d{2}-\d{2}$/.test(r.birthDate)
+            ? new Date(r.birthDate)
+            : undefined,
+      })),
+    );
+    revalidatePath('/clientes');
+    return result;
+  });
 }

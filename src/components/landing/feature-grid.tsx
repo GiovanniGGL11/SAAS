@@ -29,7 +29,7 @@ const FEATURES: Feature[] = [
     color: '#007aff',
     title: 'Agenda inteligente',
     description:
-      'Visualize o dia de cada profissional, arraste horários para remarcar e evite conflitos automaticamente.',
+      'Visualize o dia de cada profissional, arraste horários para remarcar e evite conflitos automaticamente. Seus clientes também agendam sozinhos, por um link.',
     className: 'sm:col-span-2',
   },
   {
@@ -42,7 +42,8 @@ const FEATURES: Feature[] = [
     icon: UserRoundIcon,
     color: '#af52de',
     title: 'Profissionais',
-    description: 'Cadastre a equipe, defina serviços e acompanhe comissões.',
+    description:
+      'Cadastre a equipe, defina o expediente e veja a comissão de cada um no relatório.',
   },
   {
     icon: WalletIcon,
@@ -60,7 +61,8 @@ const FEATURES: Feature[] = [
     icon: MegaphoneIcon,
     color: '#ff2d55',
     title: 'Campanhas',
-    description: 'Crie cupons de desconto para trazer clientes de volta.',
+    description:
+      'Cupons de desconto aplicados na hora de cobrar, e confirmação de horário pelo WhatsApp.',
   },
   {
     icon: BarChart3Icon,

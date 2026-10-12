@@ -118,6 +118,10 @@ export function CreateAppointmentDrawer({
     },
   });
 
+  // Recorrência: 0 = não repete; 1, 2 ou 4 semanas.
+  const [repeatEvery, setRepeatEvery] = React.useState<0 | 1 | 2 | 4>(0);
+  const [repeatTimes, setRepeatTimes] = React.useState(4);
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const [year, month, day] = values.date.split('-').map(Number);
@@ -131,11 +135,20 @@ export function CreateAppointmentDrawer({
           serviceId: values.serviceId,
           startAt,
           notes: values.notes,
+          repeat: repeatEvery ? { everyWeeks: repeatEvery, times: repeatTimes } : undefined,
         }),
       );
     },
-    onSuccess: () => {
-      toast.success('Agendamento criado com sucesso.');
+    onSuccess: (result) => {
+      toast.success(
+        result.repeated > 0
+          ? `Agendamento criado e repetido mais ${result.repeated} vez(es).`
+          : 'Agendamento criado com sucesso.',
+      );
+      if (result.skipped.length) {
+        toast.warning(`Horário ocupado, não repetido em: ${result.skipped.join(', ')}.`);
+      }
+      setRepeatEvery(0);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onOpenChange(false);
       form.reset();
@@ -378,6 +391,48 @@ export function CreateAppointmentDrawer({
                 {selectedService!.durationMinutes} min de duração)
               </p>
             )}
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Repetir</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(
+                  [
+                    [0, 'Não repete'],
+                    [1, 'Toda semana'],
+                    [2, 'A cada 2 semanas'],
+                    [4, 'A cada 4 semanas'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRepeatEvery(value)}
+                    className={
+                      repeatEvery === value
+                        ? 'bg-foreground text-background rounded-full px-3 py-1.5 text-[12px] font-medium'
+                        : 'bg-foreground/[0.06] hover:bg-foreground/[0.1] rounded-full px-3 py-1.5 text-[12px] font-medium'
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+                {repeatEvery > 0 && (
+                  <label className="text-label-secondary ml-1 flex items-center gap-1.5 text-[12px]">
+                    vezes
+                    <Input
+                      type="number"
+                      min={2}
+                      max={12}
+                      value={repeatTimes}
+                      onChange={(e) =>
+                        setRepeatTimes(Math.min(12, Math.max(2, Number(e.target.value) || 2)))
+                      }
+                      className="h-8 w-16"
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
 
             <FormField
               control={form.control}

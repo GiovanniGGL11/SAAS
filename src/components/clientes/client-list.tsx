@@ -1,5 +1,8 @@
 'use client';
 
+import { useAuth } from '@clerk/nextjs';
+import { ImportClientsDialog } from '@/components/clientes/import-clients-dialog';
+
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +40,9 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
+  // Importar é de admin; a equipe só cadastra um por vez.
+  const isAdmin = useAuth().orgRole === 'org:admin';
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<Filter>('active');
 
@@ -72,10 +78,17 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
         title="Clientes"
         description={`${counts.active} ${counts.active === 1 ? 'cliente ativo' : 'clientes ativos'} na sua base.`}
         actions={
-          <Button onClick={() => setDrawerOpen(true)}>
-            <PlusIcon className="size-4" />
-            Novo cliente
-          </Button>
+          <>
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                Importar
+              </Button>
+            )}
+            <Button onClick={() => setDrawerOpen(true)}>
+              <PlusIcon className="size-4" />
+              Novo cliente
+            </Button>
+          </>
         }
       />
 
@@ -165,6 +178,7 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
       </Surface>
 
       <ClientDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
+      <ImportClientsDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );
 }

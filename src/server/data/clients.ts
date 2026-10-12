@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import type { Client } from '@/generated/prisma/client';
+import type { Client, Prisma } from '@/generated/prisma/client';
 import { UserError } from '@/server/errors';
 
 const INACTIVE_AFTER_DAYS = 60;
@@ -138,4 +138,53 @@ export async function listClientAppointmentHistory(companyId: string, clientId: 
     },
     orderBy: { startAt: 'desc' },
   });
+}
+
+export type ImportClientRow = {
+  name: string;
+  phone?: string;
+  email?: string;
+  cpf?: string;
+  birthDate?: Date;
+};
+
+/**
+ * Importação em lote (planilha de outro sistema). Telefone repetido — já cadastrado ou repetido no
+ * próprio arquivo — é pulado, não sobrescreve ninguém.
+ */
+export async function importClients(
+  companyId: string,
+  rows: ImportClientRow[],
+): Promise<{ created: number; skipped: number }> {
+  const existing = await prisma.client.findMany({
+    where: { companyId, phone: { not: null } },
+    select: { phone: true },
+  });
+  const seen = new Set(existing.map((c) => c.phone!));
+  const data: Prisma.ClientCreateManyInput[] = [];
+  let skipped = 0;
+  for (const row of rows) {
+    const name = row.name.trim();
+    if (!name) {
+      skipped++;
+      continue;
+    }
+    if (row.phone) {
+      if (seen.has(row.phone)) {
+        skipped++;
+        continue;
+      }
+      seen.add(row.phone);
+    }
+    data.push({
+      companyId,
+      name: name.slice(0, 200),
+      phone: row.phone || null,
+      email: row.email || null,
+      cpf: row.cpf || null,
+      birthDate: row.birthDate ?? null,
+    });
+  }
+  const result = await prisma.client.createMany({ data, skipDuplicates: true });
+  return { created: result.count, skipped: skipped + (data.length - result.count) };
 }

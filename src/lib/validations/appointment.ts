@@ -6,6 +6,13 @@ export const createAppointmentInput = z.object({
   serviceId: z.string().min(1),
   startAt: z.coerce.date(),
   notes: z.string().max(2000).optional(),
+  /** Repetir o mesmo horário: a cada 1, 2 ou 4 semanas, até 12 vezes ao todo. */
+  repeat: z
+    .object({
+      everyWeeks: z.union([z.literal(1), z.literal(2), z.literal(4)]),
+      times: z.number().int().min(2).max(12),
+    })
+    .optional(),
 });
 export type CreateAppointmentInput = z.infer<typeof createAppointmentInput>;
 

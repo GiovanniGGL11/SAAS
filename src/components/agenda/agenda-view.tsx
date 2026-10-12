@@ -129,11 +129,14 @@ export function AgendaView({
   professionals,
   services,
   clients,
+  myProfessionalId,
 }: {
   timezone: string;
   professionals: SerializedProfessional[];
   services: SerializedService[];
   clients: Client[];
+  /** Profissional da pessoa logada (equipe): a agenda abre só com a coluna dela. */
+  myProfessionalId?: string;
 }) {
   const queryClient = useQueryClient();
   const today = React.useMemo(() => getTodayInTz(timezone), [timezone]);
@@ -147,7 +150,15 @@ export function AgendaView({
     usePref(COLOR_KEY, 'professional') === 'status' ? 'status' : 'professional';
   const setColorMode = React.useCallback((next: ColorMode) => writePref(COLOR_KEY, next), []);
 
-  const hiddenRaw = usePref(HIDDEN_KEY, '');
+  const hiddenRaw = usePref(
+    HIDDEN_KEY,
+    myProfessionalId
+      ? professionals
+          .filter((p) => p.id !== myProfessionalId)
+          .map((p) => p.id)
+          .join(',')
+      : '',
+  );
   const hiddenProfessionalIds = React.useMemo(
     () => new Set(hiddenRaw.split(',').filter(Boolean)),
     [hiddenRaw],
