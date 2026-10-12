@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { SignInOAuthButtons } from '@/components/auth/oauth-buttons';
 import { getClerkErrorMessage } from '@/lib/clerk-errors';
 
-type Step = 'password' | 'forgot-email' | 'forgot-code';
+type Step = 'password' | 'device-code' | 'forgot-email' | 'forgot-code';
 
 export function SignInForm() {
   const { signIn } = useSignIn();
@@ -33,6 +33,43 @@ export function SignInForm() {
       const { error } = await signIn.password({ identifier: email, password });
       if (error) {
         setError(getClerkErrorMessage(error));
+        return;
+      }
+      if (signIn.status === 'complete') {
+        await signIn.finalize();
+        router.push('/dashboard');
+        return;
+      }
+      /*
+        Senha certa num navegador ou aparelho que o Clerk ainda não conhece: ele pede um código
+        por email antes de liberar (Device Trust, status `needs_client_trust`). O mesmo caminho
+        serve para quem tem segunda etapa por email. Sem isto, todo login de aparelho novo parava
+        em "não foi possível concluir".
+      */
+      if (signIn.status === 'needs_client_trust' || signIn.status === 'needs_second_factor') {
+        const sent = await signIn.mfa.sendEmailCode();
+        if (sent.error) {
+          setError(getClerkErrorMessage(sent.error));
+          return;
+        }
+        setCode('');
+        setStep('device-code');
+        return;
+      }
+      setError('Não foi possível concluir o login. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleVerifyDeviceCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(undefined);
+    setSubmitting(true);
+    try {
+      const verified = await signIn.mfa.verifyEmailCode({ code });
+      if (verified.error) {
+        setError(getClerkErrorMessage(verified.error));
         return;
       }
       if (signIn.status === 'complete') {
@@ -96,6 +133,37 @@ export function SignInForm() {
   // Renders the invisible Cloudflare Turnstile challenge if Clerk's bot
   // protection decides one is needed for this flow.
   const captchaSlot = <div id="clerk-captcha" />;
+
+  if (step === 'device-code') {
+    return (
+      <form onSubmit={handleVerifyDeviceCode} className="flex flex-col gap-4">
+        <p className="text-muted-foreground text-sm">
+          Para proteger sua conta, enviamos um código para <strong>{email}</strong>. Digite-o para
+          entrar neste dispositivo.
+        </p>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="device-code">Código recebido por email</Label>
+          <Input
+            id="device-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            required
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="text-center text-lg tracking-widest"
+          />
+        </div>
+        {error && <p className="text-destructive text-sm">{error}</p>}
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Verificando...' : 'Confirmar e entrar'}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setStep('password')}>
+          Voltar
+        </Button>
+      </form>
+    );
+  }
 
   if (step === 'forgot-email') {
     return (

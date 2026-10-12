@@ -178,12 +178,24 @@ export async function moveAppointment(params: {
   companyId: string;
   id: string;
   startAt: Date;
+  /** Quando informado, o atendimento passa para este profissional. */
+  professionalId?: string;
   updatedByUserId: string;
 }): Promise<Appointment> {
   const existing = await prisma.appointment.findFirst({
     where: { id: params.id, companyId: params.companyId },
   });
   if (!existing) throw new AppointmentNotFoundError();
+
+  const professionalId = params.professionalId ?? existing.professionalId;
+  if (professionalId !== existing.professionalId) {
+    // Mesma regra da criação: o profissional de destino tem de ser desta empresa.
+    const professional = await prisma.professional.findFirst({
+      where: { id: professionalId, companyId: params.companyId },
+      select: { id: true },
+    });
+    if (!professional) throw new ForeignEntityMismatchError('professional');
+  }
 
   // Duration is preserved from the existing appointment — moving only
   // shifts the time range, it never resizes it (resize is out of scope
@@ -193,7 +205,7 @@ export async function moveAppointment(params: {
 
   await assertNoConflict({
     companyId: params.companyId,
-    professionalId: existing.professionalId,
+    professionalId,
     startAt: params.startAt,
     endAt,
     excludeAppointmentId: existing.id,
@@ -201,7 +213,7 @@ export async function moveAppointment(params: {
 
   const result = await prisma.appointment.updateMany({
     where: { id: params.id, companyId: params.companyId },
-    data: { startAt: params.startAt, endAt, updatedByUserId: params.updatedByUserId },
+    data: { startAt: params.startAt, endAt, professionalId, updatedByUserId: params.updatedByUserId },
   });
   if (result.count === 0) throw new AppointmentNotFoundError();
 
@@ -211,7 +223,13 @@ export async function moveAppointment(params: {
     entityId: params.id,
     action: 'moved',
     userId: params.updatedByUserId,
-    metadata: { startAt: params.startAt.toISOString(), endAt: endAt.toISOString() },
+    metadata: {
+      startAt: params.startAt.toISOString(),
+      endAt: endAt.toISOString(),
+      ...(professionalId !== existing.professionalId
+        ? { fromProfessionalId: existing.professionalId, toProfessionalId: professionalId }
+        : {}),
+    },
   });
 
   return (await prisma.appointment.findFirst({

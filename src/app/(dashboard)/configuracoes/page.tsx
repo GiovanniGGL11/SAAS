@@ -8,7 +8,7 @@ export default async function ConfiguracoesPage() {
   const { company } = await requireCurrentCompany();
 
   return (
-    <div className="flex max-w-4xl flex-col gap-8">
+    <div className="flex w-full flex-col gap-8">
       <PageHeader
         title="Configurações"
         description="Dados da empresa, aparência, organização e membros da equipe."
