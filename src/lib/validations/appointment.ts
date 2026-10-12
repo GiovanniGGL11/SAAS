@@ -39,3 +39,23 @@ export const appointmentRangeInput = z.object({
     .optional(),
 });
 export type AppointmentRangeInput = z.infer<typeof appointmentRangeInput>;
+
+export const scheduleContextInput = z.object({
+  startAt: z.coerce.date(),
+  endAt: z.coerce.date(),
+});
+
+export const createScheduleBlockInput = z.object({
+  professionalId: z.string().min(1),
+  startAt: z.coerce.date(),
+  endAt: z.coerce.date(),
+  reason: z.string().max(200).optional(),
+});
+
+export const deleteScheduleBlockInput = z.object({ id: z.string().min(1) });
+
+export const nextAvailableSlotInput = z.object({
+  serviceId: z.string().min(1),
+  professionalId: z.string().min(1).optional(),
+  from: z.coerce.date(),
+});

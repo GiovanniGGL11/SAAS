@@ -3,13 +3,14 @@ import { recordAuditLog } from '@/server/data/audit';
 import { createIncomeFromAppointment } from '@/server/data/finance';
 import { earnLoyaltyFromAppointment } from '@/server/data/loyalty';
 import type { Appointment, AppointmentStatus } from '@/generated/prisma/client';
+import { addDays, calendarDateToUtc, utcToCalendarDate } from '@/lib/time';
 
 export class AppointmentConflictError extends Error {
   constructor(reason: 'overlap' | 'blocked') {
     super(
       reason === 'overlap'
-        ? 'This professional already has an appointment in this time range.'
-        : 'This time range is blocked for this professional.',
+        ? 'Este profissional já tem um agendamento nesse horário.'
+        : 'Esse horário está bloqueado na agenda deste profissional.',
     );
     this.name = 'AppointmentConflictError';
   }
@@ -17,14 +18,15 @@ export class AppointmentConflictError extends Error {
 
 export class ForeignEntityMismatchError extends Error {
   constructor(entity: 'client' | 'professional' | 'service') {
-    super(`The given ${entity} does not belong to this company.`);
+    const nome = { client: 'O cliente', professional: 'O profissional', service: 'O serviço' }[entity];
+    super(`${nome} escolhido não pertence a esta empresa.`);
     this.name = 'ForeignEntityMismatchError';
   }
 }
 
 export class AppointmentNotFoundError extends Error {
   constructor() {
-    super('Appointment not found.');
+    super('Agendamento não encontrado.');
     this.name = 'AppointmentNotFoundError';
   }
 }
@@ -301,4 +303,195 @@ export async function cancelAppointment(params: {
   return (await prisma.appointment.findFirst({
     where: { id: params.id, companyId: params.companyId },
   }))!;
+}
+
+// ---------------------------------------------------------------------------
+// Expediente e bloqueios: o que a grade mostra em cinza, e o "próximo horário livre".
+// ---------------------------------------------------------------------------
+
+export class InvalidBlockRangeError extends Error {
+  constructor() {
+    super('O fim do bloqueio precisa ser depois do início.');
+    this.name = 'InvalidBlockRangeError';
+  }
+}
+
+/** Expediente semanal dos profissionais ativos e os bloqueios que tocam o período. */
+export async function getScheduleContext(companyId: string, range: { startAt: Date; endAt: Date }) {
+  const [availabilities, blocks] = await Promise.all([
+    prisma.professionalAvailability.findMany({
+      where: { professional: { companyId, active: true } },
+      select: { professionalId: true, weekday: true, startTime: true, endTime: true },
+    }),
+    prisma.scheduleBlock.findMany({
+      where: {
+        professional: { companyId },
+        startAt: { lt: range.endAt },
+        endAt: { gt: range.startAt },
+      },
+      select: { id: true, professionalId: true, startAt: true, endAt: true, reason: true },
+      orderBy: { startAt: 'asc' },
+    }),
+  ]);
+  return { availabilities, blocks };
+}
+
+export async function createScheduleBlock(params: {
+  companyId: string;
+  professionalId: string;
+  startAt: Date;
+  endAt: Date;
+  reason?: string;
+  createdByUserId: string;
+}) {
+  if (params.endAt.getTime() <= params.startAt.getTime()) throw new InvalidBlockRangeError();
+  const professional = await prisma.professional.findFirst({
+    where: { id: params.professionalId, companyId: params.companyId },
+    select: { id: true },
+  });
+  if (!professional) throw new ForeignEntityMismatchError('professional');
+
+  // Bloquear em cima de um agendamento esconderia um cliente marcado: quem bloqueia precisa
+  // remarcar ou cancelar antes.
+  const overlapping = await prisma.appointment.findFirst({
+    where: {
+      companyId: params.companyId,
+      professionalId: params.professionalId,
+      status: { in: ACTIVE_STATUSES },
+      startAt: { lt: params.endAt },
+      endAt: { gt: params.startAt },
+    },
+    select: { id: true },
+  });
+  if (overlapping) throw new AppointmentConflictError('overlap');
+
+  const block = await prisma.scheduleBlock.create({
+    data: {
+      professionalId: params.professionalId,
+      startAt: params.startAt,
+      endAt: params.endAt,
+      reason: params.reason,
+    },
+  });
+  await recordAuditLog({
+    companyId: params.companyId,
+    entityType: 'ScheduleBlock',
+    entityId: block.id,
+    action: 'created',
+    userId: params.createdByUserId,
+  });
+  return block;
+}
+
+export async function deleteScheduleBlock(params: { companyId: string; id: string; userId: string }) {
+  // O bloqueio não tem companyId próprio: o escopo vem do profissional.
+  const result = await prisma.scheduleBlock.deleteMany({
+    where: { id: params.id, professional: { companyId: params.companyId } },
+  });
+  if (result.count === 0) throw new AppointmentNotFoundError();
+  await recordAuditLog({
+    companyId: params.companyId,
+    entityType: 'ScheduleBlock',
+    entityId: params.id,
+    action: 'deleted',
+    userId: params.userId,
+  });
+}
+
+/** Janela usada para quem ainda não tem expediente cadastrado — a mesma da grade. */
+export const DEFAULT_DAY_WINDOW = { startMinutes: 7 * 60, endMinutes: 21 * 60 };
+
+function timeToMinutes(value: string): number {
+  const [h, m] = value.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+/**
+ * Primeiro horário a partir de `from` em que o serviço cabe inteiro: dentro do expediente do
+ * profissional, sem agendamento ativo nem bloqueio. Sem profissional informado, procura em todos
+ * e devolve quem fica livre primeiro. Procura até 14 dias à frente, em passos de 15 minutos.
+ */
+export async function findNextAvailableSlot(params: {
+  companyId: string;
+  serviceId: string;
+  professionalId?: string;
+  from: Date;
+  timezone: string;
+}): Promise<{ startAt: Date; professionalId: string } | null> {
+  const service = await prisma.service.findFirst({
+    where: { id: params.serviceId, companyId: params.companyId },
+    select: { durationMinutes: true },
+  });
+  if (!service) throw new ForeignEntityMismatchError('service');
+
+  const professionals = await prisma.professional.findMany({
+    where: {
+      companyId: params.companyId,
+      active: true,
+      ...(params.professionalId ? { id: params.professionalId } : {}),
+    },
+    select: { id: true, availabilities: { select: { weekday: true, startTime: true, endTime: true } } },
+  });
+  if (params.professionalId && professionals.length === 0) {
+    throw new ForeignEntityMismatchError('professional');
+  }
+
+  const DAYS = 14;
+  const STEP = 15;
+  const horizonEnd = new Date(params.from.getTime() + (DAYS + 1) * 86_400_000);
+  const ids = professionals.map((p) => p.id);
+  const [busy, blocks] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        companyId: params.companyId,
+        professionalId: { in: ids },
+        status: { in: ACTIVE_STATUSES },
+        startAt: { lt: horizonEnd },
+        endAt: { gt: params.from },
+      },
+      select: { professionalId: true, startAt: true, endAt: true },
+    }),
+    prisma.scheduleBlock.findMany({
+      where: { professionalId: { in: ids }, startAt: { lt: horizonEnd }, endAt: { gt: params.from } },
+      select: { professionalId: true, startAt: true, endAt: true },
+    }),
+  ]);
+  const occupied = [...busy, ...blocks];
+  const durationMs = service.durationMinutes * 60_000;
+  const firstDay = utcToCalendarDate(params.from, params.timezone);
+
+  for (let offset = 0; offset < DAYS; offset++) {
+    const day = addDays(firstDay, offset);
+    const weekday = new Date(Date.UTC(day.year, day.month - 1, day.day)).getUTCDay();
+    let best: { startAt: Date; professionalId: string } | null = null;
+
+    for (const professional of professionals) {
+      const windows = professional.availabilities.length
+        ? professional.availabilities
+            .filter((a) => a.weekday === weekday)
+            .map((a) => ({ startMinutes: timeToMinutes(a.startTime), endMinutes: timeToMinutes(a.endTime) }))
+        : [DEFAULT_DAY_WINDOW];
+
+      for (const window of windows) {
+        for (let m = window.startMinutes; m + service.durationMinutes <= window.endMinutes; m += STEP) {
+          const startAt = calendarDateToUtc(day, m, params.timezone);
+          if (startAt.getTime() < params.from.getTime()) continue;
+          if (best && startAt.getTime() >= best.startAt.getTime()) break;
+          const endAt = new Date(startAt.getTime() + durationMs);
+          const clash = occupied.some(
+            (o) =>
+              o.professionalId === professional.id &&
+              o.startAt.getTime() < endAt.getTime() &&
+              o.endAt.getTime() > startAt.getTime(),
+          );
+          if (!clash) {
+            best = { startAt, professionalId: professional.id };
+            break;
+          }
+        }
+      }
+    }
+    if (best) return best;
+  }
+  return null;
 }
