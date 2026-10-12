@@ -32,7 +32,7 @@ export function LandingHeader() {
           <span className="bg-system-blue flex size-7 items-center justify-center rounded-lg text-white">
             <CalendarCheck2Icon className="size-4" />
           </span>
-          Atendafy
+          Atenda<span className="text-system-blue">fy</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
           <ThemeToggle />

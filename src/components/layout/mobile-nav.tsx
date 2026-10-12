@@ -25,7 +25,9 @@ export function MobileNav() {
       </DrawerTrigger>
       <DrawerContent className="font-apple">
         <DrawerHeader>
-          <DrawerTitle>Atendafy</DrawerTitle>
+          <DrawerTitle>
+            Atenda<span className="text-system-blue">fy</span>
+          </DrawerTitle>
         </DrawerHeader>
         <div className="overflow-y-auto px-3 pb-6">
           <NavList layoutId="mobile-active" onNavigate={() => setOpen(false)} />
