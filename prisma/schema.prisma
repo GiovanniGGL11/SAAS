@@ -26,6 +26,8 @@ model Company {
   stockMovements StockMovement[]
   transactions   Transaction[]
   coupons        Coupon[]
+  loyaltyProgram LoyaltyProgram?
+  loyaltyEntries LoyaltyEntry[]
 }
 
 model WebhookEvent {
@@ -99,7 +101,8 @@ model Service {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  appointments Appointment[]
+  appointments    Appointment[]
+  loyaltyRewardOf LoyaltyProgram[]
 
   @@index([companyId])
 }
@@ -119,7 +122,8 @@ model Client {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  appointments Appointment[]
+  appointments   Appointment[]
+  loyaltyEntries LoyaltyEntry[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -165,8 +169,9 @@ model Appointment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  productSales AppointmentProduct[]
-  transactions Transaction[]
+  productSales   AppointmentProduct[]
+  transactions   Transaction[]
+  loyaltyEntries LoyaltyEntry[]
 
   @@index([companyId, startAt])
   @@index([companyId, professionalId, startAt])
@@ -316,4 +321,66 @@ model Coupon {
 
   @@unique([companyId, code])
   @@index([companyId])
+}
+
+enum LoyaltyMode {
+  STAMPS
+  POINTS
+  CASHBACK
+}
+
+enum LoyaltyRewardType {
+  FREE_SERVICE
+  PERCENT_DISCOUNT
+  FIXED_DISCOUNT
+  CUSTOM
+}
+
+enum LoyaltyEntryKind {
+  EARN
+  REDEEM
+}
+
+// One per company. The owner picks the model (stamp card, points per R$,
+// or cashback) and, for stamps/points, what the reward is.
+model LoyaltyProgram {
+  id                String            @id @default(cuid())
+  companyId         String            @unique
+  company           Company           @relation(fields: [companyId], references: [id])
+  active            Boolean           @default(false)
+  mode              LoyaltyMode       @default(STAMPS)
+  stampsRequired    Int               @default(10)
+  pointsPerReal     Decimal           @default(1) @db.Decimal(10, 2)
+  pointsRequired    Int               @default(100)
+  cashbackPercent   Decimal           @default(5) @db.Decimal(5, 2)
+  rewardType        LoyaltyRewardType @default(FREE_SERVICE)
+  rewardServiceId   String?
+  rewardService     Service?          @relation(fields: [rewardServiceId], references: [id])
+  rewardValue       Decimal?          @db.Decimal(10, 2)
+  rewardDescription String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+// Ledger of stamps/points/cashback. A client's balance is EARN minus REDEEM
+// for the program's current mode, so switching modes starts balances fresh
+// without rewriting history. `amount` is stamps, points or R$ by mode.
+model LoyaltyEntry {
+  id              String           @id @default(cuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  clientId        String
+  client          Client           @relation(fields: [clientId], references: [id])
+  appointmentId   String?
+  appointment     Appointment?     @relation(fields: [appointmentId], references: [id])
+  mode            LoyaltyMode
+  kind            LoyaltyEntryKind
+  amount          Decimal          @db.Decimal(10, 2)
+  description     String?
+  createdByUserId String
+  createdAt       DateTime         @default(now())
+
+  // At most one EARN per appointment, so re-marking it DONE never double-credits.
+  @@unique([appointmentId, kind])
+  @@index([companyId, clientId, mode])
 }

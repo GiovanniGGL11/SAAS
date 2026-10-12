@@ -8,6 +8,7 @@ import {
   Package,
   Wallet,
   Megaphone,
+  Gift,
   BarChart3,
   Settings,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ export const navItems: NavItem[] = [
   { label: 'Estoque', href: '/estoque', icon: Package, color: '#5856d6', group: 'Operação' },
   { label: 'Financeiro', href: '/financeiro', icon: Wallet, color: '#30b0c7', group: 'Gestão' },
   { label: 'Campanhas', href: '/campanhas', icon: Megaphone, color: '#ff2d55', group: 'Gestão' },
+  { label: 'Fidelidade', href: '/fidelidade', icon: Gift, color: '#ff9f0a', group: 'Gestão' },
   { label: 'Relatórios', href: '/relatorios', icon: BarChart3, color: '#5ac8fa', group: 'Gestão' },
   {
     label: 'Configurações',

@@ -2,6 +2,8 @@ import type {
   Appointment,
   AppointmentProduct,
   Coupon,
+  LoyaltyEntry,
+  LoyaltyProgram,
   Product,
   Professional,
   Service,
@@ -90,6 +92,38 @@ export function serializeCoupon<T extends Coupon>(
 }
 
 export type SerializedCoupon = Omit<Coupon, 'discountValue'> & { discountValue: number };
+
+type LoyaltyDecimalFields = 'pointsPerReal' | 'cashbackPercent' | 'rewardValue';
+
+export function serializeLoyaltyProgram<T extends LoyaltyProgram>(
+  program: T,
+): Omit<T, LoyaltyDecimalFields> & {
+  pointsPerReal: number;
+  cashbackPercent: number;
+  rewardValue: number | null;
+} {
+  return {
+    ...program,
+    pointsPerReal: Number(program.pointsPerReal),
+    cashbackPercent: Number(program.cashbackPercent),
+    rewardValue: program.rewardValue === null ? null : Number(program.rewardValue),
+  };
+}
+
+export type SerializedLoyaltyProgram = Omit<LoyaltyProgram, LoyaltyDecimalFields> & {
+  pointsPerReal: number;
+  cashbackPercent: number;
+  rewardValue: number | null;
+  rewardService: { id: string; name: string } | null;
+};
+
+export function serializeLoyaltyEntry<T extends LoyaltyEntry>(
+  entry: T,
+): Omit<T, 'amount'> & { amount: number } {
+  return { ...entry, amount: Number(entry.amount) };
+}
+
+export type SerializedLoyaltyEntry = Omit<LoyaltyEntry, 'amount'> & { amount: number };
 
 export function formatCurrencyBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

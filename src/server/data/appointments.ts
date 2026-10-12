@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { recordAuditLog } from '@/server/data/audit';
 import { createIncomeFromAppointment } from '@/server/data/finance';
+import { earnLoyaltyFromAppointment } from '@/server/data/loyalty';
 import type { Appointment, AppointmentStatus } from '@/generated/prisma/client';
 
 export class AppointmentConflictError extends Error {
@@ -264,6 +265,7 @@ export async function updateAppointmentStatus(params: {
 
   if (params.status === 'DONE') {
     await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId);
+    await earnLoyaltyFromAppointment(params.companyId, updated, params.updatedByUserId);
   }
 
   return updated;

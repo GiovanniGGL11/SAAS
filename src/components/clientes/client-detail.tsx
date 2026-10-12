@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
+import { ClientLoyalty } from '@/components/clientes/client-loyalty';
 import {
   getClientDetailAction,
   setClientActiveAction,
@@ -123,6 +124,8 @@ export function ClientDetail({
           }
         />
       </div>
+
+      <ClientLoyalty clientId={clientId} clientName={client.name} timezone={timezone} />
 
       {client.cpf || client.birthDate || client.notes ? (
         <div className="bg-tile grid grid-cols-2 gap-4 rounded-[22px] p-5 text-sm sm:grid-cols-3 md:p-6">
