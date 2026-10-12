@@ -29,6 +29,14 @@ async function fetchAndSyncCompanyFromClerk(orgId: string): Promise<Company> {
   return upsertCompanyFromClerkOrg({ id: org.id, name: org.name, slug: org.slug });
 }
 
+// organization.updated webhooks don't reach localhost without a tunnel, so a
+// rename made through Clerk's UI never reaches our DB that way in dev — and
+// Clerk doesn't regenerate the slug on a name-only rename, so comparing slugs
+// alone misses it (confirmed: renaming "My Organization" -> "G2 genesys" left
+// the slug untouched). Re-checking with Clerk this often bounds that drift
+// without adding a Clerk API round trip to every request.
+const STALE_AFTER_MS = 5 * 60 * 1000;
+
 async function resolveCompanyForOrg(orgId: string, sessionOrgSlug: string | null | undefined) {
   const existing = await getCompanyByClerkOrgId(orgId);
   if (!existing || existing.deletedAt) {
@@ -40,13 +48,9 @@ async function resolveCompanyForOrg(orgId: string, sessionOrgSlug: string | null
     return fetchAndSyncCompanyFromClerk(orgId);
   }
 
-  // organization.updated webhooks don't reach localhost without a tunnel, so
-  // a rename made through Clerk's UI never reaches our DB that way in dev.
-  // orgSlug rides free in the session token (no extra Clerk API call), so a
-  // mismatch against our stored slug is a cheap signal to refresh from Clerk
-  // — self-healing for a missed/delayed webhook in production too. Doesn't
-  // catch a name-only edit that keeps the same slug, but that's the rare case.
-  if (sessionOrgSlug && sessionOrgSlug !== existing.slug) {
+  const slugDrifted = Boolean(sessionOrgSlug) && sessionOrgSlug !== existing.slug;
+  const isStale = Date.now() - existing.updatedAt.getTime() > STALE_AFTER_MS;
+  if (slugDrifted || isStale) {
     return fetchAndSyncCompanyFromClerk(orgId);
   }
 
