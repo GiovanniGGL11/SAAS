@@ -1,6 +1,7 @@
 import type { AssistantChatMessage, AssistantProposal } from '@/lib/assistant';
 import { generateContent, type GeminiContent, type GeminiPart } from './gemini';
 import { createToolbox, READ_TOOLS, type AssistantContext } from './tools';
+import { WRITE_TOOLS } from './write-tools';
 import { toHumanDateTime, toLocalDateTime } from './format';
 
 /** Idas e voltas com o modelo por mensagem: chega para "buscar cliente → horário → propor". */
@@ -8,7 +9,7 @@ export const MAX_STEPS = 6;
 const MAX_CALLS_PER_STEP = 6;
 const MAX_PROPOSALS = 3;
 
-const toolbox = createToolbox(READ_TOOLS);
+export const assistantToolbox = createToolbox([...READ_TOOLS, ...WRITE_TOOLS]);
 
 export function buildSystemPrompt(ctx: AssistantContext, now = new Date()): string {
   return [
@@ -65,7 +66,7 @@ export async function runAssistant(params: {
       model: params.model,
       systemInstruction,
       contents,
-      functionDeclarations: toolbox.declarations,
+      functionDeclarations: assistantToolbox.declarations,
     });
     const calls = content.parts.filter((p) => p.functionCall).map((p) => p.functionCall!);
     if (calls.length === 0) {
@@ -82,7 +83,7 @@ export async function runAssistant(params: {
       if (index >= MAX_CALLS_PER_STEP) {
         response = { erro: 'Muitas chamadas de uma vez. Faça uma de cada vez.' };
       } else {
-        const outcome = await toolbox.dispatch(ctx, call.name, call.args);
+        const outcome = await assistantToolbox.dispatch(ctx, call.name, call.args);
         response = outcome.response;
         if (outcome.proposal) {
           if (proposals.length < MAX_PROPOSALS) proposals.push(outcome.proposal);

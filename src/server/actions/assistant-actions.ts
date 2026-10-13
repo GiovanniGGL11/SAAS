@@ -1,14 +1,17 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { assistantMessagesSchema } from '@/lib/assistant';
+import { assistantActionSchema, assistantMessagesSchema } from '@/lib/assistant';
 import { toActionResult } from '@/server/action-result';
 import { isCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { UserError } from '@/server/errors';
 import { rateLimitByKey } from '@/server/rate-limit';
 import { GeminiError, getGeminiConfig } from '@/server/assistant/gemini';
 import { runAssistant } from '@/server/assistant/run';
+import { executeAction } from '@/server/assistant/execute';
+import { scheduleGoogleSync } from '@/server/google/background';
 import type { AssistantContext } from '@/server/assistant/tools';
 
 async function assistantContext(): Promise<AssistantContext> {
@@ -37,5 +40,21 @@ export async function sendAssistantMessageAction(input: unknown) {
       if (error instanceof GeminiError) throw new UserError(error.message);
       throw error;
     }
+  });
+}
+
+/**
+ * O "Confirmar" do cartão. A ação vem do navegador, então é tratada como qualquer entrada: validada
+ * de novo, conferida contra a empresa da sessão e executada pelas mesmas funções das telas.
+ */
+export async function confirmAssistantActionAction(input: unknown) {
+  return toActionResult(async () => {
+    const action = assistantActionSchema.parse(input);
+    const ctx = await assistantContext();
+    rateLimitByKey(`assistant-confirm:${ctx.userId}`, 30, 60_000);
+    const result = await executeAction(ctx, action);
+    scheduleGoogleSync(ctx.companyId, result.appointmentIds);
+    for (const path of result.paths) revalidatePath(path);
+    return { message: result.message };
   });
 }
