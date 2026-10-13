@@ -123,7 +123,29 @@ const importRowSchema = z.object({
   email: z.string().max(200).optional(),
   cpf: z.string().max(20).optional(),
   birthDate: z.string().max(10).optional(),
+  zipCode: z.string().max(20).optional(),
+  street: z.string().max(200).optional(),
+  number: z.string().max(20).optional(),
+  complement: z.string().max(100).optional(),
+  district: z.string().max(100).optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(20).optional(),
 });
+
+// Na planilha o CEP só vale com 8 dígitos e a UF com 2 letras; o resto passa como veio.
+function normalizeImportedAddress(r: z.infer<typeof importRowSchema>) {
+  const zip = r.zipCode?.replace(/\D/g, '');
+  const state = r.state?.trim().toUpperCase();
+  return {
+    zipCode: zip?.length === 8 ? zip : undefined,
+    street: r.street?.trim() || undefined,
+    number: r.number?.trim() || undefined,
+    complement: r.complement?.trim() || undefined,
+    district: r.district?.trim() || undefined,
+    city: r.city?.trim() || undefined,
+    state: state && /^[A-Z]{2}$/.test(state) ? state : undefined,
+  };
+}
 
 export async function importClientsAction(input: unknown) {
   return toActionResult(async () => {
@@ -143,6 +165,7 @@ export async function importClientsAction(input: unknown) {
           r.birthDate && /^\d{4}-\d{2}-\d{2}$/.test(r.birthDate)
             ? new Date(r.birthDate)
             : undefined,
+        ...normalizeImportedAddress(r),
       })),
     );
     revalidatePath('/clientes');

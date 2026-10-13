@@ -13,6 +13,22 @@ export const clientInput = z.object({
   cpf: z.string().max(20).optional(),
   birthDate: z.coerce.date().optional(),
   notes: z.string().max(2000).optional(),
+  zipCode: z
+    .string()
+    .max(9)
+    .optional()
+    .transform((v) => v?.replace(/\D/g, '') || undefined)
+    .refine((v) => !v || v.length === 8, 'CEP deve ter 8 dígitos'),
+  street: z.string().max(200).optional(),
+  number: z.string().max(20).optional(),
+  complement: z.string().max(100).optional(),
+  district: z.string().max(100).optional(),
+  city: z.string().max(100).optional(),
+  state: z
+    .string()
+    .max(2)
+    .optional()
+    .transform((v) => v?.trim().toUpperCase() || undefined),
 });
 export type ClientFormInput = z.infer<typeof clientInput>;
 

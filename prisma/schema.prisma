@@ -120,6 +120,14 @@ model Client {
   cpf           String?
   birthDate     DateTime?
   notes         String?
+  // Endereço opcional; o CEP é guardado só com dígitos e o resto vem do ViaCEP ou do usuário.
+  zipCode       String?
+  street        String?
+  number        String?
+  complement    String?
+  district      String?
+  city          String?
+  state         String?
   isVip         Boolean   @default(false)
   active        Boolean   @default(true)
   // Signed into the personal client-area link; bumping it revokes every link sent before.

@@ -41,7 +41,27 @@ export type ClientInput = {
   cpf?: string | null;
   birthDate?: Date | null;
   notes?: string | null;
+  zipCode?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
 };
+
+// Campos de endereço vazios viram null para não guardar string em branco.
+function addressData(data: ClientInput) {
+  return {
+    zipCode: data.zipCode || null,
+    street: data.street || null,
+    number: data.number || null,
+    complement: data.complement || null,
+    district: data.district || null,
+    city: data.city || null,
+    state: data.state || null,
+  };
+}
 
 export async function createClient(companyId: string, data: ClientInput): Promise<Client> {
   return prisma.client.create({
@@ -53,6 +73,7 @@ export async function createClient(companyId: string, data: ClientInput): Promis
       cpf: data.cpf || null,
       birthDate: data.birthDate ?? null,
       notes: data.notes || null,
+      ...addressData(data),
     },
   });
 }
@@ -71,6 +92,7 @@ export async function updateClient(
       cpf: data.cpf || null,
       birthDate: data.birthDate ?? null,
       notes: data.notes || null,
+      ...addressData(data),
     },
   });
   if (result.count === 0) throw new UserError('Cliente não encontrado.');
@@ -146,6 +168,13 @@ export type ImportClientRow = {
   email?: string;
   cpf?: string;
   birthDate?: Date;
+  zipCode?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  city?: string;
+  state?: string;
 };
 
 /**
@@ -183,6 +212,7 @@ export async function importClients(
       email: row.email || null,
       cpf: row.cpf || null,
       birthDate: row.birthDate ?? null,
+      ...addressData(row),
     });
   }
   const result = await prisma.client.createMany({ data, skipDuplicates: true });

@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarDaysIcon, StarIcon, PencilIcon } from 'lucide-react';
+import { CalendarDaysIcon, MapPinIcon, StarIcon, PencilIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -33,6 +33,7 @@ import {
 import { STATUS_LABELS } from '@/components/agenda/status';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
+import { formatAddress, mapsSearchLink } from '@/lib/address';
 
 type ClientDetailData = NonNullable<Awaited<ReturnType<typeof getClientDetailAction>>>;
 
@@ -72,6 +73,8 @@ export function ClientDetail({
   }
 
   const { client, stats, history } = data;
+  const address = formatAddress(client);
+  const mapsLink = mapsSearchLink(client);
 
   return (
     <div className="flex flex-col gap-6">
@@ -146,7 +149,7 @@ export function ClientDetail({
 
       <ClientLoyalty clientId={clientId} clientName={client.name} timezone={timezone} />
 
-      {client.cpf || client.birthDate || client.notes ? (
+      {client.cpf || client.birthDate || client.notes || address ? (
         <div className="bg-tile grid grid-cols-2 gap-4 rounded-[22px] p-5 text-sm sm:grid-cols-3 md:p-6">
           {client.cpf && (
             <div>
@@ -164,6 +167,23 @@ export function ClientDetail({
                   new Date(client.birthDate),
                 )}
               </div>
+            </div>
+          )}
+          {address && (
+            <div className="col-span-2 sm:col-span-3">
+              <div className="text-muted-foreground text-xs">Endereço</div>
+              <div className="break-words">{address}</div>
+              {mapsLink && (
+                <a
+                  href={mapsLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-system-blue mt-1 inline-flex items-center gap-1 text-[13px] hover:underline"
+                >
+                  <MapPinIcon className="size-3.5" />
+                  Abrir no mapa
+                </a>
+              )}
             </div>
           )}
           {client.notes && (
