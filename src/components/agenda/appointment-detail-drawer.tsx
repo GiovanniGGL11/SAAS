@@ -2,6 +2,12 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  APPOINTMENTS_KEY,
+  beginOptimistic,
+  rollbackOptimistic,
+  setAppointmentStatus,
+} from '@/components/agenda/agenda-cache';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -69,11 +75,17 @@ export function AppointmentDetailDrawer({
   const statusMutation = useMutation({
     mutationFn: (status: Exclude<AppointmentStatus, 'CANCELED'>) =>
       updateAppointmentStatusAction({ id: appointment!.id, status }).then(unwrapResult),
-    onSuccess: () => {
-      toast.success('Status atualizado.');
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    onMutate: async (status) => {
+      const snapshot = await beginOptimistic(queryClient);
+      setAppointmentStatus(queryClient, appointment!.id, status);
+      return { snapshot };
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
+    onSuccess: () => toast.success('Status atualizado.'),
+    onError: (error: Error, _status, context) => {
+      rollbackOptimistic(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível atualizar o status.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: APPOINTMENTS_KEY }),
   });
 
   const cancelMutation = useMutation({
@@ -81,14 +93,20 @@ export function AppointmentDetailDrawer({
       cancelAppointmentAction({ id: appointment!.id, reason: cancelReason || undefined }).then(
         unwrapResult,
       ),
-    onSuccess: () => {
-      toast.success('Agendamento cancelado.');
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    onMutate: async () => {
+      const snapshot = await beginOptimistic(queryClient);
+      setAppointmentStatus(queryClient, appointment!.id, 'CANCELED');
       setShowCancelForm(false);
       setCancelReason('');
       onOpenChange(false);
+      return { snapshot };
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível cancelar.'),
+    onSuccess: () => toast.success('Agendamento cancelado.'),
+    onError: (error: Error, _vars, context) => {
+      rollbackOptimistic(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível cancelar.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: APPOINTMENTS_KEY }),
   });
 
   if (!appointment) return null;

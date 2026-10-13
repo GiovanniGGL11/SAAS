@@ -102,14 +102,15 @@ export function ClientDetail({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em] md:text-[34px]">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="min-w-0 text-[28px] leading-tight font-bold tracking-[-0.03em] break-words md:text-[34px]">
               {client.name}
             </h1>
             <button
               type="button"
               onClick={() => toggleVip.mutate(!client.isVip)}
               aria-label={client.isVip ? 'Remover VIP' : 'Marcar como VIP'}
+              className="-m-1.5 p-1.5"
             >
               <StarIcon
                 className={
@@ -122,13 +123,14 @@ export function ClientDetail({
             {stats.isInactive && <Badge variant="outline">Inativo</Badge>}
             {!client.active && <Badge variant="outline">Arquivado</Badge>}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-sm break-words">
             {client.phone ? formatPhone(client.phone) : '—'}{' '}
             {client.email ? `· ${client.email}` : ''}
           </p>
         </div>
+        {/* No celular os botões descem para uma linha própria e quebram em vez de empurrar a tela. */}
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
-          <div className="mr-1 flex items-center gap-2">
+          <div className="bg-foreground/[0.06] flex h-10 items-center gap-2 rounded-full pr-2 pl-3.5 md:h-9">
             <span className="text-muted-foreground text-xs">Ativo</span>
             <Switch
               checked={client.active}
@@ -143,12 +145,15 @@ export function ClientDetail({
             </Button>
           )}
           <ClientPortalLinkButton clientId={client.id} clientName={client.name} />
-          <Button variant="outline" asChild>
-            <Link href={`/agenda?cliente=${client.id}`}>Agendar</Link>
-          </Button>
           <Button variant="outline" onClick={() => setDrawerOpen(true)}>
             <PencilIcon className="size-4" />
             Editar
+          </Button>
+          <Button asChild>
+            <Link href={`/agenda?cliente=${client.id}`}>
+              <CalendarDaysIcon className="size-4" />
+              Agendar
+            </Link>
           </Button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,6 +43,13 @@ import {
   utcToCalendarDate,
   utcToMinutesSinceMidnight,
 } from '@/lib/time';
+import {
+  APPOINTMENTS_KEY,
+  beginOptimistic,
+  buildOptimisticAppointment,
+  insertAppointment,
+  rollbackOptimistic,
+} from '@/components/agenda/agenda-cache';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
 import type { Client } from '@/generated/prisma/client';
@@ -94,6 +102,7 @@ export function CreateAppointmentDrawer({
   timezone: string;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Cliente criado aqui ainda não está na lista que veio do servidor; entra na hora.
   const [createdClients, setCreatedClients] = React.useState<Client[]>([]);
@@ -143,6 +152,29 @@ export function CreateAppointmentDrawer({
         }),
       );
     },
+    // Otimista: o agendamento já está na grade (atrás da gaveta) quando o servidor confirma, então
+    // ao fechar não há segunda espera. Se o servidor recusar, ele sai e a gaveta continua aberta.
+    onMutate: async (values) => {
+      const client = [...clients, ...createdClients].find((c) => c.id === values.clientId);
+      const professional = professionals.find((p) => p.id === values.professionalId);
+      const service = services.find((s) => s.id === values.serviceId);
+      if (!client || !professional || !service) return { snapshot: undefined };
+      const [year, month, day] = values.date.split('-').map(Number);
+      const [hour, minute] = values.time.split(':').map(Number);
+      const startAt = calendarDateToUtc({ year, month, day }, hour * 60 + minute, timezone);
+      const snapshot = await beginOptimistic(queryClient);
+      insertAppointment(
+        queryClient,
+        buildOptimisticAppointment({
+          client,
+          professional,
+          service,
+          startAt,
+          notes: values.notes?.trim() || null,
+        }),
+      );
+      return { snapshot };
+    },
     onSuccess: (result) => {
       toast.success(
         result.repeated > 0
@@ -153,14 +185,15 @@ export function CreateAppointmentDrawer({
         toast.warning(`Horário ocupado, não repetido em: ${result.skipped.join(', ')}.`);
       }
       setRepeatEvery(0);
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onOpenChange(false);
       form.reset();
       if (result.confirmation) onCreated?.(result.confirmation);
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _values, context) => {
+      rollbackOptimistic(queryClient, context?.snapshot);
       toast.error(error.message || 'Não foi possível criar o agendamento.');
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: APPOINTMENTS_KEY }),
   });
 
   const createClientMutation = useMutation({
@@ -171,6 +204,9 @@ export function CreateAppointmentDrawer({
       }).then(unwrapResult),
     onSuccess: (client) => {
       setCreatedClients((list) => [...list, client]);
+      // Entra também nas outras listas (Clientes e o cartão rápido) sem precisar recarregar.
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      router.refresh();
       form.setValue('clientId', client.id, { shouldValidate: true });
       setNewClientOpen(false);
       setNewClientName('');

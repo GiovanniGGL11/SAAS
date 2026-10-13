@@ -127,7 +127,7 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
               type="button"
               onClick={() => setCategory(value)}
               className={cn(
-                'shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors',
+                'shrink-0 rounded-full px-3.5 py-2 text-[13px] font-medium whitespace-nowrap transition-colors',
                 category === value
                   ? 'bg-foreground text-background'
                   : 'bg-foreground/[0.06] text-foreground/80 hover:bg-foreground/10',

@@ -27,6 +27,12 @@ import {
 import { formatTimeInTz } from '@/lib/time';
 import { formatPhone, whatsappLink } from '@/lib/phone';
 import { getConfirmationLinkAction } from '@/server/actions/public-booking-actions';
+import {
+  APPOINTMENTS_KEY,
+  beginOptimistic,
+  rollbackOptimistic,
+  setAppointmentStatus,
+} from '@/components/agenda/agenda-cache';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { AppointmentStatus } from '@/generated/prisma/client';
 
@@ -55,11 +61,18 @@ export function AppointmentCard({
   const statusMutation = useMutation({
     mutationFn: (status: Exclude<AppointmentStatus, 'CANCELED'>) =>
       updateAppointmentStatusAction({ id: appointment.id, status }).then(unwrapResult),
-    onSuccess: (_data, status) => {
-      toast.success(`Status: ${STATUS_LABELS[status]}.`);
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    // Otimista: o status muda na grade na hora; se o servidor recusar, volta ao que era.
+    onMutate: async (status) => {
+      const snapshot = await beginOptimistic(queryClient);
+      setAppointmentStatus(queryClient, appointment.id, status);
+      return { snapshot };
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
+    onSuccess: (_data, status) => toast.success(`Status: ${STATUS_LABELS[status]}.`),
+    onError: (error: Error, _status, context) => {
+      rollbackOptimistic(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível atualizar o status.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: APPOINTMENTS_KEY }),
   });
 
   const [confirmCancel, setConfirmCancel] = React.useState(false);
@@ -71,12 +84,18 @@ export function AppointmentCard({
         id: appointment.id,
         reason: cancelReason.trim() || undefined,
       }).then(unwrapResult),
-    onSuccess: () => {
-      toast.success('Agendamento cancelado.');
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    onMutate: async () => {
+      const snapshot = await beginOptimistic(queryClient);
+      setAppointmentStatus(queryClient, appointment.id, 'CANCELED');
       onClose();
+      return { snapshot };
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível cancelar.'),
+    onSuccess: () => toast.success('Agendamento cancelado.'),
+    onError: (error: Error, _vars, context) => {
+      rollbackOptimistic(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível cancelar.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: APPOINTMENTS_KEY }),
   });
 
   const dateLabel = new Intl.DateTimeFormat('pt-BR', {

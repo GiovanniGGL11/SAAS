@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ClockIcon, UserRoundIcon, XIcon } from 'lucide-react';
@@ -9,6 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import {
+  APPOINTMENTS_KEY,
+  SCHEDULE_CONTEXT_KEY,
+  beginOptimistic,
+  beginOptimisticBlocks,
+  buildOptimisticAppointment,
+  insertAppointment,
+  mutateBlocks,
+  rollbackBlocks,
+  rollbackOptimistic,
+} from '@/components/agenda/agenda-cache';
 import type { ConfirmationToSend } from '@/components/agenda/send-confirmation-dialog';
 import { unwrapResult } from '@/lib/action-result';
 import {
@@ -58,6 +70,7 @@ export function QuickCreateCard({
   onMoreOptions: (defaults: QuickCreateDefaults) => void;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [tab, setTab] = React.useState<'appointment' | 'block'>('appointment');
   const [clientId, setClientId] = React.useState('');
   const [serviceId, setServiceId] = React.useState('');
@@ -102,14 +115,41 @@ export function QuickCreateCard({
         }),
       );
     },
+    // Otimista: o agendamento já aparece na grade e o cartão fecha no toque em "Salvar"; se o
+    // servidor recusar (horário ocupado, por exemplo), ele some e o motivo aparece num aviso.
+    onMutate: async () => {
+      const service = services.find((s) => s.id === serviceId);
+      const professional = professionals.find((p) => p.id === professionalId);
+      const client = newClient
+        ? {
+            id: 'optimistic-client',
+            name: newClientName.trim(),
+            phone: newClientPhone.trim() || null,
+          }
+        : clients.find((c) => c.id === clientId);
+      if (!service || !professional || !client) return { snapshot: undefined };
+      const snapshot = await beginOptimistic(queryClient);
+      insertAppointment(
+        queryClient,
+        buildOptimisticAppointment({ client, professional, service, startAt: defaults.startAt }),
+      );
+      onClose();
+      return { snapshot };
+    },
     onSuccess: (result) => {
       toast.success('Agendamento criado.');
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      onClose();
+      if (newClient) {
+        // O cliente recém-cadastrado precisa aparecer nas listas (aqui e em Clientes) sem recarregar.
+        queryClient.invalidateQueries({ queryKey: ['clients'] });
+        router.refresh();
+      }
       if (result.confirmation) onCreated?.(result.confirmation);
     },
-    onError: (error: Error) =>
-      toast.error(error.message || 'Não foi possível criar o agendamento.'),
+    onError: (error: Error, _vars, context) => {
+      rollbackOptimistic(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível criar o agendamento.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: APPOINTMENTS_KEY }),
   });
 
   const createBlock = useMutation({
@@ -122,12 +162,31 @@ export function QuickCreateCard({
           reason: reason.trim() || undefined,
         }),
       ),
-    onSuccess: () => {
-      toast.success('Horário bloqueado.');
-      queryClient.invalidateQueries({ queryKey: ['schedule-context'] });
+    onMutate: async () => {
+      const snapshot = await beginOptimisticBlocks(queryClient);
+      mutateBlocks(
+        queryClient,
+        (blocks) => [
+          ...blocks,
+          {
+            id: `optimistic-block-${Date.now()}`,
+            professionalId,
+            startAt: defaults.startAt,
+            endAt,
+            reason: reason.trim() || null,
+          },
+        ],
+        { startAt: defaults.startAt, endAt },
+      );
       onClose();
+      return { snapshot };
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível bloquear o horário.'),
+    onSuccess: () => toast.success('Horário bloqueado.'),
+    onError: (error: Error, _vars, context) => {
+      rollbackBlocks(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível bloquear o horário.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: SCHEDULE_CONTEXT_KEY }),
   });
 
   const clientOptions: ComboboxOption[] = clients.map((c) => ({

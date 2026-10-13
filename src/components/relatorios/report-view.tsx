@@ -85,7 +85,7 @@ function RankingList({
     revenue: number;
     extra?: string;
   }[];
-  countLabel: string;
+  countLabel: [singular: string, plural: string];
 }) {
   const reduceMotion = useReducedMotion();
   const max = Math.max(...items.map((item) => item.revenue), 1);
@@ -121,7 +121,7 @@ function RankingList({
               />
             </div>
             <span className="text-label-secondary w-40 shrink-0 text-right text-[12px] tabular-nums">
-              {item.count} {countLabel}
+              {item.count} {item.count === 1 ? countLabel[0] : countLabel[1]}
               {item.extra ? ` · ${item.extra}` : ''} ·{' '}
               {total > 0 ? Math.round((item.revenue / total) * 100) : 0}%
             </span>
@@ -232,7 +232,7 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
                   />
                 ) : (
                   <RankingList
-                    countLabel="atend."
+                    countLabel={['atend.', 'atend.']}
                     items={data.byProfessional.map((p) => ({
                       id: p.professionalId,
                       name: p.name,
@@ -260,7 +260,7 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
                   />
                 ) : (
                   <RankingList
-                    countLabel="vendas"
+                    countLabel={['venda', 'vendas']}
                     items={data.byService.map((s) => ({
                       id: s.serviceId,
                       name: s.name,

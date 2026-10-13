@@ -50,7 +50,7 @@ export function CommandMenu() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="bg-foreground/[0.05] hover:bg-foreground/[0.08] text-label-secondary flex h-9 items-center gap-2 rounded-full pr-2 pl-3 text-sm transition-colors sm:w-64"
+        className="bg-foreground/[0.05] hover:bg-foreground/[0.08] text-label-secondary flex h-10 items-center gap-2 rounded-full pr-2 pl-3 text-sm transition-colors sm:w-64 md:h-9"
         aria-label="Buscar"
       >
         <SearchIcon className="size-4" />

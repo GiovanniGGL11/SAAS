@@ -41,7 +41,7 @@ export function TodayAgendaCard({
         </div>
         <Link
           href="/agenda"
-          className="text-system-blue flex shrink-0 items-center gap-0.5 text-[13px] font-medium whitespace-nowrap hover:underline"
+          className="text-system-blue -my-2 flex shrink-0 items-center gap-0.5 py-2 text-[13px] font-medium whitespace-nowrap hover:underline"
         >
           Abrir agenda
           <ChevronRightIcon className="size-3.5" />
