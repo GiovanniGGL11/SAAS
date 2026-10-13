@@ -31,6 +31,7 @@ model Company {
   loyaltyProgram            LoyaltyProgram?
   loyaltyEntries            LoyaltyEntry[]
   googleCalendarConnections GoogleCalendarConnection[]
+  waitlistEntries           WaitlistEntry[]
 }
 
 model WebhookEvent {
@@ -60,9 +61,10 @@ model Professional {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  availabilities ProfessionalAvailability[]
-  blocks         ScheduleBlock[]
-  appointments   Appointment[]
+  availabilities  ProfessionalAvailability[]
+  blocks          ScheduleBlock[]
+  appointments    Appointment[]
+  waitlistEntries WaitlistEntry[]
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -106,6 +108,7 @@ model Service {
 
   appointments    Appointment[]
   loyaltyRewardOf LoyaltyProgram[]
+  waitlistEntries WaitlistEntry[]
 
   @@index([companyId])
 }
@@ -135,8 +138,9 @@ model Client {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  appointments   Appointment[]
-  loyaltyEntries LoyaltyEntry[]
+  appointments    Appointment[]
+  loyaltyEntries  LoyaltyEntry[]
+  waitlistEntries WaitlistEntry[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -435,4 +439,33 @@ model GoogleCalendarEvent {
 
   @@unique([connectionId, appointmentId])
   @@index([appointmentId])
+}
+
+enum WaitlistStatus {
+  WAITING
+  FULFILLED
+  CANCELED
+}
+
+/// Cliente esperando uma vaga num dia que estava cheio. A equipe avisa quando alguém cancela.
+model WaitlistEntry {
+  id              String         @id @default(cuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  clientId        String
+  client          Client         @relation(fields: [clientId], references: [id])
+  serviceId       String
+  service         Service        @relation(fields: [serviceId], references: [id])
+  /// Opcional: quando o cliente só quer um profissional específico.
+  professionalId  String?
+  professional    Professional?  @relation(fields: [professionalId], references: [id])
+  /// Dia desejado (AAAA-MM-DD) no fuso da empresa.
+  desiredDate     String         @db.VarChar(10)
+  notes           String?
+  status          WaitlistStatus @default(WAITING)
+  createdByUserId String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([companyId, status, desiredDate])
 }
