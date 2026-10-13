@@ -22,6 +22,7 @@ import {
   stockAdjustInput,
 } from '@/lib/validations/stock';
 import { serializeAppointmentProduct, serializeProduct } from '@/lib/serialize';
+import { recordAuditLog } from '@/server/data/audit';
 
 export async function listProductsAction() {
   const { company } = await requireCurrentCompany();
@@ -38,9 +39,17 @@ export async function listActiveProductsAction() {
 export async function createProductAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = productInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     const product = await createProduct(company.id, parsed);
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Product',
+      entityId: product.id,
+      action: 'created',
+      userId,
+      metadata: { source: 'app', name: product.name },
+    });
     return serializeProduct(product);
   });
 }
@@ -49,9 +58,17 @@ export async function updateProductAction(rawId: unknown, input: unknown) {
   return toActionResult(async () => {
     const id = parseId(rawId);
     const parsed = productInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     const product = await updateProduct(company.id, id, parsed);
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Product',
+      entityId: product.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', name: product.name },
+    });
     return serializeProduct(product);
   });
 }
@@ -59,9 +76,17 @@ export async function updateProductAction(rawId: unknown, input: unknown) {
 export async function setProductActiveAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = setProductActiveInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     await setProductActive(company.id, parsed.id, parsed.active);
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Product',
+      entityId: parsed.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', active: parsed.active },
+    });
   });
 }
 

@@ -22,6 +22,7 @@ import { serializeAppointment } from '@/lib/serialize';
 import { Prisma } from '@/generated/prisma/client';
 import { UserError } from '@/server/errors';
 import { normalizePhone } from '@/lib/phone';
+import { recordAuditLog } from '@/server/data/audit';
 
 function toFriendlyError(error: unknown): Error {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -38,13 +39,21 @@ export async function listClientsAction() {
 export async function createClientAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = clientInput.parse(input);
-    const { company } = await requireCurrentCompany();
+    const { userId, company } = await requireCurrentCompany();
 
     try {
       const client = await createClient(company.id, {
         ...parsed,
         email: parsed.email || null,
         birthDate: parsed.birthDate ?? null,
+      });
+      await recordAuditLog({
+        companyId: company.id,
+        entityType: 'Client',
+        entityId: client.id,
+        action: 'created',
+        userId,
+        metadata: { source: 'app', name: client.name },
       });
       return client;
     } catch (error) {
@@ -57,13 +66,21 @@ export async function updateClientAction(rawId: unknown, input: unknown) {
   return toActionResult(async () => {
     const id = parseId(rawId);
     const parsed = clientInput.parse(input);
-    const { company } = await requireCurrentCompany();
+    const { userId, company } = await requireCurrentCompany();
 
     try {
       const client = await updateClient(company.id, id, {
         ...parsed,
         email: parsed.email || null,
         birthDate: parsed.birthDate ?? null,
+      });
+      await recordAuditLog({
+        companyId: company.id,
+        entityType: 'Client',
+        entityId: client.id,
+        action: 'updated',
+        userId,
+        metadata: { source: 'app', name: client.name },
       });
       return client;
     } catch (error) {
@@ -75,18 +92,34 @@ export async function updateClientAction(rawId: unknown, input: unknown) {
 export async function setClientActiveAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = setClientActiveInput.parse(input);
-    const { company } = await requireCurrentCompany();
+    const { userId, company } = await requireCurrentCompany();
 
     await setClientActive(company.id, parsed.id, parsed.active);
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Client',
+      entityId: parsed.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', active: parsed.active },
+    });
   });
 }
 
 export async function setClientVipAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = setClientVipInput.parse(input);
-    const { company } = await requireCurrentCompany();
+    const { userId, company } = await requireCurrentCompany();
 
     await setClientVip(company.id, parsed.id, parsed.isVip);
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Client',
+      entityId: parsed.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', isVip: parsed.isVip },
+    });
   });
 }
 
