@@ -4,7 +4,7 @@ import {
   CalendarDays,
   Users,
   UserRound,
-  Scissors,
+  ConciergeBell,
   Package,
   Wallet,
   Megaphone,
@@ -46,7 +46,13 @@ export const navItems: NavItem[] = [
     color: '#af52de',
     group: 'Operação',
   },
-  { label: 'Serviços', href: '/servicos', icon: Scissors, color: '#ff9500', group: 'Operação' },
+  {
+    label: 'Serviços',
+    href: '/servicos',
+    icon: ConciergeBell,
+    color: '#ff9500',
+    group: 'Operação',
+  },
   { label: 'Estoque', href: '/estoque', icon: Package, color: '#5856d6', group: 'Operação' },
   {
     label: 'Financeiro',

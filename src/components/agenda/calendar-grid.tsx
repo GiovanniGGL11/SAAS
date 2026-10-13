@@ -23,6 +23,7 @@ import {
   utcToCalendarDate,
   utcToMinutesSinceMidnight,
 } from '@/lib/time';
+import { isOptimisticId } from '@/components/agenda/agenda-cache';
 import { STATUS_COLORS, STATUS_LABELS } from '@/components/agenda/status';
 import { formatCurrencyBRL } from '@/lib/serialize';
 
@@ -183,8 +184,11 @@ function DraggableAppointment({
         ? 0
         : Math.round(resizeDeltaPx / minutesToTop(SLOT_MINUTES)) * minutesToTop(SLOT_MINUTES)),
   );
+  // Ainda sendo salvo: já aparece na grade, mas só vira arrastável/clicável quando o servidor confirma.
+  const pending = isOptimisticId(appointment.id);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: appointment.id,
+    disabled: pending,
   });
 
   const isInactive = appointment.status === 'CANCELED' || appointment.status === 'NO_SHOW';
@@ -232,6 +236,7 @@ function DraggableAppointment({
         'group/card absolute overflow-hidden rounded-[10px] px-2 py-1 text-left text-xs shadow-sm ring-1 ring-black/5 transition-[box-shadow,transform] duration-200 hover:z-30 hover:shadow-lg',
         solid ? 'text-white' : 'bg-background text-foreground border-2 border-dashed',
         isDone && 'opacity-60',
+        pending && 'animate-pulse cursor-progress opacity-75',
         isDragging && 'z-50 scale-[1.02] opacity-90 shadow-xl',
         resizeDeltaPx !== null && 'z-50 shadow-xl',
         appointment.status === 'NO_SHOW' && 'line-through decoration-1 opacity-70',
@@ -290,6 +295,7 @@ function DraggableAppointment({
       <span
         role="separator"
         aria-label="Puxar para mudar a duração"
+        hidden={pending}
         onPointerDown={startResize}
         onClick={(event) => event.stopPropagation()}
         className="absolute right-0 bottom-0 left-0 flex h-2 cursor-ns-resize items-center justify-center opacity-0 group-hover/card:opacity-100"
@@ -311,6 +317,35 @@ function minutesAtPointer(event: React.MouseEvent<HTMLElement>, hours: GridHours
 
 function formatMinutes(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Limita a altura da grade ao que cabe na tela. No celular a barra de abas fixa cobre o rodapé:
+ * sem descontá-la, as últimas horas da grade ficavam por baixo dela, fora de alcance do toque.
+ * Mede de verdade (barra, toolbar, chips de profissional) em vez de chutar um valor em rem.
+ */
+function useFitToViewport(ref: React.RefObject<HTMLElement | null>) {
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const tabBar = document.querySelector<HTMLElement>('nav[aria-label="Navegação principal"]');
+      const tabBarHeight =
+        tabBar && getComputedStyle(tabBar).display !== 'none' ? tabBar.offsetHeight : 0;
+      const reserved = tabBarHeight ? tabBarHeight + 12 : 24;
+      el.style.maxHeight = `${Math.max(320, window.innerHeight - top - reserved)}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    // Os chips de profissionais e os filtros mudam a altura acima da grade.
+    const observer = new ResizeObserver(fit);
+    observer.observe(document.body);
+    return () => {
+      window.removeEventListener('resize', fit);
+      observer.disconnect();
+    };
+  }, [ref]);
 }
 
 export function CalendarGrid({
@@ -435,6 +470,7 @@ export function CalendarGrid({
   // Ao abrir (e ao trocar de dia), rola até uma hora antes de agora quando hoje está na tela —
   // senão até o primeiro agendamento — como o Google faz, em vez de abrir no começo do dia.
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  useFitToViewport(scrollRef);
   const scrollKey = columns.map((c) => `${c.date.year}-${c.date.month}-${c.date.day}`).join('|');
   React.useEffect(() => {
     const el = scrollRef.current;
@@ -456,7 +492,7 @@ export function CalendarGrid({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div
         ref={scrollRef}
-        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1"
+        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-19.5rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1 md:max-h-[calc(100svh-15rem)]"
       >
         <div className="bg-background sticky left-0 z-20 w-14 shrink-0 border-r">
           <div className="bg-background sticky top-0 z-10 h-16 border-b" />

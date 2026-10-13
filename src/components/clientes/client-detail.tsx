@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { ClientLoyalty } from '@/components/clientes/client-loyalty';
 import {
@@ -70,19 +71,22 @@ export function ClientDetail({
   }
 
   const { client, stats, history } = data;
+  const formatDateTime = (date: Date) =>
+    `${new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(date)} ${formatTimeInTz(date, timezone)}`;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em] md:text-[34px]">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="min-w-0 text-[28px] leading-tight font-bold tracking-[-0.03em] break-words md:text-[34px]">
               {client.name}
             </h1>
             <button
               type="button"
               onClick={() => toggleVip.mutate(!client.isVip)}
               aria-label={client.isVip ? 'Remover VIP' : 'Marcar como VIP'}
+              className="-m-1.5 p-1.5"
             >
               <StarIcon
                 className={
@@ -95,13 +99,14 @@ export function ClientDetail({
             {stats.isInactive && <Badge variant="outline">Inativo</Badge>}
             {!client.active && <Badge variant="outline">Arquivado</Badge>}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-sm break-words">
             {client.phone ? formatPhone(client.phone) : '—'}{' '}
             {client.email ? `· ${client.email}` : ''}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        {/* No celular os botões descem para uma linha própria e quebram em vez de empurrar a tela. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="bg-foreground/[0.06] flex h-10 items-center gap-2 rounded-full pr-2 pl-3.5 md:h-9">
             <span className="text-muted-foreground text-xs">Ativo</span>
             <Switch
               checked={client.active}
@@ -115,12 +120,15 @@ export function ClientDetail({
               </a>
             </Button>
           )}
-          <Button variant="outline" asChild>
-            <Link href={`/agenda?cliente=${client.id}`}>Agendar</Link>
-          </Button>
           <Button variant="outline" onClick={() => setDrawerOpen(true)}>
             <PencilIcon className="size-4" />
             Editar
+          </Button>
+          <Button asChild>
+            <Link href={`/agenda?cliente=${client.id}`}>
+              <CalendarDaysIcon className="size-4" />
+              Agendar
+            </Link>
           </Button>
         </div>
       </div>
@@ -175,50 +183,66 @@ export function ClientDetail({
       <div>
         <h2 className="mb-2 text-sm font-medium">Histórico de agendamentos</h2>
         <div className="bg-tile overflow-hidden rounded-[22px]">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Serviço</TableHead>
-                <TableHead>Profissional</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {history.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5}>
-                    <EmptyState
-                      icon={CalendarDaysIcon}
-                      title="Nenhum agendamento ainda"
-                      description="O histórico de atendimentos desse cliente aparece aqui."
-                    />
-                  </TableCell>
-                </TableRow>
-              )}
-              {history.map((appointment) => (
-                <TableRow key={appointment.id}>
-                  <TableCell className="text-muted-foreground">
-                    {new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
-                      appointment.startAt,
-                    )}{' '}
-                    {formatTimeInTz(appointment.startAt, timezone)}
-                  </TableCell>
-                  <TableCell>{appointment.serviceNameSnapshot}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {appointment.professional.name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatCurrencyBRL(appointment.priceSnapshot)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {history.length === 0 ? (
+            <EmptyState
+              icon={CalendarDaysIcon}
+              title="Nenhum agendamento ainda"
+              description="O histórico de atendimentos desse cliente aparece aqui."
+            />
+          ) : (
+            <>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Serviço</TableHead>
+                      <TableHead>Profissional</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {history.map((appointment) => (
+                      <TableRow key={appointment.id}>
+                        <TableCell className="text-muted-foreground">
+                          {formatDateTime(appointment.startAt)}
+                        </TableCell>
+                        <TableCell>{appointment.serviceNameSnapshot}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {appointment.professional.name}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatCurrencyBRL(appointment.priceSnapshot)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <MobileList>
+                {history.map((appointment) => (
+                  <MobileListItem
+                    key={appointment.id}
+                    chevron={false}
+                    title={<span className="truncate">{appointment.serviceNameSnapshot}</span>}
+                    subtitle={`${formatDateTime(appointment.startAt)} · ${appointment.professional.name}`}
+                    trailing={
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-[14px] font-medium tabular-nums">
+                          {formatCurrencyBRL(appointment.priceSnapshot)}
+                        </span>
+                        <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
+                      </div>
+                    }
+                  />
+                ))}
+              </MobileList>
+            </>
+          )}
         </div>
       </div>
 

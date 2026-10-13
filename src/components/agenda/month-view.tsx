@@ -80,7 +80,7 @@ export function MonthView({
             <div
               key={dateKey(day)}
               className={cn(
-                'border-foreground/[0.06] flex min-h-28 flex-col gap-0.5 border-r border-b p-1 [&:nth-child(7n)]:border-r-0',
+                'border-foreground/[0.06] flex min-h-16 flex-col gap-0.5 border-r border-b p-1 sm:min-h-28 [&:nth-child(7n)]:border-r-0',
                 outside && 'bg-foreground/[0.02]',
               )}
             >
@@ -96,6 +96,33 @@ export function MonthView({
               >
                 {day.day}
               </button>
+              {/* Celular: a coluna tem ~50px, então o horário e o nome não cabem — pontos coloridos,
+                  como no Calendário do iPhone; tocar abre o dia. */}
+              {list.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onDayClick(day)}
+                  aria-label={`${list.length} ${list.length === 1 ? 'agendamento' : 'agendamentos'} no dia ${day.day}`}
+                  className="flex flex-wrap items-center justify-center gap-0.5 px-0.5 py-1 sm:hidden"
+                >
+                  {list.slice(0, 6).map((appointment) => (
+                    <span
+                      key={appointment.id}
+                      className={cn(
+                        'size-1.5 rounded-full',
+                        (appointment.status === 'CANCELED' || appointment.status === 'NO_SHOW') &&
+                          'opacity-40',
+                      )}
+                      style={{ backgroundColor: colorFor(appointment) }}
+                    />
+                  ))}
+                  {list.length > 6 && (
+                    <span className="text-label-secondary text-[9px] font-semibold">
+                      +{list.length - 6}
+                    </span>
+                  )}
+                </button>
+              )}
               {list.slice(0, MAX_CHIPS).map((appointment) => (
                 <button
                   key={appointment.id}
@@ -104,7 +131,7 @@ export function MonthView({
                     onAppointmentClick(appointment, { x: event.clientX, y: event.clientY })
                   }
                   className={cn(
-                    'hover:bg-foreground/[0.06] flex items-center gap-1.5 truncate rounded-md px-1.5 py-0.5 text-left text-[12px]',
+                    'hover:bg-foreground/[0.06] hidden items-center gap-1.5 truncate rounded-md px-1.5 py-0.5 text-left text-[12px] sm:flex',
                     (appointment.status === 'CANCELED' || appointment.status === 'NO_SHOW') &&
                       'opacity-50',
                   )}
@@ -124,7 +151,7 @@ export function MonthView({
                 <button
                   type="button"
                   onClick={() => onDayClick(day)}
-                  className="text-label-secondary hover:text-foreground px-1.5 text-left text-[12px] font-medium"
+                  className="text-label-secondary hover:text-foreground hidden px-1.5 text-left text-[12px] font-medium sm:block"
                 >
                   +{list.length - MAX_CHIPS} mais
                 </button>

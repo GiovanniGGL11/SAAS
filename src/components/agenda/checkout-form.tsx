@@ -61,7 +61,19 @@ export function CheckoutForm({
       }).then(unwrapResult),
     onSuccess: ({ total }) => {
       toast.success(`Concluído e cobrado: ${formatCurrencyBRL(total + tipValue)}.`);
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      // Cobrar mexe no caixa, no estoque (produtos vendidos), nos relatórios e na fidelidade do cliente.
+      for (const key of [
+        'appointments',
+        'transactions',
+        'cash-flow',
+        'report',
+        'products',
+        'client-detail',
+        'client-loyalty',
+        'loyalty-overview',
+      ]) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
       onDone();
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível concluir.'),

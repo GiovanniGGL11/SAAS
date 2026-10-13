@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EyeIcon, Trash2Icon, UserRoundIcon } from 'lucide-react';
 
@@ -14,6 +14,17 @@ import {
   type MinuteRange,
   type ScreenPoint,
 } from '@/components/agenda/calendar-grid';
+import {
+  APPOINTMENTS_KEY,
+  SCHEDULE_CONTEXT_KEY,
+  beginOptimistic,
+  beginOptimisticBlocks,
+  isOptimisticId,
+  mutateBlocks,
+  rollbackBlocks,
+  rollbackOptimistic,
+  setAppointmentStatus,
+} from '@/components/agenda/agenda-cache';
 import { AgendaToolbar, type AgendaViewMode } from '@/components/agenda/agenda-toolbar';
 import { AgendaSidebar, type ColorMode } from '@/components/agenda/agenda-sidebar';
 import { MonthView, monthGridRange } from '@/components/agenda/month-view';
@@ -112,6 +123,8 @@ const VIEW_KEY = 'agenda:view';
 const COLOR_KEY = 'agenda:color-mode';
 const HIDDEN_KEY = 'agenda:hidden-professionals';
 
+/** De quanto em quanto tempo a agenda aberta busca mudanças feitas por outras pessoas. */
+const LIVE_REFRESH_MS = 20_000;
 const SLOT_MINUTES = 15;
 const OPENING_MINUTES = 9 * 60;
 const CLOSING_MINUTES = 21 * 60;
@@ -212,6 +225,16 @@ export function AgendaView({
     statusFilter,
   ];
 
+  /*
+    A agenda é compartilhada: o cliente que marca pelo link, a recepção em outro aparelho e a
+    sincronização com o Google mexem nela o tempo todo. Por isso estas consultas ficam "vivas":
+    refazem ao voltar para a aba e a cada poucos segundos enquanto ela está aberta e visível
+    (o React Query pausa o intervalo com a aba em segundo plano).
+  */
+  // Enquanto uma criação/edição está a caminho, não busca: a resposta ainda não teria a mudança
+  // e apagaria da tela o que acabamos de mostrar.
+  const isMutating = useIsMutating() > 0;
+
   const query = useQuery({
     queryKey: appointmentsKey,
     queryFn: () =>
@@ -221,11 +244,18 @@ export function AgendaView({
         serviceId: serviceFilter,
         status: statusFilter,
       }),
+    staleTime: 5_000,
+    refetchInterval: isMutating ? false : LIVE_REFRESH_MS,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   });
 
   const contextQuery = useQuery({
-    queryKey: ['schedule-context', rangeStartAt.toISOString(), rangeEndAt.toISOString()],
+    queryKey: [...SCHEDULE_CONTEXT_KEY, rangeStartAt.toISOString(), rangeEndAt.toISOString()],
     queryFn: () => getScheduleContextAction({ startAt: rangeStartAt, endAt: rangeEndAt }),
+    staleTime: 5_000,
+    refetchInterval: isMutating ? false : LIVE_REFRESH_MS * 3,
+    refetchOnWindowFocus: 'always',
   });
 
   const visibleProfessionals = professionals.filter((p) => !hiddenProfessionalIds.has(p.id));
@@ -296,20 +326,32 @@ export function AgendaView({
   const statusMutation = useMutation({
     mutationFn: (input: { id: string; status: Exclude<AppointmentStatus, 'CANCELED'> }) =>
       updateAppointmentStatusAction(input).then(unwrapResult),
-    onSuccess: (_data, input) => {
-      toast.success(`Status: ${STATUS_LABELS[input.status]}.`);
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    onMutate: async (input) => {
+      const snapshot = await beginOptimistic(queryClient);
+      setAppointmentStatus(queryClient, input.id, input.status);
+      return { snapshot };
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
+    onSuccess: (_data, input) => toast.success(`Status: ${STATUS_LABELS[input.status]}.`),
+    onError: (error: Error, _input, context) => {
+      rollbackOptimistic(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível atualizar o status.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: APPOINTMENTS_KEY }),
   });
 
   const deleteBlockMutation = useMutation({
     mutationFn: (id: string) => deleteScheduleBlockAction({ id }).then(unwrapResult),
-    onSuccess: () => {
-      toast.success('Bloqueio removido.');
-      queryClient.invalidateQueries({ queryKey: ['schedule-context'] });
+    onMutate: async (id) => {
+      const snapshot = await beginOptimisticBlocks(queryClient);
+      mutateBlocks(queryClient, (blocks) => blocks.filter((block) => block.id !== id));
+      return { snapshot };
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível remover o bloqueio.'),
+    onSuccess: () => toast.success('Bloqueio removido.'),
+    onError: (error: Error, _id, context) => {
+      rollbackBlocks(queryClient, context?.snapshot);
+      toast.error(error.message || 'Não foi possível remover o bloqueio.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: SCHEDULE_CONTEXT_KEY }),
   });
 
   const columns: GridColumn[] =
@@ -523,8 +565,12 @@ export function AgendaView({
         ]
       : [];
 
-  const openAppointmentCard = (appointment: GridAppointment, point: ScreenPoint) =>
+  // Um agendamento ainda "salvando" não tem id de verdade no servidor: abrir o cartão dele
+  // levaria a ações que falham. Vale o mesmo para o bloqueio recém-criado.
+  const openAppointmentCard = (appointment: GridAppointment, point: ScreenPoint) => {
+    if (isOptimisticId(appointment.id)) return;
     setPanel({ kind: 'appointment', point, appointmentId: appointment.id });
+  };
 
   const sidebarProps = {
     anchorDate,
@@ -610,7 +656,7 @@ export function AgendaView({
                     else next.add(professional.id);
                     setHidden(next);
                   }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-colors"
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium ring-1 transition-colors"
                   style={{
                     backgroundColor: visible ? professional.color : 'transparent',
                     color: visible ? 'white' : undefined,
@@ -676,9 +722,10 @@ export function AgendaView({
             colorMode={colorMode}
             getColumnIdForAppointment={getColumnIdForAppointment}
             onAppointmentClick={openAppointmentCard}
-            onAppointmentContextMenu={(appointment, point) =>
-              setPanel({ kind: 'appointment-menu', point, appointment })
-            }
+            onAppointmentContextMenu={(appointment, point) => {
+              if (!isOptimisticId(appointment.id))
+                setPanel({ kind: 'appointment-menu', point, appointment });
+            }}
             onAppointmentMove={(id, startAt, targetColumn) =>
               // Na visão Dia cada coluna é um profissional: soltar em outra coluna troca quem atende.
               moveMutation.mutate({
@@ -708,7 +755,9 @@ export function AgendaView({
                 },
               })
             }
-            onBlockClick={(block, point) => setPanel({ kind: 'block-menu', point, block })}
+            onBlockClick={(block, point) => {
+              if (!isOptimisticId(block.id)) setPanel({ kind: 'block-menu', point, block });
+            }}
           />
         )}
       </div>

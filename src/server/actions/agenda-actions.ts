@@ -42,6 +42,14 @@ import { serializeAppointment } from '@/lib/serialize';
 import { toActionResult } from '@/server/action-result';
 import { scheduleGoogleSync } from '@/server/google/background';
 
+/*
+  Estas ações NÃO chamam `revalidatePath('/agenda')` de propósito. Com ele, o Next re-renderiza a
+  página inteira no mesmo request e devolve o resultado junto da resposta — a ação passava de
+  ~1 KB para ~45 KB e ficava mais lenta, só para atualizar props (profissionais, serviços,
+  clientes) que um agendamento não altera. Os agendamentos vêm de consultas do React Query, que a
+  própria tela atualiza na hora (otimista) e refaz em seguida.
+*/
+
 export async function getAppointmentsForRangeAction(input: unknown) {
   const parsed = appointmentRangeInput.parse(input);
   const { company } = await requireCurrentCompany();
@@ -131,7 +139,6 @@ export async function createAppointmentAction(input: unknown) {
     }
 
     scheduleGoogleSync(company.id, createdIds);
-    revalidatePath('/agenda');
     return { ...serializeAppointment(appointment), repeated, skipped };
   });
 }
@@ -150,7 +157,6 @@ export async function moveAppointmentAction(input: unknown) {
     });
 
     scheduleGoogleSync(company.id, [appointment.id]);
-    revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
 }
@@ -168,7 +174,6 @@ export async function updateAppointmentStatusAction(input: unknown) {
     });
 
     scheduleGoogleSync(company.id, [appointment.id]);
-    revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
 }
@@ -186,7 +191,6 @@ export async function cancelAppointmentAction(input: unknown) {
     });
 
     scheduleGoogleSync(company.id, [appointment.id]);
-    revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
 }
@@ -200,7 +204,6 @@ export async function createScheduleBlockAction(input: unknown) {
       ...parsed,
       createdByUserId: userId,
     });
-    revalidatePath('/agenda');
     return { id: block.id };
   });
 }
@@ -210,7 +213,6 @@ export async function deleteScheduleBlockAction(input: unknown) {
     const parsed = deleteScheduleBlockInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
     await deleteScheduleBlock({ companyId: company.id, id: parsed.id, userId });
-    revalidatePath('/agenda');
     return { id: parsed.id };
   });
 }
@@ -233,7 +235,6 @@ export async function resizeAppointmentAction(input: unknown) {
       updatedByUserId: userId,
     });
     scheduleGoogleSync(company.id, [appointment.id]);
-    revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
 }
@@ -265,8 +266,6 @@ export async function checkoutAppointmentAction(input: unknown) {
       updatedByUserId: userId,
     });
     scheduleGoogleSync(company.id, [result.appointment.id]);
-    revalidatePath('/agenda');
-    revalidatePath('/financeiro');
     return { total: result.total };
   });
 }
@@ -281,7 +280,6 @@ export async function updateAppointmentDetailsAction(input: unknown) {
       updatedByUserId: userId,
     });
     scheduleGoogleSync(company.id, [appointment.id]);
-    revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
 }

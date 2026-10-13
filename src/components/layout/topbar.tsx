@@ -10,7 +10,7 @@ export function Topbar() {
     <header className="bg-background/72 border-foreground/[0.06] sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b px-3 backdrop-blur-xl backdrop-saturate-[1.8] md:gap-3 md:px-6">
       <div className="flex min-w-0 items-center gap-1.5">
         {/* On phones the sidebar is gone and navigation lives in the bottom tab bar. */}
-        <Link href="/dashboard" aria-label="Início" className="shrink-0 md:hidden">
+        <Link href="/dashboard" aria-label="Início" className="-m-2 shrink-0 p-2 md:hidden">
           <Image src="/images/logo.png" alt="" width={28} height={28} className="size-7" />
         </Link>
         <div className="min-w-0 overflow-hidden">
