@@ -40,6 +40,7 @@ import {
 } from '@/lib/validations/appointment';
 import { serializeAppointment } from '@/lib/serialize';
 import { toActionResult } from '@/server/action-result';
+import { scheduleGoogleSync } from '@/server/google/background';
 
 export async function getAppointmentsForRangeAction(input: unknown) {
   const parsed = appointmentRangeInput.parse(input);
@@ -103,6 +104,7 @@ export async function createAppointmentAction(input: unknown) {
 
     // O primeiro precisa entrar: conflito nele é erro para quem está agendando.
     const appointment = await create(parsed.startAt);
+    const createdIds = [appointment.id];
     const skipped: string[] = [];
     let repeated = 0;
     if (parsed.repeat) {
@@ -112,7 +114,7 @@ export async function createAppointmentAction(input: unknown) {
           parsed.startAt.getTime() + i * parsed.repeat.everyWeeks * 7 * 86_400_000,
         );
         try {
-          await create(startAt);
+          createdIds.push((await create(startAt)).id);
           repeated++;
         } catch (error) {
           if (error instanceof AppointmentConflictError) {
@@ -128,6 +130,7 @@ export async function createAppointmentAction(input: unknown) {
       }
     }
 
+    scheduleGoogleSync(company.id, createdIds);
     revalidatePath('/agenda');
     return { ...serializeAppointment(appointment), repeated, skipped };
   });
@@ -146,6 +149,7 @@ export async function moveAppointmentAction(input: unknown) {
       updatedByUserId: userId,
     });
 
+    scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
@@ -163,6 +167,7 @@ export async function updateAppointmentStatusAction(input: unknown) {
       updatedByUserId: userId,
     });
 
+    scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
@@ -180,6 +185,7 @@ export async function cancelAppointmentAction(input: unknown) {
       reason: parsed.reason,
     });
 
+    scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
@@ -226,6 +232,7 @@ export async function resizeAppointmentAction(input: unknown) {
       ...parsed,
       updatedByUserId: userId,
     });
+    scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
@@ -257,6 +264,7 @@ export async function checkoutAppointmentAction(input: unknown) {
       ...parsed,
       updatedByUserId: userId,
     });
+    scheduleGoogleSync(company.id, [result.appointment.id]);
     revalidatePath('/agenda');
     revalidatePath('/financeiro');
     return { total: result.total };
@@ -272,6 +280,7 @@ export async function updateAppointmentDetailsAction(input: unknown) {
       ...parsed,
       updatedByUserId: userId,
     });
+    scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });

@@ -6,6 +6,7 @@ import { ptBR } from 'react-day-picker/locale';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import { GoogleCalendarCard } from '@/components/agenda/google-calendar-card';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Select,
@@ -199,6 +200,8 @@ export function AgendaSidebar({
           </SelectContent>
         </Select>
       </section>
+
+      <GoogleCalendarCard professionals={professionals} />
     </aside>
   );
 }

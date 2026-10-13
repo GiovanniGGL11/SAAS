@@ -17,17 +17,18 @@ model Company {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  professionals  Professional[]
-  services       Service[]
-  clients        Client[]
-  appointments   Appointment[]
-  auditLogs      AuditLog[]
-  products       Product[]
-  stockMovements StockMovement[]
-  transactions   Transaction[]
-  coupons        Coupon[]
-  loyaltyProgram LoyaltyProgram?
-  loyaltyEntries LoyaltyEntry[]
+  professionals             Professional[]
+  services                  Service[]
+  clients                   Client[]
+  appointments              Appointment[]
+  auditLogs                 AuditLog[]
+  products                  Product[]
+  stockMovements            StockMovement[]
+  transactions              Transaction[]
+  coupons                   Coupon[]
+  loyaltyProgram            LoyaltyProgram?
+  loyaltyEntries            LoyaltyEntry[]
+  googleCalendarConnections GoogleCalendarConnection[]
 }
 
 model WebhookEvent {
@@ -172,6 +173,7 @@ model Appointment {
   productSales   AppointmentProduct[]
   transactions   Transaction[]
   loyaltyEntries LoyaltyEntry[]
+  googleEvents   GoogleCalendarEvent[]
 
   @@index([companyId, startAt])
   @@index([companyId, professionalId, startAt])
@@ -383,4 +385,40 @@ model LoyaltyEntry {
   // At most one EARN per appointment, so re-marking it DONE never double-credits.
   @@unique([appointmentId, kind])
   @@index([companyId, clientId, mode])
+}
+
+// One per (company, user): the Google account a team member linked so the
+// appointments of the professionals they picked show up in their own Google
+// Calendar. The refresh token is stored AES-GCM encrypted, never in clear.
+model GoogleCalendarConnection {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  userId          String
+  googleEmail     String
+  refreshTokenEnc String
+  professionalIds String[]
+  // Google revoked/expired the grant; sync pauses until the user reconnects.
+  needsReconnect  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  events GoogleCalendarEvent[]
+
+  @@unique([companyId, userId])
+}
+
+// Which Google event mirrors which appointment, per connection — needed to
+// update or delete the right event when the appointment changes.
+model GoogleCalendarEvent {
+  id            String                   @id @default(cuid())
+  connectionId  String
+  connection    GoogleCalendarConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  appointmentId String
+  appointment   Appointment              @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  googleEventId String
+  syncedAt      DateTime                 @default(now())
+
+  @@unique([connectionId, appointmentId])
+  @@index([appointmentId])
 }
