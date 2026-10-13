@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/lib/db';
 import { toActionResult } from '@/server/action-result';
+import { scheduleGoogleSync } from '@/server/google/background';
 import { UserError, idSchema } from '@/server/errors';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { cancelAppointment, updateAppointmentStatus } from '@/server/data/appointments';
@@ -82,6 +83,7 @@ export async function createPublicBookingAction(input: unknown) {
       timezone: company.timezone,
       ...parsed,
     });
+    scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
     return { token: signAppointmentToken(appointment.id) };
   });
@@ -115,6 +117,7 @@ export async function respondToAppointmentAction(input: unknown) {
         reason: 'Cancelado pelo cliente pelo link',
       });
     }
+    scheduleGoogleSync(appointment.companyId, [appointment.id]);
     revalidatePath('/agenda');
     return { status: parsed.decision === 'confirm' ? 'CONFIRMED' : 'CANCELED' };
   });
