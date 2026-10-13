@@ -205,6 +205,8 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([companyId, entityType, entityId])
+  // Avisos do sino: o que clientes fizeram nas últimas horas.
+  @@index([companyId, createdAt])
 }
 
 model Product {
