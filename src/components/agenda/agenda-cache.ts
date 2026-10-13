@@ -145,6 +145,7 @@ export function buildOptimisticAppointment(input: {
     canceledAt: null,
     canceledByUserId: null,
     cancellationReason: null,
+    reminderSentAt: null,
     createdAt: now,
     updatedAt: now,
     client: { id: client.id, name: client.name, phone: client.phone },

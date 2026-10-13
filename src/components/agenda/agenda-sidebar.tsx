@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { GoogleCalendarCard } from '@/components/agenda/google-calendar-card';
+import { WaitlistCard } from '@/components/agenda/waitlist-card';
+import { RemindersCard } from '@/components/agenda/reminders-card';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Select,
@@ -73,7 +75,10 @@ export function AgendaSidebar({
   return (
     <aside className={cn('flex w-64 shrink-0 flex-col gap-5', className)}>
       {showCreate && (
-        <Button onClick={onCreate} className="h-11 self-start rounded-2xl px-5 text-[15px] shadow-md">
+        <Button
+          onClick={onCreate}
+          className="h-11 self-start rounded-2xl px-5 text-[15px] shadow-md"
+        >
           <PlusIcon className="size-5" />
           Criar
         </Button>
@@ -200,6 +205,15 @@ export function AgendaSidebar({
           </SelectContent>
         </Select>
       </section>
+
+      <WaitlistCard
+        anchorDate={anchorDate}
+        services={services}
+        professionals={professionals}
+        onDateSelect={onDateSelect}
+      />
+
+      <RemindersCard />
 
       <GoogleCalendarCard professionals={professionals} />
     </aside>

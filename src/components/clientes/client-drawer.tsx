@@ -5,6 +5,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+
+import { upsertInList } from '@/lib/query-cache';
 import { Loader2Icon } from 'lucide-react';
 
 import {
@@ -131,9 +133,15 @@ export function ClientDrawer({
       (isEdit ? updateClientAction(client.id, values) : createClientAction(values)).then(
         unwrapResult,
       ),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       toast.success(isEdit ? 'Cliente atualizado.' : 'Cliente criado.');
+      // A ação devolve o cliente salvo: entra na lista (e na ficha) na hora, sem esperar nova busca.
+      upsertInList(queryClient, ['clients'], saved);
+      queryClient.setQueryData<{ client: typeof saved }>(['client-detail', saved.id], (data) =>
+        data ? { ...data, client: saved } : data,
+      );
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['client-detail', saved.id] });
       onOpenChange(false);
       onSaved?.();
     },

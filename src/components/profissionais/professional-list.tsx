@@ -6,6 +6,7 @@ import { PlusIcon, UserRoundIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
+import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -60,8 +61,19 @@ export function ProfessionalList({
   const toggleActive = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setProfessionalActiveAction(input).then(unwrapResult),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['professionals'] }),
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
+    onMutate: async ({ id, active }) => ({
+      rollback: await optimisticPatchItem<SerializedProfessional>(
+        queryClient,
+        ['professionals'],
+        id,
+        { active },
+      ),
+    }),
+    onError: (error: Error, _input, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['professionals'] }),
   });
 
   function openCreate() {

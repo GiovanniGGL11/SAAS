@@ -41,6 +41,7 @@ import {
 import { serializeAppointment } from '@/lib/serialize';
 import { toActionResult } from '@/server/action-result';
 import { scheduleGoogleSync } from '@/server/google/background';
+import { buildConfirmationMessage } from '@/server/confirmation-message';
 
 /*
   Estas ações NÃO chamam `revalidatePath('/agenda')` de propósito. Com ele, o Next re-renderiza a
@@ -139,7 +140,12 @@ export async function createAppointmentAction(input: unknown) {
     }
 
     scheduleGoogleSync(company.id, createdIds);
-    return { ...serializeAppointment(appointment), repeated, skipped };
+    // Mensagem de WhatsApp para o cliente confirmar. O agendamento já existe: se montar a
+    // mensagem falhar, a criação não pode falhar junto.
+    const confirmation = await buildConfirmationMessage(company.id, appointment.id).catch(
+      () => null,
+    );
+    return { ...serializeAppointment(appointment), repeated, skipped, confirmation };
   });
 }
 

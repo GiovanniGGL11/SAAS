@@ -169,11 +169,15 @@ export function AppointmentCard({
                     // Abre a aba já no clique: depois de esperar o link, o navegador bloquearia.
                     const tab = window.open('about:blank', '_blank');
                     setSendingWhatsapp(true);
-                    const link = await getConfirmationLinkAction(appointment.id)
-                      .then((r) => (r.ok ? r.data.url : null))
+                    const confirmation = await getConfirmationLinkAction(appointment.id)
+                      .then((r) => (r.ok ? r.data : null))
                       .finally(() => setSendingWhatsapp(false));
-                    const message = `Olá, ${appointment.client.name.split(' ')[0]}! Seu horário: ${appointment.serviceNameSnapshot}, ${dateLabel} às ${formatTimeInTz(appointment.startAt, timezone)}.${link ? ` Confirme ou cancele por aqui: ${link}` : ' Podemos confirmar?'}`;
-                    const url = whatsappLink(appointment.client.phone, message)!;
+                    const url =
+                      confirmation?.whatsappUrl ??
+                      whatsappLink(
+                        appointment.client.phone,
+                        `Olá, ${appointment.client.name.split(' ')[0]}! Seu horário: ${appointment.serviceNameSnapshot}, ${dateLabel} às ${formatTimeInTz(appointment.startAt, timezone)}. Podemos confirmar?`,
+                      )!;
                     if (tab) tab.location.href = url;
                     else window.location.href = url;
                   }}

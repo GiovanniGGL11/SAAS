@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createService,
@@ -14,6 +12,7 @@ import {
 } from '@/server/data/services';
 import { serviceInput, setServiceActiveInput } from '@/lib/validations/service';
 import { serializeService } from '@/lib/serialize';
+import { recordAuditLog } from '@/server/data/audit';
 
 export async function listServicesAction() {
   const { company } = await requireCurrentCompany();
@@ -24,11 +23,17 @@ export async function listServicesAction() {
 export async function createServiceAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = serviceInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     const service = await createService(company.id, parsed);
-    revalidatePath('/servicos');
-    revalidatePath('/agenda');
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Service',
+      entityId: service.id,
+      action: 'created',
+      userId,
+      metadata: { source: 'app', name: service.name },
+    });
     return serializeService(service);
   });
 }
@@ -37,11 +42,17 @@ export async function updateServiceAction(rawId: unknown, input: unknown) {
   return toActionResult(async () => {
     const id = parseId(rawId);
     const parsed = serviceInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     const service = await updateService(company.id, id, parsed);
-    revalidatePath('/servicos');
-    revalidatePath('/agenda');
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Service',
+      entityId: service.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', name: service.name },
+    });
     return serializeService(service);
   });
 }
@@ -49,10 +60,16 @@ export async function updateServiceAction(rawId: unknown, input: unknown) {
 export async function setServiceActiveAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = setServiceActiveInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     await setServiceActive(company.id, parsed.id, parsed.active);
-    revalidatePath('/servicos');
-    revalidatePath('/agenda');
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Service',
+      entityId: parsed.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', active: parsed.active },
+    });
   });
 }

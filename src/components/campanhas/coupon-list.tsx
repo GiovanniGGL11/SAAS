@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
+import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -66,8 +67,16 @@ export function CouponList({ initialCoupons }: { initialCoupons: SerializedCoupo
   const toggleActive = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setCouponActiveAction(input).then(unwrapResult),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coupons'] }),
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
+    onMutate: async ({ id, active }) => ({
+      rollback: await optimisticPatchItem<SerializedCoupon>(queryClient, ['coupons'], id, {
+        active,
+      }),
+    }),
+    onError: (error: Error, _input, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['coupons'] }),
   });
 
   function openCreate() {

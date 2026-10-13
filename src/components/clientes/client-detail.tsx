@@ -8,6 +8,7 @@ import { CalendarDaysIcon, MapPinIcon, StarIcon, PencilIcon } from 'lucide-react
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
+import { optimisticUpdate } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
 import { formatPhone, whatsappLink } from '@/lib/phone';
 import { Badge } from '@/components/ui/badge';
@@ -55,17 +56,38 @@ export function ClientDetail({
     initialData,
   });
 
+  // Estrela e "Ativo" mudam na tela na hora; se o servidor recusar, voltam ao que eram.
+  const detailKey = ['client-detail', clientId];
+  function patchClient(patch: { isVip?: boolean; active?: boolean }) {
+    return optimisticUpdate<ClientDetailData>(queryClient, detailKey, (current) => ({
+      ...current,
+      client: { ...current.client, ...patch },
+    }));
+  }
+  const settle = () => {
+    queryClient.invalidateQueries({ queryKey: detailKey });
+    queryClient.invalidateQueries({ queryKey: ['clients'] });
+  };
+
   const toggleVip = useMutation({
     mutationFn: (isVip: boolean) => setClientVipAction({ id: clientId, isVip }).then(unwrapResult),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] }),
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
+    onMutate: async (isVip) => ({ rollback: await patchClient({ isVip }) }),
+    onError: (error: Error, _isVip, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
+    },
+    onSettled: settle,
   });
 
   const toggleActive = useMutation({
     mutationFn: (active: boolean) =>
       setClientActiveAction({ id: clientId, active }).then(unwrapResult),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['client-detail', clientId] }),
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
+    onMutate: async (active) => ({ rollback: await patchClient({ active }) }),
+    onError: (error: Error, _active, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
+    },
+    onSettled: settle,
   });
 
   if (!data) {

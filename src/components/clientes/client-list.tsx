@@ -10,6 +10,7 @@ import { ChevronRightIcon, PlusIcon, StarIcon, UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
+import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -56,8 +57,14 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
   const toggleActive = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setClientActiveAction(input).then(unwrapResult),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
+    onMutate: async ({ id, active }) => ({
+      rollback: await optimisticPatchItem<Client>(queryClient, ['clients'], id, { active }),
+    }),
+    onError: (error: Error, _input, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
   });
 
   const filtered = clients.filter((client) => {

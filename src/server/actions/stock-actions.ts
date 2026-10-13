@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   adjustStock,
@@ -24,6 +22,7 @@ import {
   stockAdjustInput,
 } from '@/lib/validations/stock';
 import { serializeAppointmentProduct, serializeProduct } from '@/lib/serialize';
+import { recordAuditLog } from '@/server/data/audit';
 
 export async function listProductsAction() {
   const { company } = await requireCurrentCompany();
@@ -40,10 +39,17 @@ export async function listActiveProductsAction() {
 export async function createProductAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = productInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     const product = await createProduct(company.id, parsed);
-    revalidatePath('/estoque');
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Product',
+      entityId: product.id,
+      action: 'created',
+      userId,
+      metadata: { source: 'app', name: product.name },
+    });
     return serializeProduct(product);
   });
 }
@@ -52,10 +58,17 @@ export async function updateProductAction(rawId: unknown, input: unknown) {
   return toActionResult(async () => {
     const id = parseId(rawId);
     const parsed = productInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     const product = await updateProduct(company.id, id, parsed);
-    revalidatePath('/estoque');
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Product',
+      entityId: product.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', name: product.name },
+    });
     return serializeProduct(product);
   });
 }
@@ -63,10 +76,17 @@ export async function updateProductAction(rawId: unknown, input: unknown) {
 export async function setProductActiveAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = setProductActiveInput.parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { userId, company } = await requireCompanyAdmin();
 
     await setProductActive(company.id, parsed.id, parsed.active);
-    revalidatePath('/estoque');
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Product',
+      entityId: parsed.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', active: parsed.active },
+    });
   });
 }
 
@@ -82,7 +102,6 @@ export async function adjustStockAction(input: unknown) {
     const { userId, company } = await requireCompanyAdmin();
 
     await adjustStock(company.id, parsed, userId);
-    revalidatePath('/estoque');
   });
 }
 
@@ -99,9 +118,6 @@ export async function sellProductAction(input: unknown) {
     const { userId, company } = await requireCurrentCompany();
 
     const item = await sellProductToAppointment(company.id, parsed, userId);
-    revalidatePath('/estoque');
-    revalidatePath('/financeiro');
-    revalidatePath('/agenda');
     return serializeAppointmentProduct(item);
   });
 }

@@ -43,6 +43,10 @@ export function AppointmentProductsSection({
     onSuccess: () => {
       toast.success('Produto adicionado ao atendimento.');
       queryClient.invalidateQueries({ queryKey: ['appointment-products', appointmentId] });
+      // Estoque, caixa e relatórios mudam com a venda; antes isso vinha da re-renderização das páginas.
+      for (const key of ['products', 'active-products', 'transactions', 'cash-flow', 'report']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
       setProductId('');
       setQuantity(1);
     },
