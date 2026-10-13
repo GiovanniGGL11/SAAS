@@ -5,6 +5,7 @@ import { OrganizationSwitcher, UserButton } from '@clerk/nextjs';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { CommandMenu } from '@/components/layout/command-menu';
 import { AssistantButton } from '@/components/assistant/assistant-button';
+import { NotificationBell } from '@/components/layout/notification-bell';
 
 export function Topbar() {
   return (
@@ -25,6 +26,7 @@ export function Topbar() {
       <div className="flex shrink-0 items-center gap-1 md:gap-2">
         <CommandMenu />
         <AssistantButton configured={Boolean(process.env.GEMINI_API_KEY?.trim())} />
+        <NotificationBell />
         <ThemeToggle />
         <UserButton />
       </div>
