@@ -23,6 +23,8 @@ import {
 import { EmptyState } from '@/components/ui/empty-state';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { ClientLoyalty } from '@/components/clientes/client-loyalty';
+import { ClientPortalLinkButton } from '@/components/clientes/client-portal-link';
+import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import {
   getClientDetailAction,
   setClientActiveAction,
@@ -73,8 +75,8 @@ export function ClientDetail({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em] md:text-[34px]">
               {client.name}
@@ -100,8 +102,8 @@ export function ClientDetail({
             {client.email ? `· ${client.email}` : ''}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <div className="mr-1 flex items-center gap-2">
             <span className="text-muted-foreground text-xs">Ativo</span>
             <Switch
               checked={client.active}
@@ -115,6 +117,7 @@ export function ClientDetail({
               </a>
             </Button>
           )}
+          <ClientPortalLinkButton clientId={client.id} clientName={client.name} />
           <Button variant="outline" asChild>
             <Link href={`/agenda?cliente=${client.id}`}>Agendar</Link>
           </Button>
@@ -175,7 +178,30 @@ export function ClientDetail({
       <div>
         <h2 className="mb-2 text-sm font-medium">Histórico de agendamentos</h2>
         <div className="bg-tile overflow-hidden rounded-[22px]">
-          <Table>
+          {history.length > 0 && (
+            <MobileList>
+              {history.map((appointment) => (
+                <MobileListItem
+                  key={appointment.id}
+                  title={<span className="truncate">{appointment.serviceNameSnapshot}</span>}
+                  subtitle={`${new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
+                    appointment.startAt,
+                  )} ${formatTimeInTz(appointment.startAt, timezone)} · ${appointment.professional.name}`}
+                  trailing={
+                    <div className="text-right">
+                      <div className="text-[15px] tabular-nums">
+                        {formatCurrencyBRL(appointment.priceSnapshot)}
+                      </div>
+                      <div className="text-label-secondary text-[12px]">
+                        {STATUS_LABELS[appointment.status]}
+                      </div>
+                    </div>
+                  }
+                />
+              ))}
+            </MobileList>
+          )}
+          <Table className={history.length > 0 ? 'hidden md:table' : undefined}>
             <TableHeader>
               <TableRow>
                 <TableHead>Data</TableHead>

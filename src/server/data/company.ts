@@ -52,3 +52,17 @@ export async function updateCompanyTimezone(companyId: string, timezone: string)
   });
   if (result.count === 0) throw new UserError('Empresa não encontrada.');
 }
+
+/** WhatsApp onde os clientes pedem o link da área do cliente; guardado com o DDI (55…). */
+export async function updateCompanyWhatsapp(companyId: string, phone: string | null) {
+  let whatsapp: string | null = null;
+  if (phone) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10 || digits.length === 11) whatsapp = `55${digits}`;
+    else if (/^55\d{10,11}$/.test(digits)) whatsapp = digits;
+    else throw new UserError('Informe o WhatsApp com DDD, por exemplo (11) 98888-7777.');
+  }
+  const result = await prisma.company.updateMany({ where: { id: companyId }, data: { whatsapp } });
+  if (result.count === 0) throw new UserError('Empresa não encontrada.');
+  return whatsapp;
+}

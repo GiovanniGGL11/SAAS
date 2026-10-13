@@ -1,11 +1,12 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { prisma } from '@/lib/db';
 import { toActionResult } from '@/server/action-result';
+import { appBaseUrl } from '@/server/app-url';
+import { rateLimit } from '@/server/rate-limit';
 import { scheduleGoogleSync } from '@/server/google/background';
 import { UserError, idSchema } from '@/server/errors';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
@@ -18,24 +19,6 @@ import {
   setOnlineBookingEnabled,
   signAppointmentToken,
 } from '@/server/data/public-booking';
-
-// ---- Proteção das ações públicas (sem login) --------------------------------------------------
-// Limite simples por IP, em memória: segura curiosos e robôs simples numa instância. Não substitui
-// um rate limit distribuído (Upstash/Redis) se o tráfego crescer.
-const hits = new Map<string, { count: number; resetAt: number }>();
-async function rateLimit(key: string, max: number, windowMs: number) {
-  const ip = (await headers()).get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
-  const id = `${key}:${ip}`;
-  const now = Date.now();
-  const entry = hits.get(id);
-  if (!entry || entry.resetAt < now) {
-    hits.set(id, { count: 1, resetAt: now + windowMs });
-    return;
-  }
-  entry.count += 1;
-  if (entry.count > max)
-    throw new UserError('Muitas tentativas. Aguarde um minuto e tente de novo.');
-}
 
 const slugSchema = z.string().min(1).max(100);
 const dateSchema = z.object({
@@ -133,11 +116,7 @@ export async function getConfirmationLinkAction(rawId: unknown) {
       select: { id: true },
     });
     if (!appointment) throw new UserError('Agendamento não encontrado.');
-    const h = await headers();
-    const host = h.get('host');
-    const proto = h.get('x-forwarded-proto') ?? (host?.startsWith('localhost') ? 'http' : 'https');
-    const base = process.env.NEXT_PUBLIC_APP_URL || (host ? `${proto}://${host}` : '');
-    return { url: `${base}/confirmar/${signAppointmentToken(appointment.id)}` };
+    return { url: `${await appBaseUrl()}/confirmar/${signAppointmentToken(appointment.id)}` };
   });
 }
 
