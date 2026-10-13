@@ -1,8 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import {
@@ -30,7 +29,7 @@ export function ImportClientsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [clients, setClients] = React.useState<ImportedClient[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -42,7 +41,7 @@ export function ImportClientsDialog({
       );
       setClients(null);
       onOpenChange(false);
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
     },
     onError: (e: Error) => toast.error(e.message || 'Não foi possível importar.'),
   });

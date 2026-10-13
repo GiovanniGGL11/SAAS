@@ -4,6 +4,8 @@ import { requireAdminPage } from '@/server/auth/require-current-company';
 import { TimezoneCard } from '@/components/configuracoes/timezone-card';
 import { OnlineBookingCard } from '@/components/configuracoes/online-booking-card';
 import { ClientAreaCard } from '@/components/configuracoes/client-area-card';
+import { RemindersSettingsCard } from '@/components/configuracoes/reminders-card';
+import { isEmailConfigured } from '@/server/email';
 import { isOnlineBookingEnabled } from '@/server/data/public-booking';
 import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
@@ -30,6 +32,11 @@ export default async function ConfiguracoesPage() {
       <ClientAreaCard
         initialWhatsapp={company.whatsapp}
         entryUrl={`${baseUrl}/cliente/entrar/${company.slug}`}
+      />
+
+      <RemindersSettingsCard
+        initialEnabled={company.remindersByEmail}
+        emailConfigured={isEmailConfigured() && Boolean(process.env.CRON_SECRET?.trim())}
       />
 
       <TimezoneCard companyName={company.name} timezone={company.timezone} />

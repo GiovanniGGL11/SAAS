@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   addLoyaltyManually,
@@ -36,8 +34,6 @@ export async function saveLoyaltyProgramAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const program = await saveLoyaltyProgram(company.id, parsed);
-    revalidatePath('/fidelidade');
-    revalidatePath('/clientes', 'layout');
     return program;
   });
 }
@@ -61,7 +57,6 @@ export async function redeemLoyaltyAction(input: unknown) {
       createdByUserId: userId,
       cashbackAmount: parsed.amount,
     });
-    revalidatePath('/fidelidade');
   });
 }
 
@@ -77,6 +72,5 @@ export async function addLoyaltyManuallyAction(input: unknown) {
       description: parsed.description,
       createdByUserId: userId,
     });
-    revalidatePath('/fidelidade');
   });
 }

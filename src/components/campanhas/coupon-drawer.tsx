@@ -15,6 +15,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { unwrapResult } from '@/lib/action-result';
+import { upsertInList } from '@/lib/query-cache';
 import {
   Form,
   FormControl,
@@ -70,7 +71,8 @@ export function CouponDrawer({
       (isEdit ? updateCouponAction(coupon.id, values) : createCouponAction(values)).then(
         unwrapResult,
       ),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      upsertInList(queryClient, ['coupons'], saved);
       toast.success(isEdit ? 'Cupom atualizado.' : 'Cupom criado.');
       queryClient.invalidateQueries({ queryKey: ['coupons'] });
       onOpenChange(false);

@@ -6,6 +6,7 @@ import { ConciergeBellIcon, PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
+import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -54,10 +55,16 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
   const toggleActive = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setServiceActiveAction(input).then(unwrapResult),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
+    onMutate: async ({ id, active }) => ({
+      rollback: await optimisticPatchItem<SerializedService>(queryClient, ['services'], id, {
+        active,
+      }),
+    }),
+    onError: (error: Error, _input, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['services'] }),
   });
 
   function openCreate() {

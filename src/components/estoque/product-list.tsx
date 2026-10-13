@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
+import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -55,8 +56,16 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
   const toggleActive = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setProductActiveAction(input).then(unwrapResult),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
+    onMutate: async ({ id, active }) => ({
+      rollback: await optimisticPatchItem<SerializedProduct>(queryClient, ['products'], id, {
+        active,
+      }),
+    }),
+    onError: (error: Error, _input, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
 
   function openCreate() {

@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import {
   cancelTransaction,
@@ -53,7 +51,6 @@ export async function createTransactionAction(input: unknown) {
       { ...parsed, paidAt: parsed.status === 'PAID' ? new Date() : null },
       userId,
     );
-    revalidatePath('/financeiro');
     return serializeTransaction(transaction);
   });
 }
@@ -65,7 +62,6 @@ export async function updateTransactionAction(rawId: unknown, input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const transaction = await updateTransaction(company.id, id, parsed);
-    revalidatePath('/financeiro');
     return serializeTransaction(transaction);
   });
 }
@@ -75,7 +71,6 @@ export async function markTransactionPaidAction(rawId: unknown) {
     const id = parseId(rawId);
     const { company } = await requireCompanyAdmin();
     await markTransactionPaid(company.id, id);
-    revalidatePath('/financeiro');
   });
 }
 
@@ -84,6 +79,5 @@ export async function cancelTransactionAction(rawId: unknown) {
     const id = parseId(rawId);
     const { company } = await requireCompanyAdmin();
     await cancelTransaction(company.id, id);
-    revalidatePath('/financeiro');
   });
 }

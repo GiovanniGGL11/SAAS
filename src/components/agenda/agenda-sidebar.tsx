@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { GoogleCalendarCard } from '@/components/agenda/google-calendar-card';
+import { WaitlistCard } from '@/components/agenda/waitlist-card';
+import { RemindersCard } from '@/components/agenda/reminders-card';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Select,
@@ -203,6 +205,15 @@ export function AgendaSidebar({
           </SelectContent>
         </Select>
       </section>
+
+      <WaitlistCard
+        anchorDate={anchorDate}
+        services={services}
+        professionals={professionals}
+        onDateSelect={onDateSelect}
+      />
+
+      <RemindersCard />
 
       <GoogleCalendarCard professionals={professionals} />
     </aside>

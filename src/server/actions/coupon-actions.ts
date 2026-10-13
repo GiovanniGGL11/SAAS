@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import { createCoupon, listAllCoupons, setCouponActive, updateCoupon } from '@/server/data/coupons';
 import { couponInput, setCouponActiveInput } from '@/lib/validations/coupon';
@@ -22,7 +20,6 @@ export async function createCouponAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const coupon = await createCoupon(company.id, parsed);
-    revalidatePath('/campanhas');
     return serializeCoupon(coupon);
   });
 }
@@ -34,7 +31,6 @@ export async function updateCouponAction(rawId: unknown, input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const coupon = await updateCoupon(company.id, id, parsed);
-    revalidatePath('/campanhas');
     return serializeCoupon(coupon);
   });
 }
@@ -45,6 +41,5 @@ export async function setCouponActiveAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     await setCouponActive(company.id, parsed.id, parsed.active);
-    revalidatePath('/campanhas');
   });
 }
