@@ -162,6 +162,43 @@ export async function listClientAppointmentHistory(companyId: string, clientId: 
   });
 }
 
+/**
+ * Clientes ativos cuja última visita concluída foi há mais de `days` dias e que não têm nada
+ * marcado daqui para frente — a lista de quem "sumiu".
+ */
+export async function listLapsedClients(companyId: string, days: number, limit = 30) {
+  const cutoff = new Date(Date.now() - days * 86_400_000);
+  const [lastVisits, upcoming] = await Promise.all([
+    prisma.appointment.groupBy({
+      by: ['clientId'],
+      where: { companyId, status: 'DONE' },
+      _max: { startAt: true },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        companyId,
+        startAt: { gte: new Date() },
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+      },
+      select: { clientId: true },
+      distinct: ['clientId'],
+    }),
+  ]);
+  const hasUpcoming = new Set(upcoming.map((a) => a.clientId));
+  const lapsed = lastVisits
+    .filter((v) => v._max.startAt && v._max.startAt < cutoff && !hasUpcoming.has(v.clientId))
+    .sort((a, b) => a._max.startAt!.getTime() - b._max.startAt!.getTime());
+  const lastByClient = new Map(lapsed.map((v) => [v.clientId, v._max.startAt!]));
+  const clients = await prisma.client.findMany({
+    where: { companyId, active: true, id: { in: [...lastByClient.keys()] } },
+    select: { id: true, name: true, phone: true },
+  });
+  return clients
+    .map((c) => ({ ...c, lastVisitAt: lastByClient.get(c.id)! }))
+    .sort((a, b) => b.lastVisitAt.getTime() - a.lastVisitAt.getTime())
+    .slice(0, limit);
+}
+
 export type ImportClientRow = {
   name: string;
   phone?: string;

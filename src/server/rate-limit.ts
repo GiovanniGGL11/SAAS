@@ -8,7 +8,11 @@ import { UserError } from '@/server/errors';
 const hits = new Map<string, { count: number; resetAt: number }>();
 export async function rateLimit(key: string, max: number, windowMs: number) {
   const ip = (await headers()).get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
-  const id = `${key}:${ip}`;
+  rateLimitByKey(`${key}:${ip}`, max, windowMs);
+}
+
+/** Mesmo limite, por uma chave já pronta (ex.: o usuário logado, para ações que custam dinheiro). */
+export function rateLimitByKey(id: string, max: number, windowMs: number) {
   const now = Date.now();
   const entry = hits.get(id);
   if (!entry || entry.resetAt < now) {
