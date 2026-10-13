@@ -3,7 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
@@ -47,8 +46,6 @@ export async function createClientAction(input: unknown) {
         email: parsed.email || null,
         birthDate: parsed.birthDate ?? null,
       });
-      revalidatePath('/clientes');
-      revalidatePath('/agenda');
       return client;
     } catch (error) {
       throw toFriendlyError(error);
@@ -68,8 +65,6 @@ export async function updateClientAction(rawId: unknown, input: unknown) {
         email: parsed.email || null,
         birthDate: parsed.birthDate ?? null,
       });
-      revalidatePath('/clientes');
-      revalidatePath('/agenda');
       return client;
     } catch (error) {
       throw toFriendlyError(error);
@@ -83,8 +78,6 @@ export async function setClientActiveAction(input: unknown) {
     const { company } = await requireCurrentCompany();
 
     await setClientActive(company.id, parsed.id, parsed.active);
-    revalidatePath('/clientes');
-    revalidatePath('/agenda');
   });
 }
 
@@ -94,7 +87,6 @@ export async function setClientVipAction(input: unknown) {
     const { company } = await requireCurrentCompany();
 
     await setClientVip(company.id, parsed.id, parsed.isVip);
-    revalidatePath('/clientes');
   });
 }
 
@@ -168,7 +160,6 @@ export async function importClientsAction(input: unknown) {
         ...normalizeImportedAddress(r),
       })),
     );
-    revalidatePath('/clientes');
     return result;
   });
 }

@@ -15,6 +15,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { unwrapResult } from '@/lib/action-result';
+import { upsertInList } from '@/lib/query-cache';
 import {
   Form,
   FormControl,
@@ -60,7 +61,8 @@ export function ProductDrawer({
       (isEdit ? updateProductAction(product.id, values) : createProductAction(values)).then(
         unwrapResult,
       ),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      upsertInList(queryClient, ['products'], saved);
       toast.success(isEdit ? 'Produto atualizado.' : 'Produto criado.');
       queryClient.invalidateQueries({ queryKey: ['products'] });
       onOpenChange(false);

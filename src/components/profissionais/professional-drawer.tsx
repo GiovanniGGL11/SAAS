@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { unwrapResult } from '@/lib/action-result';
+import { upsertInList } from '@/lib/query-cache';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AvailabilityEditor } from '@/components/profissionais/availability-editor';
@@ -79,6 +80,7 @@ export function ProfessionalDrawer({
         : createProfessionalAction(values)
       ).then(unwrapResult),
     onSuccess: (saved) => {
+      upsertInList(queryClient, ['professionals'], saved);
       queryClient.invalidateQueries({ queryKey: ['professionals'] });
       if (!isEdit && !justCreatedId) {
         toast.success('Profissional criado. Agora defina o expediente.');

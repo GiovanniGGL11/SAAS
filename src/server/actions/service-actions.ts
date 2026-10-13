@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createService,
@@ -27,8 +25,6 @@ export async function createServiceAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const service = await createService(company.id, parsed);
-    revalidatePath('/servicos');
-    revalidatePath('/agenda');
     return serializeService(service);
   });
 }
@@ -40,8 +36,6 @@ export async function updateServiceAction(rawId: unknown, input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const service = await updateService(company.id, id, parsed);
-    revalidatePath('/servicos');
-    revalidatePath('/agenda');
     return serializeService(service);
   });
 }
@@ -52,7 +46,5 @@ export async function setServiceActiveAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     await setServiceActive(company.id, parsed.id, parsed.active);
-    revalidatePath('/servicos');
-    revalidatePath('/agenda');
   });
 }

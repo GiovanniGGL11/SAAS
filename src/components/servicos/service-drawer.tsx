@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { unwrapResult } from '@/lib/action-result';
+import { upsertInList } from '@/lib/query-cache';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -61,7 +62,8 @@ export function ServiceDrawer({
       (isEdit ? updateServiceAction(service.id, values) : createServiceAction(values)).then(
         unwrapResult,
       ),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      upsertInList(queryClient, ['services'], saved);
       toast.success(isEdit ? 'Serviço atualizado.' : 'Serviço criado.');
       queryClient.invalidateQueries({ queryKey: ['services'] });
       onOpenChange(false);

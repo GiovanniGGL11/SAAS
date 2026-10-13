@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   adjustStock,
@@ -43,7 +41,6 @@ export async function createProductAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const product = await createProduct(company.id, parsed);
-    revalidatePath('/estoque');
     return serializeProduct(product);
   });
 }
@@ -55,7 +52,6 @@ export async function updateProductAction(rawId: unknown, input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     const product = await updateProduct(company.id, id, parsed);
-    revalidatePath('/estoque');
     return serializeProduct(product);
   });
 }
@@ -66,7 +62,6 @@ export async function setProductActiveAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     await setProductActive(company.id, parsed.id, parsed.active);
-    revalidatePath('/estoque');
   });
 }
 
@@ -82,7 +77,6 @@ export async function adjustStockAction(input: unknown) {
     const { userId, company } = await requireCompanyAdmin();
 
     await adjustStock(company.id, parsed, userId);
-    revalidatePath('/estoque');
   });
 }
 
@@ -99,9 +93,6 @@ export async function sellProductAction(input: unknown) {
     const { userId, company } = await requireCurrentCompany();
 
     const item = await sellProductToAppointment(company.id, parsed, userId);
-    revalidatePath('/estoque');
-    revalidatePath('/financeiro');
-    revalidatePath('/agenda');
     return serializeAppointmentProduct(item);
   });
 }

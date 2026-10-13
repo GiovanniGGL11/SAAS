@@ -3,8 +3,6 @@
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
-import { revalidatePath } from 'next/cache';
-
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createProfessional,
@@ -51,8 +49,6 @@ export async function createProfessionalAction(input: unknown) {
         commissionType: parsed.commissionType ?? null,
         commissionValue: parsed.commissionValue ?? null,
       });
-      revalidatePath('/profissionais');
-      revalidatePath('/agenda');
       return serializeProfessional(professional);
     } catch (error) {
       throw toFriendlyError(error);
@@ -73,8 +69,6 @@ export async function updateProfessionalAction(rawId: unknown, input: unknown) {
         commissionType: parsed.commissionType ?? null,
         commissionValue: parsed.commissionValue ?? null,
       });
-      revalidatePath('/profissionais');
-      revalidatePath('/agenda');
       return serializeProfessional(professional);
     } catch (error) {
       throw toFriendlyError(error);
@@ -88,7 +82,5 @@ export async function setProfessionalActiveAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
 
     await setProfessionalActive(company.id, parsed.id, parsed.active);
-    revalidatePath('/profissionais');
-    revalidatePath('/agenda');
   });
 }
