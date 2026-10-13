@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import type { Service } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 
 export async function listActiveServices(companyId: string): Promise<Service[]> {
   return prisma.service.findMany({
@@ -58,7 +59,7 @@ export async function updateService(
       color: data.color,
     },
   });
-  if (result.count === 0) throw new Error('Service not found');
+  if (result.count === 0) throw new UserError('Serviço não encontrado.');
 
   return (await getServiceById(companyId, id))!;
 }
@@ -72,5 +73,5 @@ export async function setServiceActive(
     where: { id, companyId },
     data: { active },
   });
-  if (result.count === 0) throw new Error('Service not found');
+  if (result.count === 0) throw new UserError('Serviço não encontrado.');
 }

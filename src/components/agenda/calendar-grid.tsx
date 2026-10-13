@@ -32,7 +32,20 @@ export type GridColumn = {
   sublabel?: string;
   date: CalendarDate;
   accentColor?: string;
+  /** Linha de apoio no cabeçalho do profissional ("3 atendimentos"). */
+  caption?: string;
 };
+
+function initials(name: string): string {
+  const parts = name
+    .replace(/\(.*?\)/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (
+    (parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')
+  ).toUpperCase();
+}
 
 export type GridAppointment = SerializedAppointment & { isFirstVisit?: boolean };
 
@@ -150,6 +163,7 @@ function DraggableAppointment({
   colorMode,
   onClick,
   onContextMenu,
+  onResize,
 }: {
   item: LayoutItem;
   timezone: string;
@@ -157,14 +171,50 @@ function DraggableAppointment({
   colorMode: 'professional' | 'status';
   onClick: (appointment: GridAppointment, point: ScreenPoint) => void;
   onContextMenu: (appointment: GridAppointment, point: ScreenPoint) => void;
+  onResize: (appointment: GridAppointment, newEndAt: Date) => void;
 }) {
   const { appointment } = item;
+  // Puxar a borda de baixo muda a duração, de 15 em 15 minutos — como no Google Agenda.
+  const [resizeDeltaPx, setResizeDeltaPx] = React.useState<number | null>(null);
+  const resizedHeight = Math.max(
+    minutesToTop(SLOT_MINUTES),
+    item.height +
+      (resizeDeltaPx === null
+        ? 0
+        : Math.round(resizeDeltaPx / minutesToTop(SLOT_MINUTES)) * minutesToTop(SLOT_MINUTES)),
+  );
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: appointment.id,
   });
 
   const isInactive = appointment.status === 'CANCELED' || appointment.status === 'NO_SHOW';
+  const isDone = appointment.status === 'DONE';
   const color = colorFor(appointment);
+  // Cor cheia e texto branco, como os eventos do Google. Falta e cancelado ficam só no contorno;
+  // concluído fica esmaecido, como evento que já passou.
+  const solid = !isInactive;
+
+  function startResize(event: React.PointerEvent) {
+    event.stopPropagation();
+    event.preventDefault();
+    const startY = event.clientY;
+    const target = event.currentTarget as HTMLElement;
+    target.setPointerCapture(event.pointerId);
+    const move = (e: PointerEvent) => setResizeDeltaPx(e.clientY - startY);
+    const up = (e: PointerEvent) => {
+      target.removeEventListener('pointermove', move);
+      target.removeEventListener('pointerup', up);
+      const slots = Math.round((e.clientY - startY) / minutesToTop(SLOT_MINUTES));
+      setResizeDeltaPx(null);
+      if (slots === 0) return;
+      const durationMs =
+        appointment.endAt.getTime() - appointment.startAt.getTime() + slots * SLOT_MINUTES * 60_000;
+      if (durationMs < SLOT_MINUTES * 60_000) return;
+      onResize(appointment, new Date(appointment.startAt.getTime() + durationMs));
+    };
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+  }
 
   return (
     <button
@@ -179,25 +229,27 @@ function DraggableAppointment({
         onContextMenu(appointment, { x: event.clientX, y: event.clientY });
       }}
       className={cn(
-        'absolute overflow-hidden rounded-lg border-l-[3px] py-1 pr-2 pl-2 text-left text-xs transition-[box-shadow,transform] duration-200 select-none [-webkit-touch-callout:none] hover:z-30 hover:shadow-lg',
+        'group/card absolute overflow-hidden rounded-[10px] px-2 py-1 text-left text-xs shadow-sm ring-1 ring-black/5 transition-[box-shadow,transform] duration-200 hover:z-30 hover:shadow-lg',
+        solid ? 'text-white' : 'bg-background text-foreground border-2 border-dashed',
+        isDone && 'opacity-60',
         isDragging && 'z-50 scale-[1.02] opacity-90 shadow-xl',
-        isInactive && 'opacity-60',
-        appointment.status === 'NO_SHOW' && 'line-through decoration-1',
+        resizeDeltaPx !== null && 'z-50 shadow-xl',
+        appointment.status === 'NO_SHOW' && 'line-through decoration-1 opacity-70',
       )}
       style={{
         top: item.top,
-        height: item.height,
+        height: resizedHeight,
         left: `calc(${(item.lane / item.totalLanes) * 100}% + 2px)`,
         width: `calc(${100 / item.totalLanes}% - 4px)`,
-        backgroundColor: `color-mix(in oklch, ${color} 16%, var(--background))`,
-        borderLeftColor: color,
+        backgroundColor: solid ? color : undefined,
+        borderColor: solid ? undefined : color,
         transform: CSS.Translate.toString(transform),
       }}
     >
       <div className="flex items-center gap-1">
         {/* Colorindo por profissional, o status vira a bolinha; colorindo por status, vice-versa. */}
         <span
-          className="size-2 shrink-0 rounded-full"
+          className={cn('size-2 shrink-0 rounded-full', solid && 'ring-1 ring-white/80')}
           style={{
             backgroundColor:
               colorMode === 'professional'
@@ -208,27 +260,44 @@ function DraggableAppointment({
         />
         <span className="truncate font-semibold">{appointment.client.name}</span>
         {appointment.isFirstVisit && (
-          <SparklesIcon className="text-system-indigo size-3 shrink-0" aria-label="Cliente novo" />
+          <SparklesIcon
+            className={cn('size-3 shrink-0', solid ? 'text-white' : 'text-system-indigo')}
+            aria-label="Cliente novo"
+          />
         )}
         {appointment.notes && (
           <StickyNoteIcon
-            className="text-muted-foreground size-3 shrink-0"
+            className={cn('size-3 shrink-0', solid ? 'text-white/85' : 'text-muted-foreground')}
             aria-label="Tem observação"
           />
         )}
       </div>
-      <div className="text-muted-foreground truncate">
-        {formatTimeInTz(appointment.startAt, timezone)} · {appointment.serviceNameSnapshot}
+      <div className={cn('truncate', solid ? 'text-white/85' : 'text-muted-foreground')}>
+        {formatTimeInTz(appointment.startAt, timezone)}
+        {resizeDeltaPx !== null &&
+          ` – ${formatMinutes(utcToMinutesSinceMidnight(appointment.startAt, timezone) + Math.round(resizedHeight / minutesToTop(1)))}`}{' '}
+        · {appointment.serviceNameSnapshot}
       </div>
-      {item.height > 44 && (
-        <div className="text-label-secondary truncate font-medium">
+      {resizedHeight > 44 && (
+        <div
+          className={cn('truncate font-medium', solid ? 'text-white/85' : 'text-label-secondary')}
+        >
           {STATUS_LABELS[appointment.status]}
-          <span className="text-muted-foreground font-normal">
-            {' '}
-            · {formatCurrencyBRL(appointment.priceSnapshot)}
-          </span>
+          <span className="font-normal"> · {formatCurrencyBRL(appointment.priceSnapshot)}</span>
         </div>
       )}
+      {/* Alça de redimensionar: aparece ao passar o mouse na borda de baixo. */}
+      <span
+        role="separator"
+        aria-label="Puxar para mudar a duração"
+        onPointerDown={startResize}
+        onClick={(event) => event.stopPropagation()}
+        className="absolute right-0 bottom-0 left-0 flex h-2 cursor-ns-resize items-center justify-center opacity-0 group-hover/card:opacity-100"
+      >
+        <span
+          className={cn('h-0.5 w-6 rounded-full', solid ? 'bg-white/80' : 'bg-foreground/40')}
+        />
+      </span>
     </button>
   );
 }
@@ -258,6 +327,7 @@ export function CalendarGrid({
   onAppointmentClick,
   onAppointmentContextMenu,
   onAppointmentMove,
+  onAppointmentResize,
   onSlotClick,
   onBlockClick,
 }: {
@@ -277,8 +347,12 @@ export function CalendarGrid({
   onAppointmentContextMenu: (appointment: GridAppointment, point: ScreenPoint) => void;
   /** `targetColumn` é a coluna onde o card foi solto: outro dia na semana, outro profissional no dia. */
   onAppointmentMove: (appointmentId: string, newStartAt: Date, targetColumn: GridColumn) => void;
-  /** Clique num horário vazio: abre o menu "Agendar / Bloquear horário" ali. */
-  onSlotClick: (column: GridColumn, startAt: Date, point: ScreenPoint) => void;
+  onAppointmentResize: (appointment: GridAppointment, newEndAt: Date) => void;
+  /**
+   * Clique num horário vazio, ou arrastar sobre vários (com o mouse): abre a criação rápida ali.
+   * `endAt` vem quando a pessoa arrastou um intervalo.
+   */
+  onSlotClick: (column: GridColumn, startAt: Date, point: ScreenPoint, endAt?: Date) => void;
   onBlockClick: (block: GridBlock, point: ScreenPoint) => void;
 }) {
   const hours = React.useMemo(() => ({ startHour, endHour }), [startHour, endHour]);
@@ -293,14 +367,24 @@ export function CalendarGrid({
     return () => window.clearInterval(id);
   }, []);
 
-  // Mouse: a 5px move starts a drag, so a click's tiny jitter still counts as a
-  // click and opens the appointment. Touch: a finger landing on an appointment
-  // is far more often the start of a scroll, so dragging needs a long-press
-  // (250ms held within 8px) — otherwise the grid couldn't be scrolled over cards.
+  // Without an activation distance, dnd-kit's PointerSensor starts a drag on
+  // any pointer movement at all — even the couple of pixels of jitter a
+  // normal click has between mousedown/mouseup — which swallows the click
+  // and appointment-detail onClick never fires. Require an intentional
+  // 5px move before a drag begins; anything less is treated as a plain click.
+  // No toque, arrastar um card exige segurar um instante: sem isso, rolar a agenda no celular
+  // arrastaria o card que estivesse debaixo do dedo.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
+
+  // Arrastar no vazio com o mouse escolhe um intervalo (como no Google Agenda).
+  const [selection, setSelection] = React.useState<{
+    columnId: string;
+    anchor: number;
+    current: number;
+  } | null>(null);
 
   // Prévia "+ 09:30" do horário sob o mouse, para o clique no vazio ser descoberto sem explicação.
   const [hoverSlot, setHoverSlot] = React.useState<{ columnId: string; minutes: number } | null>(
@@ -348,18 +432,45 @@ export function CalendarGrid({
 
   const hourMarks = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
 
+  // Ao abrir (e ao trocar de dia), rola até uma hora antes de agora quando hoje está na tela —
+  // senão até o primeiro agendamento — como o Google faz, em vez de abrir no começo do dia.
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollKey = columns.map((c) => `${c.date.year}-${c.date.month}-${c.date.day}`).join('|');
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const showsToday = columns.some((c) => isSameCalendarDate(c.date, today));
+    const firstAppointment = appointments.reduce<number | null>((min, a) => {
+      const m = utcToMinutesSinceMidnight(a.startAt, timezone);
+      return min === null || m < min ? m : min;
+    }, null);
+    const target = showsToday
+      ? utcToMinutesSinceMidnight(new Date(), timezone) - 60
+      : (firstAppointment ?? startHour * 60) - 30;
+    el.scrollTop = Math.max(0, minutesToTop(target - startHour * 60));
+    // Só ao trocar o período: rolar de novo a cada atualização da lista atrapalharia quem está usando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollKey]);
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-17rem)] min-h-[420px] overflow-auto overscroll-contain rounded-[22px] ring-1 md:max-h-[calc(100svh-15rem)]">
-        <div className="bg-background sticky left-0 z-20 w-12 shrink-0 border-r sm:w-14">
+      <div
+        ref={scrollRef}
+        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1"
+      >
+        <div className="bg-background sticky left-0 z-20 w-14 shrink-0 border-r">
           <div className="bg-background sticky top-0 z-10 h-16 border-b" />
-          {hourMarks.map((hour) => (
+          {hourMarks.map((hour, index) => (
             <div
               key={hour}
               className="text-muted-foreground relative border-b text-right text-xs"
               style={{ height: PIXELS_PER_HOUR }}
             >
-              <span className="absolute -top-2 right-1">{`${String(hour).padStart(2, '0')}:00`}</span>
+              {/* As outras horas ficam centradas na linha; a primeira desce para dentro da faixa, senão o
+                  cabeçalho fixo (nome do profissional / dia) cobre o rótulo. */}
+              <span className={cn('absolute right-1', index === 0 ? 'top-0.5' : '-top-2')}>
+                {`${String(hour).padStart(2, '0')}:00`}
+              </span>
             </div>
           ))}
         </div>
@@ -380,26 +491,49 @@ export function CalendarGrid({
               ref={(el) => {
                 if (el) columnWidthRef.current = el.offsetWidth;
               }}
-              className="relative min-w-32 flex-1 border-r last:border-r-0 sm:min-w-40"
+              className="relative min-w-40 flex-1 border-r last:border-r-0"
             >
               {/* Cabeçalho como o do Google Agenda: dia da semana pequeno, número grande num círculo
                   (cheio quando é hoje). Na visão Dia, a coluna é o profissional. */}
               <div className="bg-background/85 sticky top-0 z-10 flex h-16 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md">
-                <span
-                  className={cn(
-                    'flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase',
-                    column.sublabel && isToday ? 'text-system-blue' : 'text-label-secondary',
-                  )}
-                >
-                  {column.accentColor && (
+                {!column.sublabel && column.accentColor ? (
+                  // Visão Dia, "agenda por pessoas": avatar de iniciais, nome e o total do dia.
+                  <div className="flex max-w-full items-center gap-2 px-2">
                     <span
-                      className="size-2 rounded-full"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
                       style={{ backgroundColor: column.accentColor }}
                       aria-hidden
-                    />
-                  )}
-                  {column.label}
-                </span>
+                    >
+                      {initials(column.label)}
+                    </span>
+                    <span className="min-w-0 text-left">
+                      <span className="block truncate text-[13px] font-semibold">
+                        {column.label}
+                      </span>
+                      {column.caption && (
+                        <span className="text-label-secondary block truncate text-[11px]">
+                          {column.caption}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <span
+                    className={cn(
+                      'flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase',
+                      column.sublabel && isToday ? 'text-system-blue' : 'text-label-secondary',
+                    )}
+                  >
+                    {column.accentColor && (
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: column.accentColor }}
+                        aria-hidden
+                      />
+                    )}
+                    {column.label}
+                  </span>
+                )}
                 {column.sublabel && (
                   <span
                     className={cn(
@@ -414,16 +548,47 @@ export function CalendarGrid({
               <div
                 className="relative cursor-pointer"
                 style={{ height: gridHeight }}
-                onClick={(event) => {
+                onMouseDown={(event) => {
                   // Clique em cima de um agendamento ou bloqueio é dele, não do horário vazio.
-                  if ((event.target as HTMLElement).closest('button')) return;
+                  if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
+                  const minutes = minutesAtPointer(event, hours);
+                  setSelection({ columnId: column.id, anchor: minutes, current: minutes });
+                }}
+                onMouseUp={(event) => {
+                  if (!selection || selection.columnId !== column.id) return;
+                  const start = Math.min(selection.anchor, selection.current);
+                  const end = Math.max(selection.anchor, selection.current) + SLOT_MINUTES;
+                  setSelection(null);
                   onSlotClick(
                     column,
-                    calendarDateToUtc(column.date, minutesAtPointer(event, hours), timezone),
+                    calendarDateToUtc(column.date, start, timezone),
                     { x: event.clientX, y: event.clientY },
+                    end - start > SLOT_MINUTES
+                      ? calendarDateToUtc(column.date, end, timezone)
+                      : undefined,
                   );
                 }}
+                onClick={(event) => {
+                  // Toque no celular não gera mousedown confiável: o clique simples também cria.
+                  if ((event.target as HTMLElement).closest('button')) return;
+                  if (
+                    event.detail === 0 ||
+                    (event.nativeEvent as PointerEvent).pointerType === 'touch'
+                  ) {
+                    onSlotClick(
+                      column,
+                      calendarDateToUtc(column.date, minutesAtPointer(event, hours), timezone),
+                      { x: event.clientX, y: event.clientY },
+                    );
+                  }
+                }}
                 onMouseMove={(event) => {
+                  if (selection?.columnId === column.id) {
+                    const minutes = minutesAtPointer(event, hours);
+                    if (minutes !== selection.current)
+                      setSelection({ ...selection, current: minutes });
+                    return;
+                  }
                   if ((event.target as HTMLElement).closest('button')) {
                     if (hoverSlot) setHoverSlot(null);
                     return;
@@ -433,7 +598,10 @@ export function CalendarGrid({
                     setHoverSlot({ columnId: column.id, minutes });
                   }
                 }}
-                onMouseLeave={() => setHoverSlot(null)}
+                onMouseLeave={() => {
+                  setHoverSlot(null);
+                  if (selection?.columnId === column.id) setSelection(null);
+                }}
               >
                 {hourMarks.slice(0, -1).map((hour) => (
                   <div key={hour} className="relative border-b" style={{ height: PIXELS_PER_HOUR }}>
@@ -485,7 +653,23 @@ export function CalendarGrid({
                     </button>
                   );
                 })}
-                {hoverSlot?.columnId === column.id && (
+                {selection?.columnId === column.id && (
+                  <div
+                    className="bg-system-blue/85 pointer-events-none absolute right-1 left-1 z-20 rounded-[10px] px-2 py-1 text-[11px] font-medium text-white shadow-lg"
+                    style={{
+                      top: minutesToTop(
+                        Math.min(selection.anchor, selection.current) - startHour * 60,
+                      ),
+                      height: minutesToTop(
+                        Math.abs(selection.current - selection.anchor) + SLOT_MINUTES,
+                      ),
+                    }}
+                  >
+                    {formatMinutes(Math.min(selection.anchor, selection.current))} –{' '}
+                    {formatMinutes(Math.max(selection.anchor, selection.current) + SLOT_MINUTES)}
+                  </div>
+                )}
+                {hoverSlot?.columnId === column.id && !selection && (
                   <div
                     className="border-system-blue/40 bg-system-blue/[0.06] text-system-blue pointer-events-none absolute right-1 left-1 z-10 flex items-center rounded-md border border-dashed px-2 text-[11px] font-medium"
                     style={{
@@ -511,6 +695,7 @@ export function CalendarGrid({
                     timezone={timezone}
                     colorFor={colorFor}
                     colorMode={colorMode}
+                    onResize={onAppointmentResize}
                     onClick={onAppointmentClick}
                     onContextMenu={onAppointmentContextMenu}
                   />

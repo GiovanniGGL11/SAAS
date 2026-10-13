@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import type { Coupon, CouponDiscountType } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 
 export type CouponInput = {
   code: string;
@@ -10,7 +11,7 @@ export type CouponInput = {
   maxUses?: number | null;
 };
 
-export class DuplicateCouponCodeError extends Error {
+export class DuplicateCouponCodeError extends UserError {
   constructor() {
     super('Já existe um cupom com esse código.');
     this.name = 'DuplicateCouponCodeError';
@@ -19,7 +20,7 @@ export class DuplicateCouponCodeError extends Error {
 
 function assertValidDiscount(data: CouponInput): void {
   if (data.discountType === 'PERCENTAGE' && data.discountValue > 100) {
-    throw new Error('Desconto percentual não pode passar de 100%.');
+    throw new UserError('Desconto percentual não pode passar de 100%.');
   }
 }
 
@@ -78,7 +79,7 @@ export async function updateCoupon(
       maxUses: data.maxUses ?? null,
     },
   });
-  if (result.count === 0) throw new Error('Coupon not found');
+  if (result.count === 0) throw new UserError('Cupom não encontrado.');
 
   return (await getCouponById(companyId, id))!;
 }
@@ -89,5 +90,5 @@ export async function setCouponActive(
   active: boolean,
 ): Promise<void> {
   const result = await prisma.coupon.updateMany({ where: { id, companyId }, data: { active } });
-  if (result.count === 0) throw new Error('Coupon not found');
+  if (result.count === 0) throw new UserError('Cupom não encontrado.');
 }

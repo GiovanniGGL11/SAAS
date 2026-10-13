@@ -1,8 +1,11 @@
 'use server';
 
+import { toActionResult } from '@/server/action-result';
+import { parseId } from '@/server/errors';
+
 import { revalidatePath } from 'next/cache';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   addLoyaltyManually,
   getClientLoyalty,
@@ -19,7 +22,7 @@ import {
 import { serializeLoyaltyEntry } from '@/lib/serialize';
 
 export async function getLoyaltyOverviewAction() {
-  const { company } = await requireCurrentCompany();
+  const { company } = await requireCompanyAdmin();
   const [program, members] = await Promise.all([
     getLoyaltyProgram(company.id),
     listLoyaltyMembers(company.id),
@@ -28,16 +31,19 @@ export async function getLoyaltyOverviewAction() {
 }
 
 export async function saveLoyaltyProgramAction(input: unknown) {
-  const parsed = loyaltyProgramInput.parse(input);
-  const { company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = loyaltyProgramInput.parse(input);
+    const { company } = await requireCompanyAdmin();
 
-  const program = await saveLoyaltyProgram(company.id, parsed);
-  revalidatePath('/fidelidade');
-  revalidatePath('/clientes', 'layout');
-  return program;
+    const program = await saveLoyaltyProgram(company.id, parsed);
+    revalidatePath('/fidelidade');
+    revalidatePath('/clientes', 'layout');
+    return program;
+  });
 }
 
-export async function getClientLoyaltyAction(clientId: string) {
+export async function getClientLoyaltyAction(rawClientId: unknown) {
+  const clientId = parseId(rawClientId);
   const { company } = await requireCurrentCompany();
   const loyalty = await getClientLoyalty(company.id, clientId);
   if (!loyalty) return null;
@@ -45,28 +51,32 @@ export async function getClientLoyaltyAction(clientId: string) {
 }
 
 export async function redeemLoyaltyAction(input: unknown) {
-  const parsed = redeemLoyaltyInput.parse(input);
-  const { userId, company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = redeemLoyaltyInput.parse(input);
+    const { userId, company } = await requireCurrentCompany();
 
-  await redeemLoyalty({
-    companyId: company.id,
-    clientId: parsed.clientId,
-    createdByUserId: userId,
-    cashbackAmount: parsed.amount,
+    await redeemLoyalty({
+      companyId: company.id,
+      clientId: parsed.clientId,
+      createdByUserId: userId,
+      cashbackAmount: parsed.amount,
+    });
+    revalidatePath('/fidelidade');
   });
-  revalidatePath('/fidelidade');
 }
 
 export async function addLoyaltyManuallyAction(input: unknown) {
-  const parsed = adjustLoyaltyInput.parse(input);
-  const { userId, company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = adjustLoyaltyInput.parse(input);
+    const { userId, company } = await requireCompanyAdmin();
 
-  await addLoyaltyManually({
-    companyId: company.id,
-    clientId: parsed.clientId,
-    amount: parsed.amount,
-    description: parsed.description,
-    createdByUserId: userId,
+    await addLoyaltyManually({
+      companyId: company.id,
+      clientId: parsed.clientId,
+      amount: parsed.amount,
+      description: parsed.description,
+      createdByUserId: userId,
+    });
+    revalidatePath('/fidelidade');
   });
-  revalidatePath('/fidelidade');
 }

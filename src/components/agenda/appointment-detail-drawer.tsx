@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { CheckoutForm } from '@/components/agenda/checkout-form';
 import {
   Select,
   SelectContent,
@@ -40,22 +41,30 @@ import { AppointmentProductsSection } from '@/components/agenda/appointment-prod
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
 import type { SerializedAppointment } from '@/lib/serialize';
-import type { AppointmentStatus } from '@/generated/prisma/client';
+import type { AppointmentStatus, Client } from '@/generated/prisma/client';
+import type { SerializedService } from '@/lib/serialize';
+import { EditAppointmentForm } from '@/components/agenda/edit-appointment-form';
 
 export function AppointmentDetailDrawer({
   appointment,
   open,
   onOpenChange,
   timezone,
+  clients,
+  services,
 }: {
   appointment: SerializedAppointment | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   timezone: string;
+  clients: Client[];
+  services: SerializedService[];
 }) {
+  const [editing, setEditing] = React.useState(false);
   const queryClient = useQueryClient();
   const [cancelReason, setCancelReason] = React.useState('');
   const [showCancelForm, setShowCancelForm] = React.useState(false);
+  const [showCheckout, setShowCheckout] = React.useState(false);
 
   const statusMutation = useMutation({
     mutationFn: (status: Exclude<AppointmentStatus, 'CANCELED'>) =>
@@ -104,7 +113,15 @@ export function AppointmentDetailDrawer({
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 text-sm">
           {/* O próximo passo do atendimento em um clique — a lista completa continua abaixo. */}
-          {!isCanceled && quickStatusActions(appointment.status).length > 0 && (
+          {showCheckout && (
+            <CheckoutForm
+              appointmentId={appointment.id}
+              price={appointment.priceSnapshot}
+              onDone={() => setShowCheckout(false)}
+              onCancel={() => setShowCheckout(false)}
+            />
+          )}
+          {!showCheckout && !isCanceled && quickStatusActions(appointment.status).length > 0 && (
             <div className="flex flex-wrap gap-2">
               {quickStatusActions(appointment.status).map((action) => (
                 <Button
@@ -112,7 +129,11 @@ export function AppointmentDetailDrawer({
                   size="sm"
                   variant={action.primary ? 'default' : 'outline'}
                   disabled={statusMutation.isPending}
-                  onClick={() => statusMutation.mutate(action.status)}
+                  onClick={() =>
+                    action.status === 'DONE'
+                      ? setShowCheckout(true)
+                      : statusMutation.mutate(action.status)
+                  }
                 >
                   <span
                     className="size-2 rounded-full"
@@ -146,11 +167,32 @@ export function AppointmentDetailDrawer({
             )}
           </div>
 
-          {appointment.notes && (
+          {appointment.notes && !editing && (
             <div>
               <div className="text-muted-foreground text-xs">Observações</div>
               <div>{appointment.notes}</div>
             </div>
+          )}
+
+          {editing ? (
+            <EditAppointmentForm
+              appointment={appointment}
+              clients={clients}
+              services={services}
+              onDone={() => setEditing(false)}
+            />
+          ) : (
+            appointment.status !== 'DONE' &&
+            !isCanceled && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => setEditing(true)}
+              >
+                Editar cliente, serviço ou observação
+              </Button>
+            )
           )}
 
           <AppointmentProductsSection appointmentId={appointment.id} readOnly={isCanceled} />
@@ -169,7 +211,10 @@ export function AppointmentDetailDrawer({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ACTIVE_STATUS_OPTIONS.map((status) => (
+                  {/* Concluir passa pela comanda (forma de pagamento); aqui só para voltar de Concluído. */}
+                  {ACTIVE_STATUS_OPTIONS.filter(
+                    (s) => s !== 'DONE' || appointment.status === 'DONE',
+                  ).map((status) => (
                     <SelectItem key={status} value={status}>
                       {STATUS_LABELS[status]}
                     </SelectItem>

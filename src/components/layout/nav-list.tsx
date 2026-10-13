@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import { motion } from 'motion/react';
 
 import { cn } from '@/lib/utils';
@@ -21,6 +22,9 @@ export function NavList({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  // A equipe (org:member) não vê as seções de gestão; o servidor também bloqueia, isto só limpa o menu.
+  const { orgRole } = useAuth();
+  const isAdmin = orgRole === 'org:admin';
 
   return (
     <nav className="flex flex-col gap-5">
@@ -30,7 +34,7 @@ export function NavList({
             {group}
           </div>
           {navItems
-            .filter((item) => item.group === group)
+            .filter((item) => item.group === group && (isAdmin || !item.adminOnly))
             .map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;

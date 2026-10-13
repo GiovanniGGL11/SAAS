@@ -1,7 +1,9 @@
 import { cache } from 'react';
 import { auth, clerkClient } from '@clerk/nextjs/server';
+import { redirect } from 'next/navigation';
 import type { Company } from '@/generated/prisma/client';
 import { getCompanyByClerkOrgId, upsertCompanyFromClerkOrg } from '@/server/data/company';
+import { UserError } from '@/server/errors';
 
 export class UnauthenticatedError extends Error {
   constructor() {
@@ -20,6 +22,8 @@ export class NoActiveOrganizationError extends Error {
 export type CurrentCompanySession = {
   userId: string;
   orgId: string;
+  /** Papel na organização do Clerk: `org:admin` (dono/gerente) ou `org:member` (equipe). */
+  orgRole: string | null;
   company: Company;
 };
 
@@ -63,7 +67,7 @@ async function resolveCompanyForOrg(orgId: string, sessionOrgSlug: string | null
  * (see requireCurrentCompany below) isn't available/meaningfully reset.
  */
 export async function resolveCurrentCompanySession(): Promise<CurrentCompanySession> {
-  const { userId, orgId, orgSlug } = await auth();
+  const { userId, orgId, orgSlug, orgRole } = await auth();
 
   if (!userId) {
     throw new UnauthenticatedError();
@@ -73,7 +77,7 @@ export async function resolveCurrentCompanySession(): Promise<CurrentCompanySess
   }
 
   const company = await resolveCompanyForOrg(orgId, orgSlug);
-  return { userId, orgId, company };
+  return { userId, orgId, orgRole: orgRole ?? null, company };
 }
 
 /**
@@ -87,3 +91,26 @@ export async function resolveCurrentCompanySession(): Promise<CurrentCompanySess
  * (layout + page + nested data calls) without duplicate DB round trips.
  */
 export const requireCurrentCompany = cache(resolveCurrentCompanySession);
+
+export function isCompanyAdmin(session: Pick<CurrentCompanySession, 'orgRole'>): boolean {
+  return session.orgRole === 'org:admin';
+}
+
+/**
+ * Financeiro, relatórios, configurações, campanhas e cadastros são do dono ou gerente.
+ * Sem isto, qualquer pessoa convidada para a equipe via e alterava o caixa da empresa.
+ */
+export async function requireCompanyAdmin(): Promise<CurrentCompanySession> {
+  const session = await requireCurrentCompany();
+  if (!isCompanyAdmin(session)) {
+    throw new UserError('Somente administradores da empresa podem fazer isso.');
+  }
+  return session;
+}
+
+/** Página só de admin: quem é da equipe volta para a agenda em vez de ver um erro. */
+export async function requireAdminPage(): Promise<CurrentCompanySession> {
+  const session = await requireCurrentCompany();
+  if (!isCompanyAdmin(session)) redirect('/agenda');
+  return session;
+}

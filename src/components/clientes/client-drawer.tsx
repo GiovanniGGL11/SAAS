@@ -23,6 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,8 @@ import type { Client } from '@/generated/prisma/client';
 function toDateInputValue(date: Date | null | undefined): string {
   if (!date) return '';
   const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // Gravada como meia-noite UTC: ler em UTC, senão o fuso do Brasil mostra o dia anterior.
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
 export function ClientDrawer({
@@ -64,7 +66,9 @@ export function ClientDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
-      isEdit ? updateClientAction(client.id, values) : createClientAction(values),
+      (isEdit ? updateClientAction(client.id, values) : createClientAction(values)).then(
+        unwrapResult,
+      ),
     onSuccess: () => {
       toast.success(isEdit ? 'Cliente atualizado.' : 'Cliente criado.');
       queryClient.invalidateQueries({ queryKey: ['clients'] });

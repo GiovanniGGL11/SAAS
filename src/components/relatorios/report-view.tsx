@@ -34,12 +34,21 @@ function downloadCsv(data: ReportData, presetLabel: string) {
   const rows: string[][] = [
     ['Relatório', presetLabel],
     [],
-    ['Profissional', 'Atendimentos', 'Ticket médio', 'Faturamento'],
+    [
+      'Profissional',
+      'Atendimentos',
+      'Ticket médio',
+      'Faturamento',
+      'Regra de comissão',
+      'Comissão',
+    ],
     ...data.byProfessional.map((p) => [
       p.name,
       String(p.count),
       money(p.averageTicket),
       money(p.revenue),
+      p.commissionRule ?? '—',
+      p.commission === null ? '—' : money(p.commission),
     ]),
     [],
     ['Serviço', 'Vendas', 'Faturamento'],
@@ -230,7 +239,10 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
                       color: p.color,
                       count: p.count,
                       revenue: p.revenue,
-                      extra: `ticket ${formatCurrencyBRL(p.averageTicket)}`,
+                      extra:
+                        p.commission === null
+                          ? `ticket ${formatCurrencyBRL(p.averageTicket)}`
+                          : `ticket ${formatCurrencyBRL(p.averageTicket)} · comissão ${formatCurrencyBRL(p.commission)}`,
                     }))}
                   />
                 )}

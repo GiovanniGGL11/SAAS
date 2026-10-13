@@ -1,6 +1,12 @@
 'use client';
 
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, SlidersHorizontalIcon } from 'lucide-react';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  KeyboardIcon,
+  PlusIcon,
+  SlidersHorizontalIcon,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -23,14 +29,21 @@ const MONTHS = [
   'dezembro',
 ];
 
+const WEEKDAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
 /** Título do período como no Google Agenda: "outubro de 2026", ou "out – nov de 2026" na virada. */
 function periodTitle(
   view: AgendaViewMode,
   anchorDate: CalendarDate,
   weekStartDate: CalendarDate,
 ): string {
-  if (view === 'day')
-    return `${anchorDate.day} de ${MONTHS[anchorDate.month - 1]} de ${anchorDate.year}`;
+  if (view === 'day') {
+    const weekday =
+      WEEKDAYS[
+        new Date(Date.UTC(anchorDate.year, anchorDate.month - 1, anchorDate.day)).getUTCDay()
+      ];
+    return `${weekday}, ${anchorDate.day} de ${MONTHS[anchorDate.month - 1]} de ${anchorDate.year}`;
+  }
   if (view === 'month') return `${MONTHS[anchorDate.month - 1]} de ${anchorDate.year}`;
   const end = addDays(weekStartDate, 6);
   if (end.month === weekStartDate.month)
@@ -53,6 +66,7 @@ export function AgendaToolbar({
   onCreate,
   onOpenFilters,
   activeFilterCount,
+  onShowShortcuts,
 }: {
   view: AgendaViewMode;
   onViewChange: (view: AgendaViewMode) => void;
@@ -66,6 +80,7 @@ export function AgendaToolbar({
   /** Below lg the filters column is hidden; this opens it as a sheet. */
   onOpenFilters: () => void;
   activeFilterCount: number;
+  onShowShortcuts: () => void;
 }) {
   const label = { day: 'dia', week: 'semana', month: 'mês' }[view];
   return (
@@ -104,6 +119,16 @@ export function AgendaToolbar({
       </div>
 
       <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="hidden lg:inline-flex"
+          onClick={onShowShortcuts}
+          aria-label="Atalhos de teclado"
+          title="Atalhos de teclado (?)"
+        >
+          <KeyboardIcon className="size-4" />
+        </Button>
         <Button
           variant="outline"
           size="sm"

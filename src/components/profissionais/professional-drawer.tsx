@@ -23,8 +23,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { AvailabilityEditor } from '@/components/profissionais/availability-editor';
 import { ColorPicker, PRESET_COLORS } from '@/components/ui/color-picker';
 import {
   Select,
@@ -52,6 +54,8 @@ export function ProfessionalDrawer({
   professional?: SerializedProfessional | null;
 }) {
   const queryClient = useQueryClient();
+  // Recém-criado nesta abertura: o painel continua aberto para definir o expediente na sequência.
+  const [justCreatedId, setJustCreatedId] = React.useState<string | null>(null);
   const isEdit = !!professional;
 
   const form = useForm({
@@ -70,17 +74,32 @@ export function ProfessionalDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
-      isEdit ? updateProfessionalAction(professional.id, values) : createProfessionalAction(values),
-    onSuccess: () => {
-      toast.success(isEdit ? 'Profissional atualizado.' : 'Profissional criado.');
+      (isEdit || justCreatedId
+        ? updateProfessionalAction(professional?.id ?? justCreatedId!, values)
+        : createProfessionalAction(values)
+      ).then(unwrapResult),
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['professionals'] });
+      if (!isEdit && !justCreatedId) {
+        toast.success('Profissional criado. Agora defina o expediente.');
+        setJustCreatedId(saved.id);
+        return;
+      }
+      toast.success(isEdit ? 'Profissional atualizado.' : 'Profissional criado.');
       onOpenChange(false);
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível salvar.'),
   });
 
   return (
-    <Drawer direction="right" open={open} onOpenChange={onOpenChange}>
+    <Drawer
+      direction="right"
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setJustCreatedId(null);
+        onOpenChange(next);
+      }}
+    >
       <DrawerContent className="data-[vaul-drawer-direction=right]:w-full! data-[vaul-drawer-direction=right]:sm:w-3/4!">
         <DrawerHeader>
           <DrawerTitle>{isEdit ? 'Editar profissional' : 'Novo profissional'}</DrawerTitle>
@@ -203,6 +222,15 @@ export function ProfessionalDrawer({
                 />
               )}
             </div>
+
+            {/* Expediente tem gravação própria: precisa do profissional já salvo. */}
+            {isEdit || justCreatedId ? (
+              <AvailabilityEditor professionalId={professional?.id ?? justCreatedId!} />
+            ) : (
+              <p className="text-label-secondary text-xs">
+                Ao salvar, o expediente da semana aparece aqui para você definir.
+              </p>
+            )}
           </form>
         </Form>
 

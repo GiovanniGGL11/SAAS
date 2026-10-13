@@ -1,16 +1,24 @@
 'use server';
 
+import { parseId } from '@/server/errors';
+
 import { revalidatePath } from 'next/cache';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { prisma } from '@/lib/db';
 import {
+  AppointmentConflictError,
   cancelAppointment,
+  checkoutAppointment,
+  updateAppointmentDetails,
   createAppointment,
   createScheduleBlock,
   deleteScheduleBlock,
   findNextAvailableSlot,
   getScheduleContext,
+  getProfessionalAvailability,
+  resizeAppointment,
+  setProfessionalAvailability,
   listAppointmentsInRange,
   moveAppointment,
   updateAppointmentStatus,
@@ -18,11 +26,15 @@ import {
 import {
   appointmentRangeInput,
   cancelAppointmentInput,
+  checkoutAppointmentInput,
+  updateAppointmentDetailsInput,
   createAppointmentInput,
   createScheduleBlockInput,
   deleteScheduleBlockInput,
   moveAppointmentInput,
   nextAvailableSlotInput,
+  professionalAvailabilityInput,
+  resizeAppointmentInput,
   scheduleContextInput,
   updateAppointmentStatusInput,
 } from '@/lib/validations/appointment';
@@ -78,18 +90,46 @@ export async function createAppointmentAction(input: unknown) {
     const parsed = createAppointmentInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
 
-    const appointment = await createAppointment({
-      companyId: company.id,
-      clientId: parsed.clientId,
-      professionalId: parsed.professionalId,
-      serviceId: parsed.serviceId,
-      startAt: parsed.startAt,
-      notes: parsed.notes,
-      createdByUserId: userId,
-    });
+    const create = (startAt: Date) =>
+      createAppointment({
+        companyId: company.id,
+        clientId: parsed.clientId,
+        professionalId: parsed.professionalId,
+        serviceId: parsed.serviceId,
+        startAt,
+        notes: parsed.notes,
+        createdByUserId: userId,
+      });
+
+    // O primeiro precisa entrar: conflito nele é erro para quem está agendando.
+    const appointment = await create(parsed.startAt);
+    const skipped: string[] = [];
+    let repeated = 0;
+    if (parsed.repeat) {
+      // Recorrência: as próximas datas no mesmo horário; ocupadas são puladas e avisadas.
+      for (let i = 1; i < parsed.repeat.times; i++) {
+        const startAt = new Date(
+          parsed.startAt.getTime() + i * parsed.repeat.everyWeeks * 7 * 86_400_000,
+        );
+        try {
+          await create(startAt);
+          repeated++;
+        } catch (error) {
+          if (error instanceof AppointmentConflictError) {
+            skipped.push(
+              new Intl.DateTimeFormat('pt-BR', {
+                timeZone: company.timezone,
+                day: '2-digit',
+                month: '2-digit',
+              }).format(startAt),
+            );
+          } else throw error;
+        }
+      }
+    }
 
     revalidatePath('/agenda');
-    return serializeAppointment(appointment);
+    return { ...serializeAppointment(appointment), repeated, skipped };
   });
 }
 
@@ -174,5 +214,65 @@ export async function findNextAvailableSlotAction(input: unknown) {
     const parsed = nextAvailableSlotInput.parse(input);
     const { company } = await requireCurrentCompany();
     return findNextAvailableSlot({ companyId: company.id, timezone: company.timezone, ...parsed });
+  });
+}
+
+export async function resizeAppointmentAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = resizeAppointmentInput.parse(input);
+    const { userId, company } = await requireCurrentCompany();
+    const appointment = await resizeAppointment({
+      companyId: company.id,
+      ...parsed,
+      updatedByUserId: userId,
+    });
+    revalidatePath('/agenda');
+    return serializeAppointment(appointment);
+  });
+}
+
+export async function getProfessionalAvailabilityAction(rawProfessionalId: unknown) {
+  const professionalId = parseId(rawProfessionalId);
+  const { company } = await requireCurrentCompany();
+  return getProfessionalAvailability(company.id, professionalId);
+}
+
+export async function setProfessionalAvailabilityAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = professionalAvailabilityInput.parse(input);
+    const { company } = await requireCompanyAdmin();
+    await setProfessionalAvailability({ companyId: company.id, ...parsed });
+    revalidatePath('/agenda');
+    revalidatePath('/profissionais');
+    return { ok: true };
+  });
+}
+
+export async function checkoutAppointmentAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = checkoutAppointmentInput.parse(input);
+    const { userId, company } = await requireCurrentCompany();
+    const result = await checkoutAppointment({
+      companyId: company.id,
+      ...parsed,
+      updatedByUserId: userId,
+    });
+    revalidatePath('/agenda');
+    revalidatePath('/financeiro');
+    return { total: result.total };
+  });
+}
+
+export async function updateAppointmentDetailsAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = updateAppointmentDetailsInput.parse(input);
+    const { userId, company } = await requireCurrentCompany();
+    const appointment = await updateAppointmentDetails({
+      companyId: company.id,
+      ...parsed,
+      updatedByUserId: userId,
+    });
+    revalidatePath('/agenda');
+    return serializeAppointment(appointment);
   });
 }

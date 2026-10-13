@@ -1,10 +1,15 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { toActionResult } from '@/server/action-result';
+import { parseId } from '@/server/errors';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+
+import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createClient,
+  importClients,
   getClientById,
   getClientStats,
   listClientAppointmentHistory,
@@ -16,10 +21,12 @@ import {
 import { clientInput, setClientActiveInput, setClientVipInput } from '@/lib/validations/client';
 import { serializeAppointment } from '@/lib/serialize';
 import { Prisma } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
+import { normalizePhone } from '@/lib/phone';
 
 function toFriendlyError(error: unknown): Error {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-    return new Error('Já existe um cliente com este telefone.');
+    return new UserError('Já existe um cliente com este telefone.');
   }
   return error instanceof Error ? error : new Error('Erro inesperado.');
 }
@@ -30,59 +37,69 @@ export async function listClientsAction() {
 }
 
 export async function createClientAction(input: unknown) {
-  const parsed = clientInput.parse(input);
-  const { company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = clientInput.parse(input);
+    const { company } = await requireCurrentCompany();
 
-  try {
-    const client = await createClient(company.id, {
-      ...parsed,
-      email: parsed.email || null,
-      birthDate: parsed.birthDate ?? null,
-    });
-    revalidatePath('/clientes');
-    revalidatePath('/agenda');
-    return client;
-  } catch (error) {
-    throw toFriendlyError(error);
-  }
+    try {
+      const client = await createClient(company.id, {
+        ...parsed,
+        email: parsed.email || null,
+        birthDate: parsed.birthDate ?? null,
+      });
+      revalidatePath('/clientes');
+      revalidatePath('/agenda');
+      return client;
+    } catch (error) {
+      throw toFriendlyError(error);
+    }
+  });
 }
 
-export async function updateClientAction(id: string, input: unknown) {
-  const parsed = clientInput.parse(input);
-  const { company } = await requireCurrentCompany();
+export async function updateClientAction(rawId: unknown, input: unknown) {
+  return toActionResult(async () => {
+    const id = parseId(rawId);
+    const parsed = clientInput.parse(input);
+    const { company } = await requireCurrentCompany();
 
-  try {
-    const client = await updateClient(company.id, id, {
-      ...parsed,
-      email: parsed.email || null,
-      birthDate: parsed.birthDate ?? null,
-    });
-    revalidatePath('/clientes');
-    revalidatePath('/agenda');
-    return client;
-  } catch (error) {
-    throw toFriendlyError(error);
-  }
+    try {
+      const client = await updateClient(company.id, id, {
+        ...parsed,
+        email: parsed.email || null,
+        birthDate: parsed.birthDate ?? null,
+      });
+      revalidatePath('/clientes');
+      revalidatePath('/agenda');
+      return client;
+    } catch (error) {
+      throw toFriendlyError(error);
+    }
+  });
 }
 
 export async function setClientActiveAction(input: unknown) {
-  const parsed = setClientActiveInput.parse(input);
-  const { company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = setClientActiveInput.parse(input);
+    const { company } = await requireCurrentCompany();
 
-  await setClientActive(company.id, parsed.id, parsed.active);
-  revalidatePath('/clientes');
-  revalidatePath('/agenda');
+    await setClientActive(company.id, parsed.id, parsed.active);
+    revalidatePath('/clientes');
+    revalidatePath('/agenda');
+  });
 }
 
 export async function setClientVipAction(input: unknown) {
-  const parsed = setClientVipInput.parse(input);
-  const { company } = await requireCurrentCompany();
+  return toActionResult(async () => {
+    const parsed = setClientVipInput.parse(input);
+    const { company } = await requireCurrentCompany();
 
-  await setClientVip(company.id, parsed.id, parsed.isVip);
-  revalidatePath('/clientes');
+    await setClientVip(company.id, parsed.id, parsed.isVip);
+    revalidatePath('/clientes');
+  });
 }
 
-export async function getClientDetailAction(id: string) {
+export async function getClientDetailAction(rawId: unknown) {
+  const id = parseId(rawId);
   const { company } = await requireCurrentCompany();
 
   const [client, stats, history] = await Promise.all([
@@ -98,4 +115,37 @@ export async function getClientDetailAction(id: string) {
     stats,
     history: history.map(serializeAppointment),
   };
+}
+
+const importRowSchema = z.object({
+  name: z.string().max(200),
+  phone: z.string().max(30).optional(),
+  email: z.string().max(200).optional(),
+  cpf: z.string().max(20).optional(),
+  birthDate: z.string().max(10).optional(),
+});
+
+export async function importClientsAction(input: unknown) {
+  return toActionResult(async () => {
+    const rows = z
+      .array(importRowSchema)
+      .max(5000, 'Importe no máximo 5.000 clientes por vez.')
+      .parse(input);
+    const { company } = await requireCompanyAdmin();
+    const result = await importClients(
+      company.id,
+      rows.map((r) => ({
+        name: r.name,
+        phone: normalizePhone(r.phone),
+        email: r.email?.includes('@') ? r.email.trim().toLowerCase() : undefined,
+        cpf: r.cpf?.replace(/\D/g, '') || undefined,
+        birthDate:
+          r.birthDate && /^\d{4}-\d{2}-\d{2}$/.test(r.birthDate)
+            ? new Date(r.birthDate)
+            : undefined,
+      })),
+    );
+    revalidatePath('/clientes');
+    return result;
+  });
 }

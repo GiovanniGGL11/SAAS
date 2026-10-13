@@ -2,7 +2,13 @@
 
 SaaS multi-tenant de agendamentos para barbearias, salões, clínicas de estética, manicures, lash designers e qualquer negócio baseado em hora marcada.
 
-Esta é a **Fase 1**: fundação técnica (auth multi-tenant, banco, shell do dashboard) + o núcleo do módulo de **Agenda**. Demais módulos (Clientes, Profissionais, Financeiro, Estoque, Marketing, IA, etc.) vêm em fases seguintes — ver plano completo em `C:\Users\ketll\.claude\plans\functional-conjuring-mountain.md`.
+## Módulos
+
+- **Agenda** no formato do Google Agenda: visões dia/semana/mês, coluna por profissional, criar clicando ou arrastando, mover, mudar duração puxando a borda, bloqueios, expediente em cinza, recorrência, atalhos de teclado.
+- **Comanda**: "Concluir e cobrar" com forma de pagamento, desconto, cupom e gorjeta.
+- **Agendamento online** (`/agendar/[slug]`) e **link de confirmação** do cliente (`/confirmar/[token]`), enviado pelo WhatsApp.
+- **Clientes** (importação por planilha), **Profissionais** (expediente, comissão), **Serviços**, **Estoque** (histórico), **Financeiro**, **Campanhas** (cupons), **Fidelidade**, **Relatórios** (comissão, CSV), **Configurações**.
+- **Papéis**: admin da organização vê tudo; a equipe (`org:member`) fica com agenda, clientes e venda no atendimento.
 
 ## Stack e versões instaladas
 
@@ -68,7 +74,7 @@ Outras coisas específicas dessa instância, descobertas consultando `https://<f
 
 ## Testes
 
-`npm run test` roda 4 suítes:
+`npm run test` roda as suítes de `tests/` — a maioria usa o banco do `.env.local` e cria e apaga a própria empresa de teste (use um banco de desenvolvimento):
 
 - **`no-active-org.test.ts`** — não precisa de banco (mocka `@clerk/nextjs/server`); valida que a sessão é rejeitada antes de qualquer acesso a dados.
 - **`tenant-isolation.test.ts`**, **`appointment-conflict.test.ts`**, **`appointment-lifecycle.test.ts`** — precisam de `DATABASE_URL`/`DIRECT_URL` reais (cada teste cria e destrói sua própria `Company` descartável, sem fixture compartilhada).

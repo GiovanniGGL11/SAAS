@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EyeIcon, Trash2Icon, UserRoundIcon } from 'lucide-react';
@@ -35,6 +36,7 @@ import {
   getAppointmentsForRangeAction,
   getScheduleContextAction,
   moveAppointmentAction,
+  resizeAppointmentAction,
   updateAppointmentStatusAction,
 } from '@/server/actions/agenda-actions';
 import {
@@ -119,7 +121,7 @@ const DEFAULT_END_HOUR = 21;
 
 type Panel =
   | { kind: 'quick-create'; point: ScreenPoint; defaults: QuickCreateDefaults }
-  | { kind: 'appointment'; point: ScreenPoint; appointmentId: string }
+  | { kind: 'appointment'; point: ScreenPoint; appointmentId: string; checkout?: boolean }
   | { kind: 'appointment-menu'; point: ScreenPoint; appointment: GridAppointment }
   | { kind: 'block-menu'; point: ScreenPoint; block: GridBlock };
 
@@ -128,11 +130,14 @@ export function AgendaView({
   professionals,
   services,
   clients,
+  myProfessionalId,
 }: {
   timezone: string;
   professionals: SerializedProfessional[];
   services: SerializedService[];
   clients: Client[];
+  /** Profissional da pessoa logada (equipe): a agenda abre só com a coluna dela. */
+  myProfessionalId?: string;
 }) {
   const queryClient = useQueryClient();
   const today = React.useMemo(() => getTodayInTz(timezone), [timezone]);
@@ -146,7 +151,15 @@ export function AgendaView({
     usePref(COLOR_KEY, 'professional') === 'status' ? 'status' : 'professional';
   const setColorMode = React.useCallback((next: ColorMode) => writePref(COLOR_KEY, next), []);
 
-  const hiddenRaw = usePref(HIDDEN_KEY, '');
+  const hiddenRaw = usePref(
+    HIDDEN_KEY,
+    myProfessionalId
+      ? professionals
+          .filter((p) => p.id !== myProfessionalId)
+          .map((p) => p.id)
+          .join(',')
+      : '',
+  );
   const hiddenProfessionalIds = React.useMemo(
     () => new Set(hiddenRaw.split(',').filter(Boolean)),
     [hiddenRaw],
@@ -159,8 +172,16 @@ export function AgendaView({
 
   const [panel, setPanel] = React.useState<Panel | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [showShortcuts, setShowShortcuts] = React.useState(false);
   const closePanel = React.useCallback(() => setPanel(null), []);
-  const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(null);
+  // Vindo do "Agendar" da página do cliente (/agenda?cliente=…): já abre o formulário com ele.
+  const searchParams = useSearchParams();
+  const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(() => {
+    const clientId = searchParams.get('cliente');
+    return clientId
+      ? { startAt: calendarDateToUtc(today, OPENING_MINUTES, timezone), clientId }
+      : null;
+  });
   // Guarda o id, não o objeto: depois de "Confirmar" o painel mostra o status novo, não uma cópia velha.
   const [detailId, setDetailId] = React.useState<string | null>(null);
 
@@ -253,6 +274,25 @@ export function AgendaView({
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['appointments'] }),
   });
 
+  const resizeMutation = useMutation({
+    mutationFn: (input: { id: string; endAt: Date }) =>
+      resizeAppointmentAction(input).then(unwrapResult),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: ['appointments'] });
+      const previous = query.data;
+      queryClient.setQueryData<GridAppointment[]>(appointmentsKey, (current) =>
+        current?.map((a) => (a.id === input.id ? { ...a, endAt: input.endAt } : a)),
+      );
+      return { previous };
+    },
+    onError: (error: Error, _input, context) => {
+      toast.error(error.message || 'Não foi possível mudar a duração.');
+      if (context?.previous) queryClient.setQueryData(appointmentsKey, context.previous);
+    },
+    onSuccess: () => toast.success('Duração atualizada.'),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+  });
+
   const statusMutation = useMutation({
     mutationFn: (input: { id: string; status: Exclude<AppointmentStatus, 'CANCELED'> }) =>
       updateAppointmentStatusAction(input).then(unwrapResult),
@@ -274,12 +314,18 @@ export function AgendaView({
 
   const columns: GridColumn[] =
     view === 'day'
-      ? visibleProfessionals.map((professional) => ({
-          id: professional.id,
-          label: professional.name,
-          date: anchorDate,
-          accentColor: professional.color,
-        }))
+      ? visibleProfessionals.map((professional) => {
+          const count = appointments.filter(
+            (a) => a.professionalId === professional.id && a.status !== 'CANCELED',
+          ).length;
+          return {
+            id: professional.id,
+            label: professional.name,
+            date: anchorDate,
+            accentColor: professional.color,
+            caption: count === 0 ? 'Agenda livre' : `${count} atendimento${count > 1 ? 's' : ''}`,
+          };
+        })
       : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((date) => ({
           id: dateKey(date),
           label: new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, weekday: 'short' })
@@ -418,6 +464,7 @@ export function AgendaView({
       else if (key === 'arrowleft' || key === 'k') navigate(-1);
       else if (key === 'arrowright' || key === 'j') navigate(1);
       else if (key === 'c') openFullCreate({ startAt: suggestedStartAt() });
+      else if (event.key === '?') setShowShortcuts((v) => !v);
       else return;
       event.preventDefault();
     };
@@ -447,7 +494,14 @@ export function AgendaView({
               />
             ),
             onSelect: () =>
-              statusMutation.mutate({ id: panel.appointment.id, status: action.status }),
+              action.status === 'DONE'
+                ? setPanel({
+                    kind: 'appointment',
+                    point: panel.point,
+                    appointmentId: panel.appointment.id,
+                    checkout: true,
+                  })
+                : statusMutation.mutate({ id: panel.appointment.id, status: action.status }),
           })),
           {
             label: 'Mais detalhes',
@@ -537,9 +591,45 @@ export function AgendaView({
           onCreate={() => openFullCreate({ startAt: suggestedStartAt() })}
           onOpenFilters={() => setFiltersOpen(true)}
           activeFilterCount={activeFilterCount}
+          onShowShortcuts={() => setShowShortcuts(true)}
         />
 
-        {appointments.length > 0 && <AgendaSummary appointments={appointments} />}
+        {/* No celular a coluna esquerda some: os profissionais viram chips para mostrar/esconder. */}
+        {professionals.length > 1 && (
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:hidden">
+            {professionals.map((professional) => {
+              const visible = !hiddenProfessionalIds.has(professional.id);
+              return (
+                <button
+                  key={professional.id}
+                  type="button"
+                  aria-pressed={visible}
+                  onClick={() => {
+                    const next = new Set(hiddenProfessionalIds);
+                    if (next.has(professional.id)) next.delete(professional.id);
+                    else next.add(professional.id);
+                    setHidden(next);
+                  }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-colors"
+                  style={{
+                    backgroundColor: visible ? professional.color : 'transparent',
+                    color: visible ? 'white' : undefined,
+                    borderColor: professional.color,
+                    boxShadow: `inset 0 0 0 1px ${professional.color}`,
+                  }}
+                >
+                  {professional.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {appointments.length > 0 && (
+          <div className="hidden sm:block">
+            <AgendaSummary appointments={appointments} />
+          </div>
+        )}
 
         {query.isLoading ? (
           <Skeleton className="h-[600px] w-full rounded-[22px]" />
@@ -597,12 +687,18 @@ export function AgendaView({
                 professionalId: view === 'day' ? targetColumn.id : undefined,
               })
             }
-            onSlotClick={(column, startAt, point) =>
+            onAppointmentResize={(appointment, endAt) =>
+              resizeMutation.mutate({ id: appointment.id, endAt })
+            }
+            onSlotClick={(column, startAt, point, endAt) =>
               setPanel({
                 kind: 'quick-create',
                 point,
                 defaults: {
                   startAt,
+                  durationMinutes: endAt
+                    ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
+                    : undefined,
                   professionalId:
                     view === 'day'
                       ? column.id
@@ -647,12 +743,38 @@ export function AgendaView({
             timezone={timezone}
             color={colorFor(panelAppointment)}
             onClose={closePanel}
+            startInCheckout={panel?.kind === 'appointment' && panel.checkout}
             onOpenDetails={() => {
               setPanel(null);
               setDetailId(panelAppointment.id);
             }}
           />
         )}
+      </FloatingPanel>
+
+      <FloatingPanel
+        position={showShortcuts ? { x: window.innerWidth / 2 - 160, y: 140 } : null}
+        onClose={() => setShowShortcuts(false)}
+        width={320}
+      >
+        <div className="flex flex-col gap-2 p-5 text-[13px]">
+          <h3 className="text-[15px] font-semibold">Atalhos de teclado</h3>
+          {[
+            ['T', 'Ir para hoje'],
+            ['D · W · M', 'Visão dia, semana ou mês'],
+            ['← → (ou K J)', 'Período anterior / próximo'],
+            ['C', 'Criar agendamento'],
+            ['Esc', 'Fechar cartão'],
+            ['?', 'Mostrar esta lista'],
+          ].map(([keys, label]) => (
+            <div key={keys} className="flex items-center justify-between gap-4">
+              <span className="text-label-secondary">{label}</span>
+              <kbd className="bg-foreground/[0.06] rounded-md px-2 py-0.5 font-mono text-[12px]">
+                {keys}
+              </kbd>
+            </div>
+          ))}
+        </div>
       </FloatingPanel>
 
       <FloatingMenu
@@ -689,6 +811,8 @@ export function AgendaView({
           if (!open) setDetailId(null);
         }}
         timezone={timezone}
+        clients={clients}
+        services={services}
       />
     </div>
   );

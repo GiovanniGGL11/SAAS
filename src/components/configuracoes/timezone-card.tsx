@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { unwrapResult } from '@/lib/action-result';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useTheme } from '@/components/theme-provider';
 import { updateCompanyTimezoneAction } from '@/server/actions/company-actions';
@@ -63,7 +64,7 @@ export function TimezoneCard({ companyName, timezone }: { companyName: string; t
   const { theme, setTheme } = useTheme();
 
   const mutation = useMutation({
-    mutationFn: (tz: string) => updateCompanyTimezoneAction({ timezone: tz }),
+    mutationFn: (tz: string) => updateCompanyTimezoneAction({ timezone: tz }).then(unwrapResult),
     onSuccess: () => {
       toast.success('Fuso horário atualizado.');
       queryClient.invalidateQueries();

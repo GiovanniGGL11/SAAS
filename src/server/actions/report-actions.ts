@@ -1,6 +1,6 @@
 'use server';
 
-import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import { reportPresetInput } from '@/lib/validations/report';
 import { resolveReportRange } from '@/lib/report-range';
 import {
@@ -12,7 +12,7 @@ import {
 
 export async function getReportAction(input: unknown) {
   const parsed = reportPresetInput.parse(input);
-  const { company } = await requireCurrentCompany();
+  const { company } = await requireCompanyAdmin();
   const range = resolveReportRange(parsed.preset, company.timezone);
 
   const [byProfessional, byService, byWeekday, cancellation] = await Promise.all([

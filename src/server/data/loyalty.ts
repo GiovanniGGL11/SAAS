@@ -8,6 +8,7 @@ import type {
 } from '@/generated/prisma/client';
 import { serializeLoyaltyProgram, type SerializedLoyaltyProgram } from '@/lib/serialize';
 import { describeReward, earnedFor, rewardThreshold } from '@/lib/loyalty';
+import { UserError } from '@/server/errors';
 
 const programInclude = { rewardService: { select: { id: true, name: true } } } as const;
 
@@ -46,7 +47,7 @@ export async function saveLoyaltyProgram(
       where: { id: data.rewardServiceId, companyId },
       select: { id: true },
     });
-    if (!service) throw new Error('Serviço não encontrado.');
+    if (!service) throw new UserError('Serviço não encontrado.');
     rewardServiceId = service.id;
   }
 
@@ -163,41 +164,55 @@ export async function earnLoyaltyFromAppointment(
   companyId: string,
   appointment: Appointment,
   createdByUserId: string,
+  db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  const program = await getLoyaltyProgram(companyId);
+  const raw = await db.loyaltyProgram.findUnique({ where: { companyId }, include: programInclude });
+  const program = raw ? serializeLoyaltyProgram(raw) : null;
   if (!program?.active) return;
 
   const amount = earnedFor(program, Number(appointment.priceSnapshot));
   if (amount <= 0) return;
 
-  try {
-    await prisma.loyaltyEntry.create({
-      data: {
-        companyId,
-        clientId: appointment.clientId,
-        appointmentId: appointment.id,
-        mode: program.mode,
-        kind: 'EARN',
-        amount,
-        description: appointment.serviceNameSnapshot,
-        createdByUserId,
-      },
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
-    throw error;
-  }
+  // Conferido antes de gravar (o agendamento está travado por quem chama): dentro de uma
+  // transação, um erro de chave duplicada abortaria tudo, não só este crédito.
+  const existing = await db.loyaltyEntry.findFirst({
+    where: { appointmentId: appointment.id, kind: 'EARN' },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  await db.loyaltyEntry.create({
+    data: {
+      companyId,
+      clientId: appointment.clientId,
+      appointmentId: appointment.id,
+      mode: program.mode,
+      kind: 'EARN',
+      amount,
+      description: appointment.serviceNameSnapshot,
+      createdByUserId,
+    },
+  });
+}
+
+/** Tira o crédito de fidelidade de um atendimento desfeito (cancelado ou status voltado). */
+export async function reverseLoyaltyFromAppointment(
+  companyId: string,
+  appointmentId: string,
+  db: Prisma.TransactionClient = prisma,
+): Promise<void> {
+  await db.loyaltyEntry.deleteMany({ where: { companyId, appointmentId, kind: 'EARN' } });
 }
 
 async function requireActiveProgramAndClient(companyId: string, clientId: string) {
   const program = await getLoyaltyProgram(companyId);
-  if (!program?.active) throw new Error('O programa de fidelidade está desativado.');
+  if (!program?.active) throw new UserError('O programa de fidelidade está desativado.');
 
   const client = await prisma.client.findFirst({
     where: { id: clientId, companyId },
     select: { id: true },
   });
-  if (!client) throw new Error('Cliente não encontrado.');
+  if (!client) throw new UserError('Cliente não encontrado.');
   return program;
 }
 
@@ -223,11 +238,11 @@ export async function redeemLoyalty(params: {
     let amount: number;
     if (program.mode === 'CASHBACK') {
       amount = Math.round((params.cashbackAmount ?? 0) * 100) / 100;
-      if (amount <= 0) throw new Error('Informe o valor a usar.');
-      if (amount > balance) throw new Error('Saldo de cashback insuficiente.');
+      if (amount <= 0) throw new UserError('Informe o valor a usar.');
+      if (amount > balance) throw new UserError('Saldo de cashback insuficiente.');
     } else {
       amount = rewardThreshold(program)!;
-      if (balance < amount) throw new Error('Saldo insuficiente para o resgate.');
+      if (balance < amount) throw new UserError('Saldo insuficiente para o resgate.');
     }
 
     return tx.loyaltyEntry.create({
@@ -254,7 +269,7 @@ export async function addLoyaltyManually(params: {
 }): Promise<LoyaltyEntry> {
   const program = await requireActiveProgramAndClient(params.companyId, params.clientId);
   if (program.mode !== 'CASHBACK' && !Number.isInteger(params.amount)) {
-    throw new Error('Selos e pontos precisam ser um número inteiro.');
+    throw new UserError('Selos e pontos precisam ser um número inteiro.');
   }
 
   return prisma.loyaltyEntry.create({

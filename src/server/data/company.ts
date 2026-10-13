@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import type { Company } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 
 export type ClerkOrgInput = {
   id: string;
@@ -49,5 +50,5 @@ export async function updateCompanyTimezone(companyId: string, timezone: string)
     where: { id: companyId },
     data: { timezone },
   });
-  if (result.count === 0) throw new Error('Company not found');
+  if (result.count === 0) throw new UserError('Empresa não encontrada.');
 }

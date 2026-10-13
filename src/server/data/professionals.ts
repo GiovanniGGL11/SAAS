@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/db';
+import { calendarDateToUtc, getTodayInTz } from '@/lib/time';
 import type { CommissionType, Professional } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 
 export async function listActiveProfessionals(companyId: string): Promise<Professional[]> {
   return prisma.professional.findMany({
@@ -64,7 +66,7 @@ export async function updateProfessional(
       commissionValue: data.commissionValue ?? null,
     },
   });
-  if (result.count === 0) throw new Error('Professional not found');
+  if (result.count === 0) throw new UserError('Profissional não encontrado.');
 
   return (await getProfessionalById(companyId, id))!;
 }
@@ -78,15 +80,24 @@ export async function setProfessionalActive(
     where: { id, companyId },
     data: { active },
   });
-  if (result.count === 0) throw new Error('Professional not found');
+  if (result.count === 0) throw new UserError('Profissional não encontrado.');
 }
 
 export async function getProfessionalMonthlyProduction(
   companyId: string,
   professionalId: string,
 ): Promise<{ appointmentCount: number; revenue: number }> {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Começo do mês no fuso da empresa, não no do servidor (que roda em UTC na Vercel).
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { timezone: true },
+  });
+  const today = getTodayInTz(company?.timezone ?? 'America/Sao_Paulo');
+  const startOfMonth = calendarDateToUtc(
+    { year: today.year, month: today.month, day: 1 },
+    0,
+    company?.timezone ?? 'America/Sao_Paulo',
+  );
 
   const appointments = await prisma.appointment.findMany({
     where: {

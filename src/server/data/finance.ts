@@ -1,3 +1,4 @@
+import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/db';
 import type {
   Appointment,
@@ -6,6 +7,7 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 
 export type TransactionInput = {
   type: TransactionType;
@@ -25,20 +27,40 @@ export type TransactionWithAppointment = Transaction & {
 
 export async function listTransactions(
   companyId: string,
-  filters?: { type?: TransactionType; status?: TransactionStatus; range?: { startAt: Date; endAt: Date } },
+  filters?: {
+    type?: TransactionType;
+    status?: TransactionStatus;
+    range?: { startAt: Date; endAt: Date };
+  },
 ): Promise<TransactionWithAppointment[]> {
   return prisma.transaction.findMany({
     where: {
       companyId,
       ...(filters?.type ? { type: filters.type } : {}),
       ...(filters?.status ? { status: filters.status } : {}),
-      ...(filters?.range
-        ? { createdAt: { gte: filters.range.startAt, lte: filters.range.endAt } }
-        : {}),
+      // O período é o do dinheiro: pago quando foi pago, pendente pelo vencimento — não a data em
+      // que o lançamento foi digitado.
+      ...(filters?.range ? effectiveDateFilter(filters.range) : {}),
     },
     include: { appointment: { select: { id: true, clientId: true } } },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [
+      { paidAt: { sort: 'desc', nulls: 'last' } },
+      { dueDate: 'desc' },
+      { createdAt: 'desc' },
+    ],
+    take: 500,
   });
+}
+
+function effectiveDateFilter(range: { startAt: Date; endAt: Date }): Prisma.TransactionWhereInput {
+  const within = { gte: range.startAt, lte: range.endAt };
+  return {
+    OR: [
+      { paidAt: within },
+      { paidAt: null, dueDate: within },
+      { paidAt: null, dueDate: null, createdAt: within },
+    ],
+  };
 }
 
 export async function createTransaction(
@@ -68,6 +90,21 @@ export async function updateTransaction(
   id: string,
   data: TransactionInput,
 ): Promise<Transaction> {
+  const current = await prisma.transaction.findFirst({ where: { id, companyId } });
+  if (!current) throw new UserError('Lançamento não encontrado.');
+  // Lançado pelo próprio atendimento: valor e categoria vêm dele, e mudá-los aqui deixaria o caixa
+  // diferente do que a agenda mostra (e reabria o lançamento em dobro ao concluir de novo).
+  if (
+    current.appointmentId &&
+    (Number(current.amount) !== data.amount ||
+      (current.category ?? null) !== (data.category || null))
+  ) {
+    throw new UserError(
+      'Este lançamento veio de um atendimento: valor e categoria mudam pelo atendimento.',
+    );
+  }
+  // Editar a descrição de um lançamento pago não pode mudar a data em que ele foi pago.
+  const paidAt = data.status === 'PAID' ? (current.paidAt ?? data.paidAt ?? new Date()) : null;
   const result = await prisma.transaction.updateMany({
     where: { id, companyId },
     data: {
@@ -78,11 +115,11 @@ export async function updateTransaction(
       amount: data.amount,
       paymentMethod: data.paymentMethod ?? null,
       dueDate: data.dueDate ?? null,
-      paidAt: data.paidAt ?? null,
+      paidAt,
       notes: data.notes || null,
     },
   });
-  if (result.count === 0) throw new Error('Transaction not found');
+  if (result.count === 0) throw new UserError('Lançamento não encontrado.');
 
   return (await prisma.transaction.findFirst({ where: { id, companyId } }))!;
 }
@@ -92,7 +129,7 @@ export async function markTransactionPaid(companyId: string, id: string): Promis
     where: { id, companyId },
     data: { status: 'PAID', paidAt: new Date() },
   });
-  if (result.count === 0) throw new Error('Transaction not found');
+  if (result.count === 0) throw new UserError('Lançamento não encontrado.');
 }
 
 export async function cancelTransaction(companyId: string, id: string): Promise<void> {
@@ -100,7 +137,7 @@ export async function cancelTransaction(companyId: string, id: string): Promise<
     where: { id, companyId },
     data: { status: 'CANCELED' },
   });
-  if (result.count === 0) throw new Error('Transaction not found');
+  if (result.count === 0) throw new UserError('Lançamento não encontrado.');
 }
 
 export type CashFlowSummary = {
@@ -119,7 +156,7 @@ export async function getCashFlowSummary(
     where: {
       companyId,
       status: { not: 'CANCELED' },
-      createdAt: { gte: range.startAt, lte: range.endAt },
+      ...effectiveDateFilter(range),
     },
     select: { type: true, status: true, amount: true },
   });
@@ -151,18 +188,43 @@ export async function getCashFlowSummary(
  * be marked DONE more than once across status changes (e.g. DONE -> back to
  * CONFIRMED by mistake -> DONE again) and this must never double-book revenue.
  */
+/** O que a comanda define na cobrança; sem ela, vale o preço do atendimento sem forma de pagamento. */
+export type IncomeCheckout = {
+  amount?: Prisma.Decimal | number;
+  paymentMethod?: PaymentMethod | null;
+  notes?: string | null;
+};
+
 export async function createIncomeFromAppointment(
   companyId: string,
   appointment: Appointment,
   createdByUserId: string,
+  db: Prisma.TransactionClient = prisma,
+  checkout: IncomeCheckout = {},
 ): Promise<void> {
-  const existing = await prisma.transaction.findFirst({
+  const amount = checkout.amount ?? appointment.priceSnapshot;
+  const existing = await db.transaction.findFirst({
     where: { companyId, appointmentId: appointment.id, category: 'Atendimento' },
-    select: { id: true },
+    select: { id: true, status: true },
   });
-  if (existing) return;
+  if (existing) {
+    // Concluído de novo depois de desfeito: reativa o lançamento em vez de criar outro.
+    if (existing.status === 'CANCELED') {
+      await db.transaction.update({
+        where: { id: existing.id },
+        data: {
+          status: 'PAID',
+          paidAt: new Date(),
+          amount,
+          paymentMethod: checkout.paymentMethod ?? null,
+          notes: checkout.notes ?? null,
+        },
+      });
+    }
+    return;
+  }
 
-  await prisma.transaction.create({
+  await db.transaction.create({
     data: {
       companyId,
       appointmentId: appointment.id,
@@ -170,9 +232,44 @@ export async function createIncomeFromAppointment(
       status: 'PAID',
       description: appointment.serviceNameSnapshot,
       category: 'Atendimento',
-      amount: appointment.priceSnapshot,
-      paidAt: appointment.updatedAt,
+      amount,
+      paymentMethod: checkout.paymentMethod ?? null,
+      notes: checkout.notes ?? null,
+      paidAt: new Date(),
       createdByUserId,
     },
+  });
+}
+
+/**
+ * Desfaz a receita de um atendimento que deixou de estar concluído (cancelado ou status voltado).
+ * Antes ela ficava no caixa como se o serviço tivesse sido feito e pago.
+ */
+export async function reverseIncomeFromAppointment(
+  companyId: string,
+  appointmentId: string,
+  db: Prisma.TransactionClient = prisma,
+): Promise<void> {
+  // Cupom usado na cobrança volta a ficar disponível (o código fica anotado no lançamento).
+  const charged = await db.transaction.findFirst({
+    where: { companyId, appointmentId, category: 'Atendimento', status: { not: 'CANCELED' } },
+    select: { notes: true },
+  });
+  const couponCode = charged?.notes?.match(/cupom:(\S+)/)?.[1];
+  if (couponCode) {
+    await db.coupon.updateMany({
+      where: { companyId, code: couponCode, usedCount: { gt: 0 } },
+      data: { usedCount: { decrement: 1 } },
+    });
+  }
+  // Serviço e gorjeta saem juntos; produto vendido continua (a mercadoria saiu).
+  await db.transaction.updateMany({
+    where: {
+      companyId,
+      appointmentId,
+      category: { in: ['Atendimento', 'Gorjeta'] },
+      status: { not: 'CANCELED' },
+    },
+    data: { status: 'CANCELED' },
   });
 }

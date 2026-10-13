@@ -14,7 +14,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -59,7 +67,9 @@ export function CouponDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
-      isEdit ? updateCouponAction(coupon.id, values) : createCouponAction(values),
+      (isEdit ? updateCouponAction(coupon.id, values) : createCouponAction(values)).then(
+        unwrapResult,
+      ),
     onSuccess: () => {
       toast.success(isEdit ? 'Cupom atualizado.' : 'Cupom criado.');
       queryClient.invalidateQueries({ queryKey: ['coupons'] });
@@ -150,7 +160,9 @@ export function CouponDrawer({
                         type="date"
                         value={field.value ? toDateInputValue(field.value as Date) : ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? new Date(`${e.target.value}T23:59:59`) : null)
+                          field.onChange(
+                            e.target.value ? new Date(`${e.target.value}T23:59:59`) : null,
+                          )
                         }
                       />
                     </FormControl>

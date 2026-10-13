@@ -5,6 +5,7 @@ import { LandingHeader } from '@/components/landing/landing-header';
 import { Hero } from '@/components/landing/hero';
 import { ProductPreview } from '@/components/landing/product-preview';
 import { FeatureGrid } from '@/components/landing/feature-grid';
+import { Faq } from '@/components/landing/faq';
 
 export default function Home() {
   return (
@@ -14,6 +15,7 @@ export default function Home() {
         <Hero />
         <ProductPreview />
         <FeatureGrid />
+        <Faq />
 
         <section className="px-5 pb-24 md:pb-32">
           <div className="bg-tile relative isolate mx-auto max-w-6xl overflow-hidden rounded-[32px] px-6 py-16 text-center md:py-24">

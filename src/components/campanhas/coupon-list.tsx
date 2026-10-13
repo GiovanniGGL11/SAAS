@@ -6,6 +6,7 @@ import { CopyIcon, MegaphoneIcon, PlusIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -63,7 +64,8 @@ export function CouponList({ initialCoupons }: { initialCoupons: SerializedCoupo
   });
 
   const toggleActive = useMutation({
-    mutationFn: (input: { id: string; active: boolean }) => setCouponActiveAction(input),
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setCouponActiveAction(input).then(unwrapResult),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coupons'] }),
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar.'),
   });

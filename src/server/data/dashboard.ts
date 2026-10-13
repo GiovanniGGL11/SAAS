@@ -24,31 +24,43 @@ export async function getDashboardKpis(companyId: string): Promise<DashboardKpis
   const periodStart = new Date(now.getTime() - ROLLING_WINDOW_DAYS * 86_400_000);
   const prevPeriodStart = new Date(periodStart.getTime() - ROLLING_WINDOW_DAYS * 86_400_000);
 
-  const [current, previous, newClientsCount, newClientsCountPrev] = await Promise.all([
-    prisma.appointment.findMany({
-      where: { companyId, status: 'DONE', startAt: { gte: periodStart, lte: now } },
-      select: { priceSnapshot: true },
-    }),
-    prisma.appointment.findMany({
-      where: { companyId, status: 'DONE', startAt: { gte: prevPeriodStart, lt: periodStart } },
-      select: { priceSnapshot: true },
-    }),
-    prisma.client.count({ where: { companyId, createdAt: { gte: periodStart, lte: now } } }),
-    prisma.client.count({
-      where: { companyId, createdAt: { gte: prevPeriodStart, lt: periodStart } },
-    }),
-  ]);
+  /*
+    Faturamento = o que entrou no caixa (lançamentos de entrada pagos), o mesmo número do
+    Financeiro. Antes o dashboard somava só o preço dos atendimentos concluídos e não via venda de
+    produto nem entrada manual — os dois telas mostravam faturamentos diferentes.
+  */
+  const paidIncome = (gte: Date, lt: Date) =>
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'INCOME', status: 'PAID', paidAt: { gte, lt } },
+      _sum: { amount: true },
+    });
 
-  const revenue = current.reduce((sum, a) => sum + Number(a.priceSnapshot), 0);
-  const revenuePrev = previous.reduce((sum, a) => sum + Number(a.priceSnapshot), 0);
+  const [current, previous, income, incomePrev, newClientsCount, newClientsCountPrev] =
+    await Promise.all([
+      prisma.appointment.count({
+        where: { companyId, status: 'DONE', startAt: { gte: periodStart, lte: now } },
+      }),
+      prisma.appointment.count({
+        where: { companyId, status: 'DONE', startAt: { gte: prevPeriodStart, lt: periodStart } },
+      }),
+      paidIncome(periodStart, now),
+      paidIncome(prevPeriodStart, periodStart),
+      prisma.client.count({ where: { companyId, createdAt: { gte: periodStart, lte: now } } }),
+      prisma.client.count({
+        where: { companyId, createdAt: { gte: prevPeriodStart, lt: periodStart } },
+      }),
+    ]);
+
+  const revenue = Number(income._sum.amount ?? 0);
+  const revenuePrev = Number(incomePrev._sum.amount ?? 0);
 
   return {
     revenue,
     revenuePrev,
-    avgTicket: current.length > 0 ? revenue / current.length : 0,
-    avgTicketPrev: previous.length > 0 ? revenuePrev / previous.length : 0,
-    completedCount: current.length,
-    completedCountPrev: previous.length,
+    avgTicket: current > 0 ? revenue / current : 0,
+    avgTicketPrev: previous > 0 ? revenuePrev / previous : 0,
+    completedCount: current,
+    completedCountPrev: previous,
     newClientsCount,
     newClientsCountPrev,
   };
@@ -66,16 +78,17 @@ export async function getRevenueByDay(
   const now = new Date();
   const periodStart = new Date(now.getTime() - days * 86_400_000);
 
-  const appointments = await prisma.appointment.findMany({
-    where: { companyId, status: 'DONE', startAt: { gte: periodStart, lte: now } },
-    select: { priceSnapshot: true, startAt: true },
+  // Mesma fonte do Financeiro: entradas pagas, no dia em que foram pagas.
+  const transactions = await prisma.transaction.findMany({
+    where: { companyId, type: 'INCOME', status: 'PAID', paidAt: { gte: periodStart, lte: now } },
+    select: { amount: true, paidAt: true },
   });
 
   const buckets = new Map<string, number>();
-  for (const appointment of appointments) {
-    const date = utcToCalendarDate(appointment.startAt, timezone);
+  for (const transaction of transactions) {
+    const date = utcToCalendarDate(transaction.paidAt!, timezone);
     const key = `${date.year}-${date.month}-${date.day}`;
-    buckets.set(key, (buckets.get(key) ?? 0) + Number(appointment.priceSnapshot));
+    buckets.set(key, (buckets.get(key) ?? 0) + Number(transaction.amount));
   }
 
   const result: DailyRevenue[] = [];

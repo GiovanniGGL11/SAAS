@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GiftIcon, TriangleAlertIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -131,7 +132,8 @@ export function LoyaltyView({
   }
 
   const save = useMutation({
-    mutationFn: saveLoyaltyProgramAction,
+    mutationFn: (input: Parameters<typeof saveLoyaltyProgramAction>[0]) =>
+      saveLoyaltyProgramAction(input).then(unwrapResult),
     onSuccess: () => {
       toast.success('Programa de fidelidade salvo.');
       queryClient.invalidateQueries({ queryKey: ['loyalty-overview'] });
@@ -149,7 +151,9 @@ export function LoyaltyView({
     });
     if (!result.success) {
       setErrors(
-        Object.fromEntries(result.error.issues.map((issue) => [String(issue.path[0]), issue.message])),
+        Object.fromEntries(
+          result.error.issues.map((issue) => [String(issue.path[0]), issue.message]),
+        ),
       );
       return;
     }
@@ -278,7 +282,10 @@ export function LoyaltyView({
                     {services.length === 0 ? (
                       <p className="text-label-secondary text-[13px]">
                         Cadastre um serviço em{' '}
-                        <Link href="/servicos" className="text-primary underline-offset-2 hover:underline">
+                        <Link
+                          href="/servicos"
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
                           Serviços
                         </Link>{' '}
                         primeiro.
@@ -308,7 +315,9 @@ export function LoyaltyView({
                   form.rewardType === 'FIXED_DISCOUNT') && (
                   <NumberField
                     id="rewardValue"
-                    label={form.rewardType === 'PERCENT_DISCOUNT' ? 'Desconto (%)' : 'Desconto (R$)'}
+                    label={
+                      form.rewardType === 'PERCENT_DISCOUNT' ? 'Desconto (%)' : 'Desconto (R$)'
+                    }
                     value={form.rewardValue}
                     onChange={(value) => update('rewardValue', value)}
                     error={errors.rewardValue}
@@ -358,7 +367,11 @@ export function LoyaltyView({
           {members.length === 0 ? (
             <EmptyState
               icon={GiftIcon}
-              title={data.members.length === 0 ? 'Ninguém no programa ainda' : 'Nenhum cliente encontrado'}
+              title={
+                data.members.length === 0
+                  ? 'Ninguém no programa ainda'
+                  : 'Nenhum cliente encontrado'
+              }
               description={
                 data.members.length === 0
                   ? 'Os clientes aparecem aqui conforme acumulam saldo nos atendimentos concluídos.'
@@ -389,7 +402,9 @@ export function LoyaltyView({
                         </span>
                       )}
                       <span className="text-[15px] font-semibold tabular-nums">
-                        {savedProgram ? formatLoyaltyAmount(savedProgram.mode, member.balance) : null}
+                        {savedProgram
+                          ? formatLoyaltyAmount(savedProgram.mode, member.balance)
+                          : null}
                       </span>
                     </Link>
                   </li>

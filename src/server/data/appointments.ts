@@ -1,8 +1,15 @@
 import { prisma } from '@/lib/db';
 import { recordAuditLog } from '@/server/data/audit';
-import { createIncomeFromAppointment } from '@/server/data/finance';
-import { earnLoyaltyFromAppointment } from '@/server/data/loyalty';
-import type { Appointment, AppointmentStatus } from '@/generated/prisma/client';
+import { createIncomeFromAppointment, reverseIncomeFromAppointment } from '@/server/data/finance';
+import { earnLoyaltyFromAppointment, reverseLoyaltyFromAppointment } from '@/server/data/loyalty';
+import { Prisma as PrismaNamespace } from '@/generated/prisma/client';
+import type {
+  Appointment,
+  AppointmentStatus,
+  PaymentMethod,
+  Prisma,
+} from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 import { addDays, calendarDateToUtc, utcToCalendarDate } from '@/lib/time';
 
 export class AppointmentConflictError extends Error {
@@ -18,7 +25,9 @@ export class AppointmentConflictError extends Error {
 
 export class ForeignEntityMismatchError extends Error {
   constructor(entity: 'client' | 'professional' | 'service') {
-    const nome = { client: 'O cliente', professional: 'O profissional', service: 'O serviço' }[entity];
+    const nome = { client: 'O cliente', professional: 'O profissional', service: 'O serviço' }[
+      entity
+    ];
     super(`${nome} escolhido não pertence a esta empresa.`);
     this.name = 'ForeignEntityMismatchError';
   }
@@ -84,14 +93,25 @@ export async function getAppointmentById(
  * for a single-instance MVP; a Postgres EXCLUDE constraint is the follow-up
  * if double-booking under concurrent load becomes an issue.
  */
-async function assertNoConflict(params: {
-  companyId: string;
-  professionalId: string;
-  startAt: Date;
-  endAt: Date;
-  excludeAppointmentId?: string;
-}): Promise<void> {
-  const overlappingAppointment = await prisma.appointment.findFirst({
+/**
+ * Trava por profissional até o fim da transação: dois agendamentos no mesmo horário, criados ao
+ * mesmo tempo, passavam ambos pela checagem de conflito antes de qualquer um gravar.
+ */
+async function lockProfessionalSchedule(db: Prisma.TransactionClient, professionalId: string) {
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'agenda:' + professionalId}))`;
+}
+
+async function assertNoConflict(
+  params: {
+    companyId: string;
+    professionalId: string;
+    startAt: Date;
+    endAt: Date;
+    excludeAppointmentId?: string;
+  },
+  db: Prisma.TransactionClient = prisma,
+): Promise<void> {
+  const overlappingAppointment = await db.appointment.findFirst({
     where: {
       companyId: params.companyId,
       professionalId: params.professionalId,
@@ -106,7 +126,7 @@ async function assertNoConflict(params: {
     throw new AppointmentConflictError('overlap');
   }
 
-  const overlappingBlock = await prisma.scheduleBlock.findFirst({
+  const overlappingBlock = await db.scheduleBlock.findFirst({
     where: {
       professionalId: params.professionalId,
       startAt: { lt: params.endAt },
@@ -143,27 +163,32 @@ export async function createAppointment(params: {
   // trusted from the caller — so it can never drift from the snapshot below.
   const endAt = new Date(params.startAt.getTime() + service.durationMinutes * 60_000);
 
-  await assertNoConflict({
-    companyId: params.companyId,
-    professionalId: params.professionalId,
-    startAt: params.startAt,
-    endAt,
-  });
-
-  const appointment = await prisma.appointment.create({
-    data: {
-      companyId: params.companyId,
-      clientId: params.clientId,
-      professionalId: params.professionalId,
-      serviceId: params.serviceId,
-      startAt: params.startAt,
-      endAt,
-      notes: params.notes,
-      serviceNameSnapshot: service.name,
-      durationMinutesSnapshot: service.durationMinutes,
-      priceSnapshot: service.price,
-      createdByUserId: params.createdByUserId,
-    },
+  const appointment = await prisma.$transaction(async (tx) => {
+    await lockProfessionalSchedule(tx, params.professionalId);
+    await assertNoConflict(
+      {
+        companyId: params.companyId,
+        professionalId: params.professionalId,
+        startAt: params.startAt,
+        endAt,
+      },
+      tx,
+    );
+    return tx.appointment.create({
+      data: {
+        companyId: params.companyId,
+        clientId: params.clientId,
+        professionalId: params.professionalId,
+        serviceId: params.serviceId,
+        startAt: params.startAt,
+        endAt,
+        notes: params.notes,
+        serviceNameSnapshot: service.name,
+        durationMinutesSnapshot: service.durationMinutes,
+        priceSnapshot: service.price,
+        createdByUserId: params.createdByUserId,
+      },
+    });
   });
 
   await recordAuditLog({
@@ -206,17 +231,27 @@ export async function moveAppointment(params: {
   const durationMs = existing.endAt.getTime() - existing.startAt.getTime();
   const endAt = new Date(params.startAt.getTime() + durationMs);
 
-  await assertNoConflict({
-    companyId: params.companyId,
-    professionalId,
-    startAt: params.startAt,
-    endAt,
-    excludeAppointmentId: existing.id,
-  });
-
-  const result = await prisma.appointment.updateMany({
-    where: { id: params.id, companyId: params.companyId },
-    data: { startAt: params.startAt, endAt, professionalId, updatedByUserId: params.updatedByUserId },
+  const result = await prisma.$transaction(async (tx) => {
+    await lockProfessionalSchedule(tx, professionalId);
+    await assertNoConflict(
+      {
+        companyId: params.companyId,
+        professionalId,
+        startAt: params.startAt,
+        endAt,
+        excludeAppointmentId: existing.id,
+      },
+      tx,
+    );
+    return tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data: {
+        startAt: params.startAt,
+        endAt,
+        professionalId,
+        updatedByUserId: params.updatedByUserId,
+      },
+    });
   });
   if (result.count === 0) throw new AppointmentNotFoundError();
 
@@ -240,37 +275,254 @@ export async function moveAppointment(params: {
   }))!;
 }
 
+/** Trava a linha do agendamento até o fim da transação: dois cliques em "Concluir" viram um. */
+async function lockAppointment(db: Prisma.TransactionClient, companyId: string, id: string) {
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Appointment" WHERE id = ${id} AND "companyId" = ${companyId} FOR UPDATE`;
+  if (rows.length === 0) throw new AppointmentNotFoundError();
+}
+
+/**
+ * Muda o status com os efeitos no caixa e na fidelidade na mesma transação. Concluir lança a
+ * receita e credita a fidelidade; sair de Concluído desfaz os dois — antes a receita ficava no
+ * caixa de um serviço que não aconteceu.
+ */
 export async function updateAppointmentStatus(params: {
   companyId: string;
   id: string;
   status: Exclude<AppointmentStatus, 'CANCELED'>;
   updatedByUserId: string;
 }): Promise<Appointment> {
-  const result = await prisma.appointment.updateMany({
-    where: { id: params.id, companyId: params.companyId },
-    data: { status: params.status, updatedByUserId: params.updatedByUserId },
+  return prisma.$transaction(async (tx) => {
+    await lockAppointment(tx, params.companyId, params.id);
+    const before = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+
+    await tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data: { status: params.status, updatedByUserId: params.updatedByUserId },
+    });
+    const updated = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+
+    if (params.status === 'DONE') {
+      await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
+      await earnLoyaltyFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
+    } else if (before.status === 'DONE') {
+      await reverseIncomeFromAppointment(params.companyId, params.id, tx);
+      await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
+    }
+
+    await recordAuditLog(
+      {
+        companyId: params.companyId,
+        entityType: 'Appointment',
+        entityId: params.id,
+        action: 'status_changed',
+        userId: params.updatedByUserId,
+        metadata: { from: before.status, status: params.status },
+      },
+      tx,
+    );
+    return updated;
   });
-  if (result.count === 0) throw new AppointmentNotFoundError();
+}
 
-  await recordAuditLog({
-    companyId: params.companyId,
-    entityType: 'Appointment',
-    entityId: params.id,
-    action: 'status_changed',
-    userId: params.updatedByUserId,
-    metadata: { status: params.status },
+/**
+ * Trocar cliente, serviço ou observação de um agendamento marcado. Trocar o serviço refaz a
+ * duração, o nome e o preço gravados no agendamento, e confere conflito com a nova duração.
+ * Concluído ou cancelado não muda: o caixa já foi lançado com os dados de antes.
+ */
+export async function updateAppointmentDetails(params: {
+  companyId: string;
+  id: string;
+  clientId?: string;
+  serviceId?: string;
+  notes?: string | null;
+  updatedByUserId: string;
+}): Promise<Appointment> {
+  return prisma.$transaction(async (tx) => {
+    await lockAppointment(tx, params.companyId, params.id);
+    const current = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+    if (current.status === 'DONE' || current.status === 'CANCELED') {
+      throw new UserError('Atendimento concluído ou cancelado não pode ser editado.');
+    }
+
+    const data: Prisma.AppointmentUncheckedUpdateManyInput = {
+      updatedByUserId: params.updatedByUserId,
+    };
+    if (params.notes !== undefined) data.notes = params.notes || null;
+
+    if (params.clientId && params.clientId !== current.clientId) {
+      const client = await tx.client.findFirst({
+        where: { id: params.clientId, companyId: params.companyId },
+      });
+      if (!client) throw new ForeignEntityMismatchError('client');
+      data.clientId = client.id;
+    }
+
+    if (params.serviceId && params.serviceId !== current.serviceId) {
+      const service = await tx.service.findFirst({
+        where: { id: params.serviceId, companyId: params.companyId },
+      });
+      if (!service) throw new ForeignEntityMismatchError('service');
+      const endAt = new Date(current.startAt.getTime() + service.durationMinutes * 60_000);
+      await lockProfessionalSchedule(tx, current.professionalId);
+      await assertNoConflict(
+        {
+          companyId: params.companyId,
+          professionalId: current.professionalId,
+          startAt: current.startAt,
+          endAt,
+          excludeAppointmentId: current.id,
+        },
+        tx,
+      );
+      Object.assign(data, {
+        serviceId: service.id,
+        endAt,
+        serviceNameSnapshot: service.name,
+        durationMinutesSnapshot: service.durationMinutes,
+        priceSnapshot: service.price,
+      });
+    }
+
+    await tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data,
+    });
+    await recordAuditLog(
+      {
+        companyId: params.companyId,
+        entityType: 'Appointment',
+        entityId: params.id,
+        action: 'moved',
+        userId: params.updatedByUserId,
+        metadata: {
+          edited: true,
+          clientId: params.clientId ?? null,
+          serviceId: params.serviceId ?? null,
+        },
+      },
+      tx,
+    );
+    return (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
   });
+}
 
-  const updated = (await prisma.appointment.findFirst({
-    where: { id: params.id, companyId: params.companyId },
-  }))!;
+export type CheckoutInput = {
+  companyId: string;
+  id: string;
+  paymentMethod: PaymentMethod;
+  /** Desconto em reais, além do cupom. */
+  discount?: number;
+  couponCode?: string;
+  tip?: number;
+  updatedByUserId: string;
+};
 
-  if (params.status === 'DONE') {
-    await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId);
-    await earnLoyaltyFromAppointment(params.companyId, updated, params.updatedByUserId);
-  }
+/**
+ * "Concluir e cobrar": a comanda do atendimento. Conclui, lança a receita com a forma de
+ * pagamento e o valor já com desconto e cupom, a gorjeta à parte, e credita a fidelidade —
+ * tudo numa transação. Cupom é conferido (ativo, validade, limite de usos) e gasto aqui.
+ */
+export async function checkoutAppointment(params: CheckoutInput) {
+  return prisma.$transaction(async (tx) => {
+    await lockAppointment(tx, params.companyId, params.id);
+    const appointment = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+    if (appointment.status === 'CANCELED') throw new UserError('Este agendamento está cancelado.');
+    if (appointment.status === 'DONE')
+      throw new UserError('Este atendimento já foi concluído e cobrado.');
 
-  return updated;
+    const price = new PrismaNamespace.Decimal(appointment.priceSnapshot);
+    let discount = new PrismaNamespace.Decimal(params.discount ?? 0);
+    const notes: string[] = [];
+
+    if (params.couponCode?.trim()) {
+      const code = params.couponCode.trim().toUpperCase();
+      const coupon = await tx.coupon.findFirst({ where: { companyId: params.companyId, code } });
+      if (!coupon || !coupon.active) throw new UserError('Cupom inválido ou desativado.');
+      if (coupon.expiresAt && coupon.expiresAt < new Date())
+        throw new UserError('Este cupom expirou.');
+      // Gasta o cupom só se ainda houver uso disponível — conferido no próprio UPDATE.
+      const used = await tx.coupon.updateMany({
+        where: {
+          id: coupon.id,
+          ...(coupon.maxUses !== null ? { usedCount: { lt: coupon.maxUses } } : {}),
+        },
+        data: { usedCount: { increment: 1 } },
+      });
+      if (used.count === 0) throw new UserError('Este cupom já atingiu o limite de usos.');
+      const couponDiscount =
+        coupon.discountType === 'PERCENTAGE'
+          ? price.mul(coupon.discountValue).div(100).toDecimalPlaces(2)
+          : new PrismaNamespace.Decimal(coupon.discountValue);
+      discount = discount.add(couponDiscount);
+      notes.push(`cupom:${coupon.code} (−R$ ${couponDiscount.toFixed(2).replace('.', ',')})`);
+    } else if (discount.gt(0)) {
+      notes.push(`Desconto de R$ ${discount.toFixed(2).replace('.', ',')}`);
+    }
+
+    const total = PrismaNamespace.Decimal.max(0, price.sub(discount));
+
+    await tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data: { status: 'DONE', updatedByUserId: params.updatedByUserId },
+    });
+    const done = (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
+
+    await createIncomeFromAppointment(params.companyId, done, params.updatedByUserId, tx, {
+      amount: total,
+      paymentMethod: params.paymentMethod,
+      notes: notes.join(' · ') || null,
+    });
+    if (params.tip && params.tip > 0) {
+      await tx.transaction.create({
+        data: {
+          companyId: params.companyId,
+          appointmentId: params.id,
+          type: 'INCOME',
+          status: 'PAID',
+          description: `Gorjeta — ${done.serviceNameSnapshot}`,
+          category: 'Gorjeta',
+          amount: params.tip,
+          paymentMethod: params.paymentMethod,
+          paidAt: new Date(),
+          createdByUserId: params.updatedByUserId,
+        },
+      });
+    }
+    await earnLoyaltyFromAppointment(params.companyId, done, params.updatedByUserId, tx);
+    await recordAuditLog(
+      {
+        companyId: params.companyId,
+        entityType: 'Appointment',
+        entityId: params.id,
+        action: 'status_changed',
+        userId: params.updatedByUserId,
+        metadata: {
+          from: appointment.status,
+          status: 'DONE',
+          total: total.toString(),
+          paymentMethod: params.paymentMethod,
+          coupon: params.couponCode ?? null,
+          tip: params.tip ?? 0,
+        },
+      },
+      tx,
+    );
+    return { appointment: done, total: Number(total) };
+  });
 }
 
 export async function cancelAppointment(params: {
@@ -279,30 +531,37 @@ export async function cancelAppointment(params: {
   canceledByUserId: string;
   reason?: string;
 }): Promise<Appointment> {
-  const result = await prisma.appointment.updateMany({
-    where: { id: params.id, companyId: params.companyId },
-    data: {
-      status: 'CANCELED',
-      canceledAt: new Date(),
-      canceledByUserId: params.canceledByUserId,
-      cancellationReason: params.reason,
-      updatedByUserId: params.canceledByUserId,
-    },
-  });
-  if (result.count === 0) throw new AppointmentNotFoundError();
+  return prisma.$transaction(async (tx) => {
+    await lockAppointment(tx, params.companyId, params.id);
+    await tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data: {
+        status: 'CANCELED',
+        canceledAt: new Date(),
+        canceledByUserId: params.canceledByUserId,
+        cancellationReason: params.reason,
+        updatedByUserId: params.canceledByUserId,
+      },
+    });
+    // Cancelar um atendimento já concluído também tira a receita e a fidelidade dele.
+    await reverseIncomeFromAppointment(params.companyId, params.id, tx);
+    await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
 
-  await recordAuditLog({
-    companyId: params.companyId,
-    entityType: 'Appointment',
-    entityId: params.id,
-    action: 'canceled',
-    userId: params.canceledByUserId,
-    metadata: { reason: params.reason },
+    await recordAuditLog(
+      {
+        companyId: params.companyId,
+        entityType: 'Appointment',
+        entityId: params.id,
+        action: 'canceled',
+        userId: params.canceledByUserId,
+        metadata: { reason: params.reason },
+      },
+      tx,
+    );
+    return (await tx.appointment.findFirst({
+      where: { id: params.id, companyId: params.companyId },
+    }))!;
   });
-
-  return (await prisma.appointment.findFirst({
-    where: { id: params.id, companyId: params.companyId },
-  }))!;
 }
 
 // ---------------------------------------------------------------------------
@@ -383,7 +642,11 @@ export async function createScheduleBlock(params: {
   return block;
 }
 
-export async function deleteScheduleBlock(params: { companyId: string; id: string; userId: string }) {
+export async function deleteScheduleBlock(params: {
+  companyId: string;
+  id: string;
+  userId: string;
+}) {
   // O bloqueio não tem companyId próprio: o escopo vem do profissional.
   const result = await prisma.scheduleBlock.deleteMany({
     where: { id: params.id, professional: { companyId: params.companyId } },
@@ -430,7 +693,10 @@ export async function findNextAvailableSlot(params: {
       active: true,
       ...(params.professionalId ? { id: params.professionalId } : {}),
     },
-    select: { id: true, availabilities: { select: { weekday: true, startTime: true, endTime: true } } },
+    select: {
+      id: true,
+      availabilities: { select: { weekday: true, startTime: true, endTime: true } },
+    },
   });
   if (params.professionalId && professionals.length === 0) {
     throw new ForeignEntityMismatchError('professional');
@@ -452,7 +718,11 @@ export async function findNextAvailableSlot(params: {
       select: { professionalId: true, startAt: true, endAt: true },
     }),
     prisma.scheduleBlock.findMany({
-      where: { professionalId: { in: ids }, startAt: { lt: horizonEnd }, endAt: { gt: params.from } },
+      where: {
+        professionalId: { in: ids },
+        startAt: { lt: horizonEnd },
+        endAt: { gt: params.from },
+      },
       select: { professionalId: true, startAt: true, endAt: true },
     }),
   ]);
@@ -469,11 +739,18 @@ export async function findNextAvailableSlot(params: {
       const windows = professional.availabilities.length
         ? professional.availabilities
             .filter((a) => a.weekday === weekday)
-            .map((a) => ({ startMinutes: timeToMinutes(a.startTime), endMinutes: timeToMinutes(a.endTime) }))
+            .map((a) => ({
+              startMinutes: timeToMinutes(a.startTime),
+              endMinutes: timeToMinutes(a.endTime),
+            }))
         : [DEFAULT_DAY_WINDOW];
 
       for (const window of windows) {
-        for (let m = window.startMinutes; m + service.durationMinutes <= window.endMinutes; m += STEP) {
+        for (
+          let m = window.startMinutes;
+          m + service.durationMinutes <= window.endMinutes;
+          m += STEP
+        ) {
           const startAt = calendarDateToUtc(day, m, params.timezone);
           if (startAt.getTime() < params.from.getTime()) continue;
           if (best && startAt.getTime() >= best.startAt.getTime()) break;
@@ -494,4 +771,87 @@ export async function findNextAvailableSlot(params: {
     if (best) return best;
   }
   return null;
+}
+
+export class InvalidDurationError extends Error {
+  constructor() {
+    super('O atendimento precisa durar pelo menos 15 minutos.');
+    this.name = 'InvalidDurationError';
+  }
+}
+
+/** Puxar a borda do card: muda só o fim, conferindo conflito com o novo intervalo. */
+export async function resizeAppointment(params: {
+  companyId: string;
+  id: string;
+  endAt: Date;
+  updatedByUserId: string;
+}): Promise<Appointment> {
+  const existing = await prisma.appointment.findFirst({
+    where: { id: params.id, companyId: params.companyId },
+  });
+  if (!existing) throw new AppointmentNotFoundError();
+  if (params.endAt.getTime() - existing.startAt.getTime() < 15 * 60_000)
+    throw new InvalidDurationError();
+
+  await prisma.$transaction(async (tx) => {
+    await lockProfessionalSchedule(tx, existing.professionalId);
+    await assertNoConflict(
+      {
+        companyId: params.companyId,
+        professionalId: existing.professionalId,
+        startAt: existing.startAt,
+        endAt: params.endAt,
+        excludeAppointmentId: existing.id,
+      },
+      tx,
+    );
+    await tx.appointment.updateMany({
+      where: { id: params.id, companyId: params.companyId },
+      data: { endAt: params.endAt, updatedByUserId: params.updatedByUserId },
+    });
+  });
+  await recordAuditLog({
+    companyId: params.companyId,
+    entityType: 'Appointment',
+    entityId: params.id,
+    action: 'moved',
+    userId: params.updatedByUserId,
+    metadata: { endAt: params.endAt.toISOString(), resized: true },
+  });
+  return (await prisma.appointment.findFirst({
+    where: { id: params.id, companyId: params.companyId },
+  }))!;
+}
+
+export type AvailabilityInput = { weekday: number; startTime: string; endTime: string }[];
+
+/** Expediente semanal do profissional: substitui tudo de uma vez, numa transação. */
+export async function setProfessionalAvailability(params: {
+  companyId: string;
+  professionalId: string;
+  availabilities: AvailabilityInput;
+}) {
+  const professional = await prisma.professional.findFirst({
+    where: { id: params.professionalId, companyId: params.companyId },
+    select: { id: true },
+  });
+  if (!professional) throw new ForeignEntityMismatchError('professional');
+
+  await prisma.$transaction([
+    prisma.professionalAvailability.deleteMany({
+      where: { professionalId: params.professionalId },
+    }),
+    prisma.professionalAvailability.createMany({
+      data: params.availabilities.map((a) => ({ ...a, professionalId: params.professionalId })),
+    }),
+  ]);
+}
+
+export async function getProfessionalAvailability(companyId: string, professionalId: string) {
+  return prisma.professionalAvailability.findMany({
+    where: { professionalId, professional: { companyId } },
+    select: { weekday: true, startTime: true, endTime: true },
+    orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+  });
 }

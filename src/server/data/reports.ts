@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/db';
 import { utcToCalendarDate } from '@/lib/time';
 
+const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export type DateRange = { startAt: Date; endAt: Date };
 
 export type ProfessionalBreakdown = {
@@ -10,6 +12,9 @@ export type ProfessionalBreakdown = {
   revenue: number;
   count: number;
   averageTicket: number;
+  /** Comissão do período pela regra do profissional; null quando ele não tem regra cadastrada. */
+  commission: number | null;
+  commissionRule: string | null;
 };
 
 export async function getRevenueByProfessional(
@@ -27,15 +32,47 @@ export async function getRevenueByProfessional(
 
   const professionals = await prisma.professional.findMany({
     where: { companyId, id: { in: grouped.map((g) => g.professionalId) } },
-    select: { id: true, name: true, color: true },
+    select: { id: true, name: true, color: true, commissionType: true, commissionValue: true },
   });
   const byId = new Map(professionals.map((p) => [p.id, p]));
+
+  /*
+    Base da comissão: o que foi efetivamente cobrado pelo serviço (já com desconto e cupom), não
+    o preço de tabela. Gorjeta e produto ficam de fora.
+  */
+  const charged = await prisma.transaction.findMany({
+    where: {
+      companyId,
+      category: 'Atendimento',
+      status: 'PAID',
+      appointment: {
+        status: 'DONE',
+        professionalId: { in: grouped.map((g) => g.professionalId) },
+        startAt: { gte: range.startAt, lte: range.endAt },
+      },
+    },
+    select: { amount: true, appointment: { select: { professionalId: true } } },
+  });
+  const chargedByProfessional = new Map<string, number>();
+  for (const t of charged) {
+    const id = t.appointment!.professionalId;
+    chargedByProfessional.set(id, (chargedByProfessional.get(id) ?? 0) + Number(t.amount));
+  }
 
   return grouped
     .filter((g) => byId.has(g.professionalId))
     .map((g) => {
       const professional = byId.get(g.professionalId)!;
       const revenue = Number(g._sum.priceSnapshot ?? 0);
+      const rate =
+        professional.commissionValue === null ? null : Number(professional.commissionValue);
+      const base = chargedByProfessional.get(g.professionalId) ?? revenue;
+      const commission =
+        rate === null || !professional.commissionType
+          ? null
+          : professional.commissionType === 'PERCENTAGE'
+            ? Math.round(base * rate) / 100
+            : Math.round(rate * g._count._all * 100) / 100;
       return {
         professionalId: g.professionalId,
         name: professional.name,
@@ -43,6 +80,13 @@ export async function getRevenueByProfessional(
         revenue,
         count: g._count._all,
         averageTicket: g._count._all > 0 ? revenue / g._count._all : 0,
+        commission,
+        commissionRule:
+          rate === null || !professional.commissionType
+            ? null
+            : professional.commissionType === 'PERCENTAGE'
+              ? `${rate}% do cobrado`
+              : `${formatBRL(rate)} por atendimento`,
       };
     });
 }

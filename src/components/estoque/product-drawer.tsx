@@ -14,7 +14,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { unwrapResult } from '@/lib/action-result';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -49,7 +57,9 @@ export function ProductDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
-      isEdit ? updateProductAction(product.id, values) : createProductAction(values),
+      (isEdit ? updateProductAction(product.id, values) : createProductAction(values)).then(
+        unwrapResult,
+      ),
     onSuccess: () => {
       toast.success(isEdit ? 'Produto atualizado.' : 'Produto criado.');
       queryClient.invalidateQueries({ queryKey: ['products'] });

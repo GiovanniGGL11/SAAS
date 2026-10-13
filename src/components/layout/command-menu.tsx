@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import { MoonIcon, SearchIcon, SunIcon } from 'lucide-react';
 
 import { navGroups, navItems } from '@/components/layout/nav-items';
@@ -19,6 +20,8 @@ import {
 
 /** Spotlight-style ⌘K / Ctrl+K palette to jump between sections. */
 export function CommandMenu() {
+  const { orgRole } = useAuth();
+  const isAdmin = orgRole === 'org:admin';
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = React.useState(false);
@@ -70,7 +73,10 @@ export function CommandMenu() {
           {navGroups.map((group) => (
             <CommandGroup key={group} heading={group}>
               {navItems
-                .filter((item) => item.group === group && !item.comingSoon)
+                .filter(
+                  (item) =>
+                    item.group === group && !item.comingSoon && (isAdmin || !item.adminOnly),
+                )
                 .map((item) => {
                   const Icon = item.icon;
                   return (

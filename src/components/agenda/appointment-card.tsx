@@ -15,11 +15,18 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { CheckoutForm } from '@/components/agenda/checkout-form';
 import { STATUS_COLORS, STATUS_LABELS, quickStatusActions } from '@/components/agenda/status';
 import type { GridAppointment } from '@/components/agenda/calendar-grid';
 import { unwrapResult } from '@/lib/action-result';
-import { updateAppointmentStatusAction } from '@/server/actions/agenda-actions';
+import {
+  cancelAppointmentAction,
+  updateAppointmentStatusAction,
+} from '@/server/actions/agenda-actions';
 import { formatTimeInTz } from '@/lib/time';
+import { formatPhone, whatsappLink } from '@/lib/phone';
+import { getConfirmationLinkAction } from '@/server/actions/public-booking-actions';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { AppointmentStatus } from '@/generated/prisma/client';
 
@@ -33,13 +40,17 @@ export function AppointmentCard({
   color,
   onClose,
   onOpenDetails,
+  startInCheckout = false,
 }: {
   appointment: GridAppointment;
   timezone: string;
   color: string;
   onClose: () => void;
   onOpenDetails: () => void;
+  /** Aberto pelo "Concluir e cobrar" do botão direito: já mostra a comanda. */
+  startInCheckout?: boolean;
 }) {
+  const [showCheckout, setShowCheckout] = React.useState(startInCheckout);
   const queryClient = useQueryClient();
   const statusMutation = useMutation({
     mutationFn: (status: Exclude<AppointmentStatus, 'CANCELED'>) =>
@@ -49,6 +60,23 @@ export function AppointmentCard({
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
+  });
+
+  const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [sendingWhatsapp, setSendingWhatsapp] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState('');
+  const cancelMutation = useMutation({
+    mutationFn: () =>
+      cancelAppointmentAction({
+        id: appointment.id,
+        reason: cancelReason.trim() || undefined,
+      }).then(unwrapResult),
+    onSuccess: () => {
+      toast.success('Agendamento cancelado.');
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      onClose();
+    },
+    onError: (error: Error) => toast.error(error.message || 'Não foi possível cancelar.'),
   });
 
   const dateLabel = new Intl.DateTimeFormat('pt-BR', {
@@ -108,9 +136,34 @@ export function AppointmentCard({
         </Row>
         {appointment.client.phone && (
           <Row icon={<PhoneIcon className="size-4" />}>
-            <a href={`tel:${appointment.client.phone}`} className="hover:underline">
-              {appointment.client.phone}
-            </a>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <a href={`tel:${appointment.client.phone}`} className="hover:underline">
+                {formatPhone(appointment.client.phone)}
+              </a>
+              {whatsappLink(appointment.client.phone) && (
+                // Mensagem de confirmação pronta, com o link para o cliente confirmar ou cancelar
+                // sozinho (a agenda atualiza quando ele responde).
+                <button
+                  type="button"
+                  disabled={sendingWhatsapp}
+                  onClick={async () => {
+                    // Abre a aba já no clique: depois de esperar o link, o navegador bloquearia.
+                    const tab = window.open('about:blank', '_blank');
+                    setSendingWhatsapp(true);
+                    const link = await getConfirmationLinkAction(appointment.id)
+                      .then((r) => (r.ok ? r.data.url : null))
+                      .finally(() => setSendingWhatsapp(false));
+                    const message = `Olá, ${appointment.client.name.split(' ')[0]}! Seu horário: ${appointment.serviceNameSnapshot}, ${dateLabel} às ${formatTimeInTz(appointment.startAt, timezone)}.${link ? ` Confirme ou cancele por aqui: ${link}` : ' Podemos confirmar?'}`;
+                    const url = whatsappLink(appointment.client.phone, message)!;
+                    if (tab) tab.location.href = url;
+                    else window.location.href = url;
+                  }}
+                  className="text-system-green font-medium hover:underline"
+                >
+                  WhatsApp
+                </button>
+              )}
+            </span>
           </Row>
         )}
         {appointment.notes && (
@@ -126,7 +179,15 @@ export function AppointmentCard({
           </span>
         </Row>
 
-        {actions.length > 0 && (
+        {showCheckout && (
+          <CheckoutForm
+            appointmentId={appointment.id}
+            price={appointment.priceSnapshot}
+            onDone={onClose}
+            onCancel={() => setShowCheckout(false)}
+          />
+        )}
+        {!showCheckout && actions.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
             {actions.map((action) => (
               <Button
@@ -134,20 +195,61 @@ export function AppointmentCard({
                 size="sm"
                 variant={action.primary ? 'default' : 'outline'}
                 disabled={statusMutation.isPending}
-                onClick={() => statusMutation.mutate(action.status)}
+                onClick={() =>
+                  action.status === 'DONE'
+                    ? setShowCheckout(true)
+                    : statusMutation.mutate(action.status)
+                }
               >
                 {action.label}
               </Button>
             ))}
           </div>
         )}
-        <button
-          type="button"
-          onClick={onOpenDetails}
-          className="text-system-blue self-start text-[13px] font-medium hover:underline"
-        >
-          Mais detalhes, produtos e cancelamento
-        </button>
+        {confirmCancel ? (
+          <div className="bg-destructive/[0.06] flex flex-col gap-2 rounded-xl p-3">
+            <span className="text-[13px] font-medium">Cancelar este agendamento?</span>
+            <Input
+              autoFocus
+              placeholder="Motivo (opcional)"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              maxLength={500}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={cancelMutation.isPending}
+                onClick={() => cancelMutation.mutate()}
+              >
+                {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar agendamento'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmCancel(false)}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={onOpenDetails}
+              className="text-system-blue text-[13px] font-medium hover:underline"
+            >
+              Mais detalhes e produtos
+            </button>
+            {appointment.status !== 'CANCELED' && appointment.status !== 'DONE' && (
+              <button
+                type="button"
+                onClick={() => setConfirmCancel(true)}
+                className="text-destructive text-[13px] font-medium hover:underline"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

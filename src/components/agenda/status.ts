@@ -75,7 +75,7 @@ export function quickStatusActions(status: AppointmentStatus): QuickStatusAction
         { status: 'NO_SHOW', label: 'Faltou' },
       ];
     case 'IN_PROGRESS':
-      return [{ status: 'DONE', label: 'Concluir', primary: true }];
+      return [{ status: 'DONE', label: 'Concluir e cobrar', primary: true }];
     case 'NO_SHOW':
       return [{ status: 'SCHEDULED', label: 'Desfazer falta' }];
     default:

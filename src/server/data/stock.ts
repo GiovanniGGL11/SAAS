@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import type { AppointmentProduct, Product, StockMovement } from '@/generated/prisma/client';
+import { UserError } from '@/server/errors';
 
 export type ProductInput = {
   name: string;
@@ -64,7 +65,7 @@ export async function updateProduct(
       minQuantity: data.minQuantity,
     },
   });
-  if (result.count === 0) throw new Error('Product not found');
+  if (result.count === 0) throw new UserError('Produto não encontrado.');
 
   return (await getProductById(companyId, id))!;
 }
@@ -75,7 +76,7 @@ export async function setProductActive(
   active: boolean,
 ): Promise<void> {
   const result = await prisma.product.updateMany({ where: { id, companyId }, data: { active } });
-  if (result.count === 0) throw new Error('Product not found');
+  if (result.count === 0) throw new UserError('Produto não encontrado.');
 }
 
 export type StockMovementWithProduct = StockMovement & { product: { id: string; name: string } };
@@ -99,15 +100,20 @@ export async function adjustStock(
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const product = await tx.product.findFirst({ where: { id: params.productId, companyId } });
-    if (!product) throw new Error('Product not found');
+    if (!product) throw new UserError('Produto não encontrado.');
 
     const delta = params.type === 'IN' ? params.quantity : -params.quantity;
-    if (product.quantity + delta < 0) throw new Error('Estoque insuficiente para essa saída');
-
-    await tx.product.updateMany({
-      where: { id: product.id, companyId },
+    // A conferência do saldo vai no próprio UPDATE: duas saídas ao mesmo tempo não conseguem
+    // passar ambas pela checagem e deixar o estoque negativo.
+    const updated = await tx.product.updateMany({
+      where: {
+        id: product.id,
+        companyId,
+        ...(delta < 0 ? { quantity: { gte: -delta } } : {}),
+      },
       data: { quantity: { increment: delta } },
     });
+    if (updated.count === 0) throw new UserError('Estoque insuficiente para essa saída.');
     await tx.stockMovement.create({
       data: {
         companyId,
@@ -133,7 +139,7 @@ export async function listAppointmentProducts(
     where: { id: appointmentId, companyId },
     select: { id: true },
   });
-  if (!appointment) throw new Error('Appointment not found');
+  if (!appointment) throw new UserError('Agendamento não encontrado.');
 
   return prisma.appointmentProduct.findMany({
     where: { appointmentId },
@@ -157,18 +163,22 @@ export async function sellProductToAppointment(
   return prisma.$transaction(async (tx) => {
     const appointment = await tx.appointment.findFirst({
       where: { id: params.appointmentId, companyId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
-    if (!appointment) throw new Error('Appointment not found');
+    if (!appointment) throw new UserError('Agendamento não encontrado.');
+    if (appointment.status === 'CANCELED') {
+      throw new UserError('Não dá para vender produto num agendamento cancelado.');
+    }
 
     const product = await tx.product.findFirst({ where: { id: params.productId, companyId } });
-    if (!product) throw new Error('Product not found');
-    if (product.quantity < params.quantity) throw new Error('Estoque insuficiente');
+    if (!product) throw new UserError('Produto não encontrado.');
 
-    await tx.product.updateMany({
-      where: { id: product.id, companyId },
+    // Baixa e conferência no mesmo UPDATE, para duas vendas simultâneas não passarem do saldo.
+    const updated = await tx.product.updateMany({
+      where: { id: product.id, companyId, quantity: { gte: params.quantity } },
       data: { quantity: { decrement: params.quantity } },
     });
+    if (updated.count === 0) throw new UserError('Estoque insuficiente.');
 
     await tx.stockMovement.create({
       data: {
@@ -181,7 +191,7 @@ export async function sellProductToAppointment(
       },
     });
 
-    const unitPrice = Number(product.salePrice);
+    const unitPrice = product.salePrice;
 
     const appointmentProduct = await tx.appointmentProduct.create({
       data: {
@@ -200,7 +210,8 @@ export async function sellProductToAppointment(
         status: 'PAID',
         description: `${product.name} × ${params.quantity}`,
         category: 'Produto',
-        amount: unitPrice * params.quantity,
+        // Decimal, não float: 3 × R$ 19,90 dá 59,70, não 59,699999.
+        amount: unitPrice.mul(params.quantity),
         paidAt: new Date(),
         createdByUserId,
       },

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GiftIcon, PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,14 +57,16 @@ export function ClientLoyalty({
 
   const redeem = useMutation({
     mutationFn: (cashbackAmount?: number) =>
-      redeemLoyaltyAction({ clientId, amount: cashbackAmount }),
+      redeemLoyaltyAction({ clientId, amount: cashbackAmount }).then(unwrapResult),
     onSuccess: () => onDone('Resgate registrado.'),
     onError: (error: Error) => toast.error(error.message || 'Não foi possível resgatar.'),
   });
 
   const adjust = useMutation({
     mutationFn: () =>
-      addLoyaltyManuallyAction({ clientId, amount, description: note || undefined }),
+      addLoyaltyManuallyAction({ clientId, amount, description: note || undefined }).then(
+        unwrapResult,
+      ),
     onSuccess: () => onDone('Lançamento registrado.'),
     onError: (error: Error) => toast.error(error.message || 'Não foi possível lançar.'),
   });
@@ -112,7 +115,11 @@ export function ClientLoyalty({
               <GiftIcon className="size-4" />
               {isCashback ? 'Usar saldo' : 'Resgatar recompensa'}
             </Button>
-            <Button variant="outline" onClick={() => openDialog('adjust')} aria-label="Lançar manualmente">
+            <Button
+              variant="outline"
+              onClick={() => openDialog('adjust')}
+              aria-label="Lançar manualmente"
+            >
               <PlusIcon className="size-4" />
               Lançar
             </Button>
@@ -172,7 +179,9 @@ export function ClientLoyalty({
           {dialog === 'redeem' && (
             <>
               <DialogHeader>
-                <DialogTitle>{isCashback ? 'Usar saldo de cashback' : 'Resgatar recompensa'}</DialogTitle>
+                <DialogTitle>
+                  {isCashback ? 'Usar saldo de cashback' : 'Resgatar recompensa'}
+                </DialogTitle>
                 <DialogDescription>
                   {isCashback
                     ? `${clientName} tem ${formatLoyaltyAmount(program.mode, balance)} disponíveis.`

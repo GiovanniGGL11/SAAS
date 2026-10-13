@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlusIcon, ScissorsIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -51,7 +52,8 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
   });
 
   const toggleActive = useMutation({
-    mutationFn: (input: { id: string; active: boolean }) => setServiceActiveAction(input),
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setServiceActiveAction(input).then(unwrapResult),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['services'] });
     },
