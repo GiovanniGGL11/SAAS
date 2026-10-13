@@ -20,7 +20,7 @@ import { unwrapResult } from '@/lib/action-result';
 import { importClientsAction } from '@/server/actions/client-actions';
 
 const TEMPLATE =
-  'nome;telefone;email;cpf;nascimento\nMaria Silva;(11) 98888-7777;maria@email.com;;15/03/1990\n';
+  'nome;telefone;email;cpf;nascimento;cep;rua;numero;complemento;bairro;cidade;uf\nMaria Silva;(11) 98888-7777;maria@email.com;;15/03/1990;01310-100;Avenida Paulista;1000;Sala 1;Bela Vista;São Paulo;SP\n';
 
 /** Trazer a base de clientes de outro sistema (Trinks, AppBarber, planilha) sem digitar um por um. */
 export function ImportClientsDialog({
@@ -76,8 +76,9 @@ export function ImportClientsDialog({
         <DialogHeader>
           <DialogTitle>Importar clientes</DialogTitle>
           <DialogDescription>
-            Planilha CSV com uma coluna de nome e, se tiver, telefone, e-mail, CPF e nascimento.
-            Quem já está cadastrado com o mesmo telefone é pulado.
+            Planilha CSV com uma coluna de nome e, se tiver, telefone, e-mail, CPF, nascimento e
+            endereço (CEP, rua, número, bairro, cidade, UF). Quem já está cadastrado com o mesmo
+            telefone é pulado.
           </DialogDescription>
         </DialogHeader>
 

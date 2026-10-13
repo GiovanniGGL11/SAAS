@@ -3,17 +3,17 @@ import { OrganizationProfile } from '@clerk/nextjs';
 import { requireAdminPage } from '@/server/auth/require-current-company';
 import { TimezoneCard } from '@/components/configuracoes/timezone-card';
 import { OnlineBookingCard } from '@/components/configuracoes/online-booking-card';
+import { ClientAreaCard } from '@/components/configuracoes/client-area-card';
 import { isOnlineBookingEnabled } from '@/server/data/public-booking';
-import { headers } from 'next/headers';
+import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
 
 export default async function ConfiguracoesPage() {
   const { company } = await requireAdminPage();
-  const bookingEnabled = await isOnlineBookingEnabled(company.clerkOrgId);
-  const h = await headers();
-  const host = h.get('host') ?? '';
-  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${proto}://${host}`;
+  const [bookingEnabled, baseUrl] = await Promise.all([
+    isOnlineBookingEnabled(company.clerkOrgId),
+    appBaseUrl(),
+  ]);
 
   return (
     <div className="flex w-full flex-col gap-8">
@@ -25,6 +25,11 @@ export default async function ConfiguracoesPage() {
       <OnlineBookingCard
         initialEnabled={bookingEnabled}
         url={`${baseUrl}/agendar/${company.slug}`}
+      />
+
+      <ClientAreaCard
+        initialWhatsapp={company.whatsapp}
+        entryUrl={`${baseUrl}/cliente/entrar/${company.slug}`}
       />
 
       <TimezoneCard companyName={company.name} timezone={company.timezone} />

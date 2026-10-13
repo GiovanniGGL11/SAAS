@@ -68,6 +68,11 @@ function dateKey(date: CalendarDate): string {
   return `${date.year}-${date.month}-${date.day}`;
 }
 
+function parseDateParam(value: string | null): CalendarDate | null {
+  const match = value ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  return match ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) } : null;
+}
+
 function weekdayOf(date: CalendarDate): number {
   return new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay();
 }
@@ -179,7 +184,13 @@ export function AgendaView({
   );
   const setHidden = (ids: Set<string>) => writePref(HIDDEN_KEY, [...ids].join(','));
 
-  const [anchorDate, setAnchorDate] = React.useState<CalendarDate>(today);
+  // Links dos avisos (/agenda?data=AAAA-MM-DD&agendamento=…) abrem o dia e o atendimento.
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get('data');
+  const appointmentParam = searchParams.get('agendamento');
+  const [anchorDate, setAnchorDate] = React.useState<CalendarDate>(
+    () => parseDateParam(dateParam) ?? today,
+  );
   const [serviceFilter, setServiceFilter] = React.useState<string | undefined>();
   const [statusFilter, setStatusFilter] = React.useState<string | undefined>();
 
@@ -188,7 +199,6 @@ export function AgendaView({
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const closePanel = React.useCallback(() => setPanel(null), []);
   // Vindo do "Agendar" da página do cliente (/agenda?cliente=…): já abre o formulário com ele.
-  const searchParams = useSearchParams();
   const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(() => {
     const clientId = searchParams.get('cliente');
     return clientId
@@ -196,7 +206,15 @@ export function AgendaView({
       : null;
   });
   // Guarda o id, não o objeto: depois de "Confirmar" o painel mostra o status novo, não uma cópia velha.
-  const [detailId, setDetailId] = React.useState<string | null>(null);
+  const [detailId, setDetailId] = React.useState<string | null>(appointmentParam);
+  // Já na agenda, clicar noutro aviso só troca a URL: ajusta o estado durante a renderização.
+  const [seenParams, setSeenParams] = React.useState(`${dateParam}|${appointmentParam}`);
+  if (seenParams !== `${dateParam}|${appointmentParam}`) {
+    setSeenParams(`${dateParam}|${appointmentParam}`);
+    const date = parseDateParam(dateParam);
+    if (date) setAnchorDate(date);
+    if (appointmentParam) setDetailId(appointmentParam);
+  }
 
   const weekStart = React.useMemo(() => startOfWeek(anchorDate), [anchorDate]);
   const monthGrid = React.useMemo(() => monthGridRange(anchorDate), [anchorDate]);

@@ -79,6 +79,16 @@ export async function setProductActive(
   if (result.count === 0) throw new UserError('Produto não encontrado.');
 }
 
+/** Produtos ativos no estoque mínimo ou abaixo dele (o assistente e os avisos usam). */
+export async function listLowStockProducts(companyId: string, limit = 20) {
+  return prisma.product.findMany({
+    where: { companyId, active: true, quantity: { lte: prisma.product.fields.minQuantity } },
+    select: { id: true, name: true, quantity: true, minQuantity: true },
+    orderBy: { quantity: 'asc' },
+    take: limit,
+  });
+}
+
 export type StockMovementWithProduct = StockMovement & { product: { id: string; name: string } };
 
 export async function listStockMovements(

@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarDaysIcon, StarIcon, PencilIcon } from 'lucide-react';
+import { CalendarDaysIcon, MapPinIcon, StarIcon, PencilIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -21,9 +21,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
-import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { ClientLoyalty } from '@/components/clientes/client-loyalty';
+import { ClientPortalLinkButton } from '@/components/clientes/client-portal-link';
+import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import {
   getClientDetailAction,
   setClientActiveAction,
@@ -32,6 +33,7 @@ import {
 import { STATUS_LABELS } from '@/components/agenda/status';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
+import { formatAddress, mapsSearchLink } from '@/lib/address';
 
 type ClientDetailData = NonNullable<Awaited<ReturnType<typeof getClientDetailAction>>>;
 
@@ -71,8 +73,8 @@ export function ClientDetail({
   }
 
   const { client, stats, history } = data;
-  const formatDateTime = (date: Date) =>
-    `${new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(date)} ${formatTimeInTz(date, timezone)}`;
+  const address = formatAddress(client);
+  const mapsLink = mapsSearchLink(client);
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,7 +107,7 @@ export function ClientDetail({
           </p>
         </div>
         {/* No celular os botões descem para uma linha própria e quebram em vez de empurrar a tela. */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
           <div className="bg-foreground/[0.06] flex h-10 items-center gap-2 rounded-full pr-2 pl-3.5 md:h-9">
             <span className="text-muted-foreground text-xs">Ativo</span>
             <Switch
@@ -120,6 +122,7 @@ export function ClientDetail({
               </a>
             </Button>
           )}
+          <ClientPortalLinkButton clientId={client.id} clientName={client.name} />
           <Button variant="outline" onClick={() => setDrawerOpen(true)}>
             <PencilIcon className="size-4" />
             Editar
@@ -151,7 +154,7 @@ export function ClientDetail({
 
       <ClientLoyalty clientId={clientId} clientName={client.name} timezone={timezone} />
 
-      {client.cpf || client.birthDate || client.notes ? (
+      {client.cpf || client.birthDate || client.notes || address ? (
         <div className="bg-tile grid grid-cols-2 gap-4 rounded-[22px] p-5 text-sm sm:grid-cols-3 md:p-6">
           {client.cpf && (
             <div>
@@ -171,6 +174,23 @@ export function ClientDetail({
               </div>
             </div>
           )}
+          {address && (
+            <div className="col-span-2 sm:col-span-3">
+              <div className="text-muted-foreground text-xs">Endereço</div>
+              <div className="break-words">{address}</div>
+              {mapsLink && (
+                <a
+                  href={mapsLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-system-blue mt-1 inline-flex items-center gap-1 text-[13px] hover:underline"
+                >
+                  <MapPinIcon className="size-3.5" />
+                  Abrir no mapa
+                </a>
+              )}
+            </div>
+          )}
           {client.notes && (
             <div className="col-span-2 sm:col-span-3">
               <div className="text-muted-foreground text-xs">Observações</div>
@@ -183,66 +203,73 @@ export function ClientDetail({
       <div>
         <h2 className="mb-2 text-sm font-medium">Histórico de agendamentos</h2>
         <div className="bg-tile overflow-hidden rounded-[22px]">
-          {history.length === 0 ? (
-            <EmptyState
-              icon={CalendarDaysIcon}
-              title="Nenhum agendamento ainda"
-              description="O histórico de atendimentos desse cliente aparece aqui."
-            />
-          ) : (
-            <>
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Serviço</TableHead>
-                      <TableHead>Profissional</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Valor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history.map((appointment) => (
-                      <TableRow key={appointment.id}>
-                        <TableCell className="text-muted-foreground">
-                          {formatDateTime(appointment.startAt)}
-                        </TableCell>
-                        <TableCell>{appointment.serviceNameSnapshot}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {appointment.professional.name}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatCurrencyBRL(appointment.priceSnapshot)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <MobileList>
-                {history.map((appointment) => (
-                  <MobileListItem
-                    key={appointment.id}
-                    chevron={false}
-                    title={<span className="truncate">{appointment.serviceNameSnapshot}</span>}
-                    subtitle={`${formatDateTime(appointment.startAt)} · ${appointment.professional.name}`}
-                    trailing={
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="text-[14px] font-medium tabular-nums">
-                          {formatCurrencyBRL(appointment.priceSnapshot)}
-                        </span>
-                        <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
+          {history.length > 0 && (
+            <MobileList>
+              {history.map((appointment) => (
+                <MobileListItem
+                  key={appointment.id}
+                  title={<span className="truncate">{appointment.serviceNameSnapshot}</span>}
+                  subtitle={`${new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
+                    appointment.startAt,
+                  )} ${formatTimeInTz(appointment.startAt, timezone)} · ${appointment.professional.name}`}
+                  trailing={
+                    <div className="text-right">
+                      <div className="text-[15px] tabular-nums">
+                        {formatCurrencyBRL(appointment.priceSnapshot)}
                       </div>
-                    }
-                  />
-                ))}
-              </MobileList>
-            </>
+                      <div className="text-label-secondary text-[12px]">
+                        {STATUS_LABELS[appointment.status]}
+                      </div>
+                    </div>
+                  }
+                />
+              ))}
+            </MobileList>
           )}
+          <Table className={history.length > 0 ? 'hidden md:table' : undefined}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Serviço</TableHead>
+                <TableHead>Profissional</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <EmptyState
+                      icon={CalendarDaysIcon}
+                      title="Nenhum agendamento ainda"
+                      description="O histórico de atendimentos desse cliente aparece aqui."
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+              {history.map((appointment) => (
+                <TableRow key={appointment.id}>
+                  <TableCell className="text-muted-foreground">
+                    {new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
+                      appointment.startAt,
+                    )}{' '}
+                    {formatTimeInTz(appointment.startAt, timezone)}
+                  </TableCell>
+                  <TableCell>{appointment.serviceNameSnapshot}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {appointment.professional.name}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatCurrencyBRL(appointment.priceSnapshot)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </div>
 

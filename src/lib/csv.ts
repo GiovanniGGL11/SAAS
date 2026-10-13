@@ -51,6 +51,13 @@ const HEADER_ALIASES: Record<string, string[]> = {
     'birth date',
     'data nascimento',
   ],
+  zipCode: ['cep'],
+  street: ['rua', 'logradouro', 'endereco', 'address'],
+  number: ['numero', 'num'],
+  complement: ['complemento'],
+  district: ['bairro'],
+  city: ['cidade', 'municipio'],
+  state: ['uf', 'estado'],
 };
 
 export type ImportedClient = {
@@ -59,6 +66,13 @@ export type ImportedClient = {
   email?: string;
   cpf?: string;
   birthDate?: string;
+  zipCode?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  city?: string;
+  state?: string;
 };
 
 /** Planilha → clientes, reconhecendo as colunas pelos nomes usuais. Data dd/mm/aaaa vira aaaa-mm-dd. */
@@ -87,6 +101,13 @@ export function rowsToClients(rows: string[][]): {
         : birth && /^\d{4}-\d{2}-\d{2}$/.test(birth)
           ? birth
           : undefined,
+      zipCode: pick(row, 'zipCode'),
+      street: pick(row, 'street'),
+      number: pick(row, 'number'),
+      complement: pick(row, 'complement'),
+      district: pick(row, 'district'),
+      city: pick(row, 'city'),
+      state: pick(row, 'state'),
     };
   });
   return { clients: clients.filter((c) => c.name), missingName: false };

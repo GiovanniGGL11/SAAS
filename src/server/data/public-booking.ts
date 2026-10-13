@@ -80,12 +80,15 @@ export async function listAvailableSlots(params: {
   serviceId: string;
   professionalId?: string;
   date: CalendarDate;
+  /** Remarcação: o próprio horário não conta como ocupado, e a duração é a do agendamento. */
+  reschedule?: { appointmentId: string; durationMinutes: number };
 }): Promise<PublicSlot[]> {
-  const service = await prisma.service.findFirst({
+  const found = await prisma.service.findFirst({
     where: { id: params.serviceId, companyId: params.companyId, active: true },
     select: { durationMinutes: true },
   });
-  if (!service) throw new UserError('Serviço indisponível.');
+  if (!found) throw new UserError('Serviço indisponível.');
+  const service = { durationMinutes: params.reschedule?.durationMinutes ?? found.durationMinutes };
 
   const professionals = await prisma.professional.findMany({
     where: {
@@ -106,6 +109,7 @@ export async function listAvailableSlots(params: {
         status: { in: [...ACTIVE] },
         startAt: { lt: dayEnd },
         endAt: { gt: dayStart },
+        ...(params.reschedule ? { id: { not: params.reschedule.appointmentId } } : {}),
       },
       select: { professionalId: true, startAt: true, endAt: true },
     }),

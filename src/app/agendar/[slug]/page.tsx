@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { CalendarXIcon } from 'lucide-react';
 
 import { getBookableCompany, getBookingCatalog } from '@/server/data/public-booking';
@@ -38,9 +39,17 @@ export default async function AgendarPage({ params }: { params: Promise<{ slug: 
   const catalog = await getBookingCatalog(company.id);
   return (
     <main className="font-apple mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 p-4 sm:p-8">
-      <header className="flex flex-col gap-1 pt-2">
-        <span className="text-label-secondary text-[13px] font-medium">Agendamento online</span>
-        <h1 className="text-[28px] leading-tight font-bold tracking-[-0.02em]">{company.name}</h1>
+      <header className="flex items-end justify-between gap-3 pt-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="text-label-secondary text-[13px] font-medium">Agendamento online</span>
+          <h1 className="text-[28px] leading-tight font-bold tracking-[-0.02em]">{company.name}</h1>
+        </div>
+        <Link
+          href={`/cliente/entrar/${company.slug}`}
+          className="text-system-blue shrink-0 pb-1 text-[13px] font-medium"
+        >
+          Meus horários
+        </Link>
       </header>
       <BookingFlow
         slug={slug}

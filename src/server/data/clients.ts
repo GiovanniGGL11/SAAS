@@ -41,7 +41,27 @@ export type ClientInput = {
   cpf?: string | null;
   birthDate?: Date | null;
   notes?: string | null;
+  zipCode?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
 };
+
+// Campos de endereço vazios viram null para não guardar string em branco.
+function addressData(data: ClientInput) {
+  return {
+    zipCode: data.zipCode || null,
+    street: data.street || null,
+    number: data.number || null,
+    complement: data.complement || null,
+    district: data.district || null,
+    city: data.city || null,
+    state: data.state || null,
+  };
+}
 
 export async function createClient(companyId: string, data: ClientInput): Promise<Client> {
   return prisma.client.create({
@@ -53,6 +73,7 @@ export async function createClient(companyId: string, data: ClientInput): Promis
       cpf: data.cpf || null,
       birthDate: data.birthDate ?? null,
       notes: data.notes || null,
+      ...addressData(data),
     },
   });
 }
@@ -71,6 +92,7 @@ export async function updateClient(
       cpf: data.cpf || null,
       birthDate: data.birthDate ?? null,
       notes: data.notes || null,
+      ...addressData(data),
     },
   });
   if (result.count === 0) throw new UserError('Cliente não encontrado.');
@@ -140,12 +162,56 @@ export async function listClientAppointmentHistory(companyId: string, clientId: 
   });
 }
 
+/**
+ * Clientes ativos cuja última visita concluída foi há mais de `days` dias e que não têm nada
+ * marcado daqui para frente — a lista de quem "sumiu".
+ */
+export async function listLapsedClients(companyId: string, days: number, limit = 30) {
+  const cutoff = new Date(Date.now() - days * 86_400_000);
+  const [lastVisits, upcoming] = await Promise.all([
+    prisma.appointment.groupBy({
+      by: ['clientId'],
+      where: { companyId, status: 'DONE' },
+      _max: { startAt: true },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        companyId,
+        startAt: { gte: new Date() },
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+      },
+      select: { clientId: true },
+      distinct: ['clientId'],
+    }),
+  ]);
+  const hasUpcoming = new Set(upcoming.map((a) => a.clientId));
+  const lapsed = lastVisits
+    .filter((v) => v._max.startAt && v._max.startAt < cutoff && !hasUpcoming.has(v.clientId))
+    .sort((a, b) => a._max.startAt!.getTime() - b._max.startAt!.getTime());
+  const lastByClient = new Map(lapsed.map((v) => [v.clientId, v._max.startAt!]));
+  const clients = await prisma.client.findMany({
+    where: { companyId, active: true, id: { in: [...lastByClient.keys()] } },
+    select: { id: true, name: true, phone: true },
+  });
+  return clients
+    .map((c) => ({ ...c, lastVisitAt: lastByClient.get(c.id)! }))
+    .sort((a, b) => b.lastVisitAt.getTime() - a.lastVisitAt.getTime())
+    .slice(0, limit);
+}
+
 export type ImportClientRow = {
   name: string;
   phone?: string;
   email?: string;
   cpf?: string;
   birthDate?: Date;
+  zipCode?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  city?: string;
+  state?: string;
 };
 
 /**
@@ -183,6 +249,7 @@ export async function importClients(
       email: row.email || null,
       cpf: row.cpf || null,
       birthDate: row.birthDate ?? null,
+      ...addressData(row),
     });
   }
   const result = await prisma.client.createMany({ data, skipDuplicates: true });

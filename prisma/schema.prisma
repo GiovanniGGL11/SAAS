@@ -13,6 +13,8 @@ model Company {
   name       String
   slug       String    @unique
   timezone   String    @default("America/Sao_Paulo")
+  // Where clients without a link ask for one ("Pedir acesso"); digits only, with country code.
+  whatsapp   String?
   deletedAt  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -109,19 +111,29 @@ model Service {
 }
 
 model Client {
-  id        String    @id @default(cuid())
-  companyId String
-  company   Company   @relation(fields: [companyId], references: [id])
-  name      String
-  phone     String?
-  email     String?
-  cpf       String?
-  birthDate DateTime?
-  notes     String?
-  isVip     Boolean   @default(false)
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  name          String
+  phone         String?
+  email         String?
+  cpf           String?
+  birthDate     DateTime?
+  notes         String?
+  // Endereço opcional; o CEP é guardado só com dígitos e o resto vem do ViaCEP ou do usuário.
+  zipCode       String?
+  street        String?
+  number        String?
+  complement    String?
+  district      String?
+  city          String?
+  state         String?
+  isVip         Boolean   @default(false)
+  active        Boolean   @default(true)
+  // Signed into the personal client-area link; bumping it revokes every link sent before.
+  portalVersion Int       @default(1)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   appointments   Appointment[]
   loyaltyEntries LoyaltyEntry[]
@@ -193,6 +205,8 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([companyId, entityType, entityId])
+  // Avisos do sino: o que clientes fizeram nas últimas horas.
+  @@index([companyId, createdAt])
 }
 
 model Product {
