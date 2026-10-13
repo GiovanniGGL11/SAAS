@@ -56,7 +56,7 @@ export async function generateContent(params: {
       systemInstruction: { parts: [{ text: params.systemInstruction }] },
       contents: params.contents,
       tools: [{ functionDeclarations: params.functionDeclarations }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
+      generationConfig: { temperature: 0.2 },
     }),
     signal: AbortSignal.timeout(45_000),
   });
