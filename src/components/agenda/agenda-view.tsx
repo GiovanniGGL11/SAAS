@@ -20,6 +20,10 @@ import { MonthView, monthGridRange } from '@/components/agenda/month-view';
 import { AppointmentCard } from '@/components/agenda/appointment-card';
 import { QuickCreateCard, type QuickCreateDefaults } from '@/components/agenda/quick-create-card';
 import { CreateAppointmentDrawer } from '@/components/agenda/create-appointment-drawer';
+import {
+  SendConfirmationDialog,
+  type ConfirmationToSend,
+} from '@/components/agenda/send-confirmation-dialog';
 import { AppointmentDetailDrawer } from '@/components/agenda/appointment-detail-drawer';
 import {
   FloatingMenu,
@@ -182,6 +186,8 @@ export function AgendaView({
   const [statusFilter, setStatusFilter] = React.useState<string | undefined>();
 
   const [panel, setPanel] = React.useState<Panel | null>(null);
+  // Mensagem de WhatsApp para o cliente confirmar, logo depois de agendar.
+  const [toConfirm, setToConfirm] = React.useState<ConfirmationToSend | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const closePanel = React.useCallback(() => setPanel(null), []);
@@ -746,6 +752,7 @@ export function AgendaView({
             timezone={timezone}
             onClose={closePanel}
             onMoreOptions={openFullCreate}
+            onCreated={setToConfirm}
           />
         )}
       </FloatingPanel>
@@ -820,7 +827,10 @@ export function AgendaView({
         professionals={professionals}
         services={services}
         timezone={timezone}
+        onCreated={setToConfirm}
       />
+
+      <SendConfirmationDialog confirmation={toConfirm} onClose={() => setToConfirm(null)} />
 
       <AppointmentDetailDrawer
         appointment={detailAppointment}

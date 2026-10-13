@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/lib/db';
 import { toActionResult } from '@/server/action-result';
-import { appBaseUrl } from '@/server/app-url';
+import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { rateLimit } from '@/server/rate-limit';
 import { scheduleGoogleSync } from '@/server/google/background';
 import { UserError, idSchema } from '@/server/errors';
@@ -116,7 +116,9 @@ export async function getConfirmationLinkAction(rawId: unknown) {
       select: { id: true },
     });
     if (!appointment) throw new UserError('Agendamento não encontrado.');
-    return { url: `${await appBaseUrl()}/confirmar/${signAppointmentToken(appointment.id)}` };
+    const confirmation = await buildConfirmationMessage(company.id, appointment.id);
+    if (!confirmation) throw new UserError('Agendamento não encontrado.');
+    return confirmation;
   });
 }
 

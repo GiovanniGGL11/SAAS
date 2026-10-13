@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import type { ConfirmationToSend } from '@/components/agenda/send-confirmation-dialog';
 import { unwrapResult } from '@/lib/action-result';
 import {
   createAppointmentAction,
@@ -44,7 +45,10 @@ export function QuickCreateCard({
   timezone,
   onClose,
   onMoreOptions,
+  onCreated,
 }: {
+  /** Recebe a mensagem de confirmação do cliente, para quem agendou poder enviá-la. */
+  onCreated?: (confirmation: ConfirmationToSend) => void;
   defaults: QuickCreateDefaults;
   clients: Client[];
   professionals: SerializedProfessional[];
@@ -98,10 +102,11 @@ export function QuickCreateCard({
         }),
       );
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success('Agendamento criado.');
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onClose();
+      if (result.confirmation) onCreated?.(result.confirmation);
     },
     onError: (error: Error) =>
       toast.error(error.message || 'Não foi possível criar o agendamento.'),

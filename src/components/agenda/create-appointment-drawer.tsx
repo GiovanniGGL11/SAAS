@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import type { ConfirmationToSend } from '@/components/agenda/send-confirmation-dialog';
 import {
   createAppointmentAction,
   findNextAvailableSlotAction,
@@ -76,9 +77,12 @@ export function CreateAppointmentDrawer({
   professionals,
   services,
   timezone,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Recebe a mensagem de confirmação do cliente, para quem agendou poder enviá-la. */
+  onCreated?: (confirmation: ConfirmationToSend) => void;
   defaultStartAt: Date;
   defaultProfessionalId?: string;
   /** Vêm preenchidos quando a pessoa começou pelo cartão rápido e clicou em "Mais opções". */
@@ -152,6 +156,7 @@ export function CreateAppointmentDrawer({
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onOpenChange(false);
       form.reset();
+      if (result.confirmation) onCreated?.(result.confirmation);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Não foi possível criar o agendamento.');

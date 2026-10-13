@@ -73,7 +73,10 @@ export function AgendaSidebar({
   return (
     <aside className={cn('flex w-64 shrink-0 flex-col gap-5', className)}>
       {showCreate && (
-        <Button onClick={onCreate} className="h-11 self-start rounded-2xl px-5 text-[15px] shadow-md">
+        <Button
+          onClick={onCreate}
+          className="h-11 self-start rounded-2xl px-5 text-[15px] shadow-md"
+        >
           <PlusIcon className="size-5" />
           Criar
         </Button>
