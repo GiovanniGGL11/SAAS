@@ -27,6 +27,7 @@ import {
 } from '@/components/agenda/floating-menu';
 import { STATUS_COLORS, STATUS_LABELS, quickStatusActions } from '@/components/agenda/status';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { EmptyState } from '@/components/ui/empty-state';
 import { unwrapResult } from '@/lib/action-result';
 import {
@@ -157,6 +158,7 @@ export function AgendaView({
   const [statusFilter, setStatusFilter] = React.useState<string | undefined>();
 
   const [panel, setPanel] = React.useState<Panel | null>(null);
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
   const closePanel = React.useCallback(() => setPanel(null), []);
   const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(null);
   // Guarda o id, não o objeto: depois de "Confirmar" o painel mostra o status novo, não uma cópia velha.
@@ -470,36 +472,52 @@ export function AgendaView({
   const openAppointmentCard = (appointment: GridAppointment, point: ScreenPoint) =>
     setPanel({ kind: 'appointment', point, appointmentId: appointment.id });
 
+  const sidebarProps = {
+    anchorDate,
+    onDateSelect: (date: CalendarDate) => {
+      setPanel(null);
+      setFiltersOpen(false);
+      setAnchorDate(date);
+    },
+    onCreate: () => openFullCreate({ startAt: suggestedStartAt() }),
+    professionals,
+    hiddenProfessionalIds,
+    onToggleProfessional: (id: string) => {
+      const next = new Set(hiddenProfessionalIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setHidden(next);
+    },
+    onShowOnlyProfessional: (id: string) =>
+      setHidden(new Set(professionals.filter((p) => p.id !== id).map((p) => p.id))),
+    colorMode,
+    onColorModeChange: setColorMode,
+    services,
+    serviceFilter,
+    onServiceFilterChange: setServiceFilter,
+    statusFilter,
+    onStatusFilterChange: setStatusFilter,
+  };
+  const activeFilterCount =
+    (serviceFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (hiddenProfessionalIds.size > 0 ? 1 : 0);
+
   return (
     <div className="flex gap-6">
       <div className="hidden lg:block">
-        <AgendaSidebar
-          anchorDate={anchorDate}
-          onDateSelect={(date) => {
-            setPanel(null);
-            setAnchorDate(date);
-          }}
-          onCreate={() => openFullCreate({ startAt: suggestedStartAt() })}
-          professionals={professionals}
-          hiddenProfessionalIds={hiddenProfessionalIds}
-          onToggleProfessional={(id) => {
-            const next = new Set(hiddenProfessionalIds);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            setHidden(next);
-          }}
-          onShowOnlyProfessional={(id) =>
-            setHidden(new Set(professionals.filter((p) => p.id !== id).map((p) => p.id)))
-          }
-          colorMode={colorMode}
-          onColorModeChange={setColorMode}
-          services={services}
-          serviceFilter={serviceFilter}
-          onServiceFilterChange={setServiceFilter}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-        />
+        <AgendaSidebar {...sidebarProps} />
       </div>
+
+      {/* Below lg the sidebar column is hidden; the same calendar and filters open as a sheet. */}
+      <Drawer direction="bottom" open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DrawerContent className="font-apple">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Calendário e filtros</DrawerTitle>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+            <AgendaSidebar {...sidebarProps} showCreate={false} className="w-full" />
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <AgendaToolbar
@@ -517,6 +535,8 @@ export function AgendaView({
             setAnchorDate(today);
           }}
           onCreate={() => openFullCreate({ startAt: suggestedStartAt() })}
+          onOpenFilters={() => setFiltersOpen(true)}
+          activeFilterCount={activeFilterCount}
         />
 
         {appointments.length > 0 && <AgendaSummary appointments={appointments} />}

@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { PageHeader, Surface } from '@/components/layout/page';
@@ -110,14 +111,14 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
       </ListToolbar>
 
       {categories.length > 0 && (
-        <div className="-mt-1 flex flex-wrap gap-2">
+        <div className="-mx-4 -mt-1 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0">
           {[ALL, ...categories].map((value) => (
             <button
               key={value}
               type="button"
               onClick={() => setCategory(value)}
               className={cn(
-                'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors',
+                'shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors',
                 category === value
                   ? 'bg-foreground text-background'
                   : 'bg-foreground/[0.06] text-foreground/80 hover:bg-foreground/10',
@@ -130,73 +131,104 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
       )}
 
       <Surface>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Serviço</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Duração</TableHead>
-              <TableHead>Preço</TableHead>
-              <TableHead>Ativo</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <EmptyState
-                    icon={ScissorsIcon}
-                    title={
-                      services.length === 0
-                        ? 'Nenhum serviço cadastrado'
-                        : 'Nenhum serviço encontrado'
-                    }
-                    description={
-                      services.length === 0
-                        ? 'Cadastre os serviços que sua empresa oferece.'
-                        : 'Ajuste a busca ou os filtros.'
-                    }
-                  />
-                </TableCell>
-              </TableRow>
-            )}
-            {filtered.map((service) => (
-              <TableRow
-                key={service.id}
-                className="cursor-pointer"
-                onClick={() => openEdit(service)}
-              >
-                <TableCell>
-                  <div className="flex items-center gap-3">
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={ScissorsIcon}
+            title={
+              services.length === 0 ? 'Nenhum serviço cadastrado' : 'Nenhum serviço encontrado'
+            }
+            description={
+              services.length === 0
+                ? 'Cadastre os serviços que sua empresa oferece.'
+                : 'Ajuste a busca ou os filtros.'
+            }
+          />
+        ) : (
+          <>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Serviço</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Duração</TableHead>
+                    <TableHead>Preço</TableHead>
+                    <TableHead>Ativo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((service) => (
+                    <TableRow
+                      key={service.id}
+                      className="cursor-pointer"
+                      onClick={() => openEdit(service)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="flex size-8 shrink-0 items-center justify-center rounded-[9px] text-white"
+                            style={{ backgroundColor: service.color }}
+                          >
+                            <ScissorsIcon className="size-4" />
+                          </span>
+                          <span className="font-medium">{service.name}</span>
+                          {!service.active && <Badge variant="outline">Inativo</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-label-secondary">
+                        {service.category || '—'}
+                      </TableCell>
+                      <TableCell className="text-label-secondary tabular-nums">
+                        {formatDuration(service.durationMinutes)}
+                      </TableCell>
+                      <TableCell className="font-medium tabular-nums">
+                        {formatCurrencyBRL(service.price)}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Switch
+                          checked={service.active}
+                          onCheckedChange={(checked: boolean) =>
+                            toggleActive.mutate({ id: service.id, active: checked })
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <MobileList>
+              {filtered.map((service) => (
+                <MobileListItem
+                  key={service.id}
+                  onClick={() => openEdit(service)}
+                  leading={
                     <span
-                      className="flex size-8 shrink-0 items-center justify-center rounded-[9px] text-white"
+                      className="flex size-10 shrink-0 items-center justify-center rounded-[11px] text-white"
                       style={{ backgroundColor: service.color }}
                     >
                       <ScissorsIcon className="size-4" />
                     </span>
-                    <span className="font-medium">{service.name}</span>
-                    {!service.active && <Badge variant="outline">Inativo</Badge>}
-                  </div>
-                </TableCell>
-                <TableCell className="text-label-secondary">{service.category || '—'}</TableCell>
-                <TableCell className="text-label-secondary tabular-nums">
-                  {formatDuration(service.durationMinutes)}
-                </TableCell>
-                <TableCell className="font-medium tabular-nums">
-                  {formatCurrencyBRL(service.price)}
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={service.active}
-                    onCheckedChange={(checked: boolean) =>
-                      toggleActive.mutate({ id: service.id, active: checked })
-                    }
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  }
+                  title={
+                    <>
+                      <span className="truncate">{service.name}</span>
+                      {!service.active && <Badge variant="outline">Inativo</Badge>}
+                    </>
+                  }
+                  subtitle={[service.category, formatDuration(service.durationMinutes)]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  trailing={
+                    <span className="text-[15px] font-semibold tabular-nums">
+                      {formatCurrencyBRL(service.price)}
+                    </span>
+                  }
+                />
+              ))}
+            </MobileList>
+          </>
+        )}
       </Surface>
 
       <ServiceDrawer open={drawerOpen} onOpenChange={setDrawerOpen} service={editingService} />

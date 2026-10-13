@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-media-query';
 
 export type FloatingMenuItem = {
   label: string;
@@ -31,6 +32,9 @@ export function FloatingPanel({
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [placed, setPlaced] = React.useState<{ left: number; top: number } | null>(null);
+  // On a phone a card pinned to the tap point covers what you tapped and can't fit
+  // its width; anchor it to the bottom like an iOS action sheet instead.
+  const isMobile = useIsMobile();
 
   React.useEffect(() => {
     if (!position) return;
@@ -70,6 +74,21 @@ export function FloatingPanel({
   }, [position, width, children]);
 
   if (!position) return null;
+
+  if (isMobile) {
+    return (
+      <div
+        ref={ref}
+        role="dialog"
+        className={cn(
+          'bg-background ring-foreground/10 animate-in slide-in-from-bottom-4 fade-in-0 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] z-50 max-h-[75svh] overflow-y-auto rounded-2xl shadow-2xl ring-1 duration-200',
+          className,
+        )}
+      >
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div

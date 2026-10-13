@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { PageHeader, Surface } from '@/components/layout/page';
@@ -140,103 +141,147 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
       </ListToolbar>
 
       <Surface>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Produto</TableHead>
-              <TableHead>Estoque</TableHead>
-              <TableHead>Custo</TableHead>
-              <TableHead>Venda</TableHead>
-              <TableHead>Ativo</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <EmptyState
-                    icon={PackageIcon}
-                    title={
-                      products.length === 0
-                        ? 'Nenhum produto cadastrado'
-                        : 'Nenhum produto encontrado'
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={PackageIcon}
+            title={
+              products.length === 0 ? 'Nenhum produto cadastrado' : 'Nenhum produto encontrado'
+            }
+            description={
+              products.length === 0
+                ? 'Cadastre produtos pra controlar estoque e vender durante atendimentos.'
+                : 'Ajuste a busca ou o filtro.'
+            }
+          />
+        ) : (
+          <>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>Estoque</TableHead>
+                    <TableHead>Custo</TableHead>
+                    <TableHead>Venda</TableHead>
+                    <TableHead>Ativo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((product) => {
+                    const lowStock = isLow(product);
+                    const level =
+                      product.minQuantity > 0
+                        ? Math.min(product.quantity / (product.minQuantity * 3), 1)
+                        : product.quantity > 0
+                          ? 1
+                          : 0;
+                    return (
+                      <TableRow
+                        key={product.id}
+                        className="cursor-pointer"
+                        onClick={() => openEdit(product)}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{product.name}</span>
+                            {product.sku && (
+                              <span className="text-muted-foreground text-xs">{product.sku}</span>
+                            )}
+                            {!product.active && <Badge variant="outline">Inativo</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className={
+                                lowStock ? 'text-system-red w-8 font-semibold' : 'w-8 font-medium'
+                              }
+                            >
+                              {product.quantity}
+                            </span>
+                            <span className="bg-foreground/[0.08] hidden h-1.5 w-20 overflow-hidden rounded-full sm:block">
+                              <span
+                                className={cn(
+                                  'block h-full rounded-full transition-[width] duration-700',
+                                  lowStock ? 'bg-system-red' : 'bg-system-green',
+                                )}
+                                style={{ width: `${level * 100}%` }}
+                              />
+                            </span>
+                            {product.minQuantity > 0 && (
+                              <span className="text-label-secondary text-[12px]">
+                                mín. {product.minQuantity}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {formatCurrencyBRL(product.costPrice)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {formatCurrencyBRL(product.salePrice)}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Switch
+                            checked={product.active}
+                            onCheckedChange={(checked: boolean) =>
+                              toggleActive.mutate({ id: product.id, active: checked })
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            <MobileList>
+              {filtered.map((product) => {
+                const lowStock = isLow(product);
+                return (
+                  <MobileListItem
+                    key={product.id}
+                    onClick={() => openEdit(product)}
+                    leading={
+                      <span
+                        className={cn(
+                          'flex size-10 shrink-0 flex-col items-center justify-center rounded-[11px] leading-none tabular-nums',
+                          lowStock
+                            ? 'bg-system-red/12 text-system-red'
+                            : 'bg-system-green/12 text-system-green',
+                        )}
+                      >
+                        <span className="text-[15px] font-bold">{product.quantity}</span>
+                        <span className="text-[9px] font-medium">un.</span>
+                      </span>
                     }
-                    description={
-                      products.length === 0
-                        ? 'Cadastre produtos pra controlar estoque e vender durante atendimentos.'
-                        : 'Ajuste a busca ou o filtro.'
+                    title={
+                      <>
+                        <span className="truncate">{product.name}</span>
+                        {!product.active && <Badge variant="outline">Inativo</Badge>}
+                      </>
+                    }
+                    subtitle={
+                      lowStock
+                        ? `Estoque baixo · mín. ${product.minQuantity}`
+                        : [
+                            product.sku,
+                            product.minQuantity > 0 ? `mín. ${product.minQuantity}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ') || 'Toque para editar'
+                    }
+                    trailing={
+                      <span className="text-[15px] font-semibold tabular-nums">
+                        {formatCurrencyBRL(product.salePrice)}
+                      </span>
                     }
                   />
-                </TableCell>
-              </TableRow>
-            )}
-            {filtered.map((product) => {
-              const lowStock = isLow(product);
-              const level =
-                product.minQuantity > 0
-                  ? Math.min(product.quantity / (product.minQuantity * 3), 1)
-                  : product.quantity > 0
-                    ? 1
-                    : 0;
-              return (
-                <TableRow
-                  key={product.id}
-                  className="cursor-pointer"
-                  onClick={() => openEdit(product)}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{product.name}</span>
-                      {product.sku && (
-                        <span className="text-muted-foreground text-xs">{product.sku}</span>
-                      )}
-                      {!product.active && <Badge variant="outline">Inativo</Badge>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={
-                          lowStock ? 'text-system-red w-8 font-semibold' : 'w-8 font-medium'
-                        }
-                      >
-                        {product.quantity}
-                      </span>
-                      <span className="bg-foreground/[0.08] hidden h-1.5 w-20 overflow-hidden rounded-full sm:block">
-                        <span
-                          className={cn(
-                            'block h-full rounded-full transition-[width] duration-700',
-                            lowStock ? 'bg-system-red' : 'bg-system-green',
-                          )}
-                          style={{ width: `${level * 100}%` }}
-                        />
-                      </span>
-                      {product.minQuantity > 0 && (
-                        <span className="text-label-secondary text-[12px]">
-                          mín. {product.minQuantity}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {formatCurrencyBRL(product.costPrice)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {formatCurrencyBRL(product.salePrice)}
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Switch
-                      checked={product.active}
-                      onCheckedChange={(checked: boolean) =>
-                        toggleActive.mutate({ id: product.id, active: checked })
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                );
+              })}
+            </MobileList>
+          </>
+        )}
       </Surface>
 
       <ProductDrawer open={drawerOpen} onOpenChange={setDrawerOpen} product={editingProduct} />

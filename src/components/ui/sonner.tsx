@@ -17,6 +17,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps['theme']}
       className="toaster group"
+      // Clear the mobile tab bar (h-14) plus the iPhone home-indicator inset.
+      mobileOffset={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.5rem)' }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

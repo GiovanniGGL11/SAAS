@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -20,6 +20,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Atendafy',
   description: 'Gestão completa para negócios baseados em agendamento.',
+};
+
+// viewport-fit=cover lets the mobile tab bar sit above the iPhone home indicator via
+// env(safe-area-inset-bottom) instead of being covered by it.
+export const viewport: Viewport = {
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+  ],
 };
 
 export default function RootLayout({

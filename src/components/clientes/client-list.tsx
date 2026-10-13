@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import { PageHeader, Surface } from '@/components/layout/page';
 import {
   InitialsAvatar,
@@ -96,70 +97,94 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
       </ListToolbar>
 
       <Surface>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Contato</TableHead>
-              <TableHead className="w-24">Ativo</TableHead>
-              <TableHead className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4}>
-                  <EmptyState
-                    icon={UsersIcon}
-                    title={
-                      clients.length === 0 ? 'Nenhum cliente ainda' : 'Nenhum cliente encontrado'
-                    }
-                    description={
-                      clients.length === 0
-                        ? 'Cadastre seu primeiro cliente para começar a agendar.'
-                        : 'Ajuste a busca ou o filtro.'
-                    }
-                  />
-                </TableCell>
-              </TableRow>
-            )}
-            {filtered.map((client) => (
-              <TableRow
-                key={client.id}
-                className="group cursor-pointer"
-                onClick={() => router.push(`/clientes/${client.id}`)}
-              >
-                <TableCell>
-                  <div className="flex items-center gap-3">
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={UsersIcon}
+            title={clients.length === 0 ? 'Nenhum cliente ainda' : 'Nenhum cliente encontrado'}
+            description={
+              clients.length === 0
+                ? 'Cadastre seu primeiro cliente para começar a agendar.'
+                : 'Ajuste a busca ou o filtro.'
+            }
+          />
+        ) : (
+          <>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Contato</TableHead>
+                    <TableHead className="w-24">Ativo</TableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((client) => (
+                    <TableRow
+                      key={client.id}
+                      className="group cursor-pointer"
+                      onClick={() => router.push(`/clientes/${client.id}`)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <InitialsAvatar
+                            name={client.name}
+                            color={client.isVip ? '#ff9500' : undefined}
+                          />
+                          <span className="font-medium">{client.name}</span>
+                          {client.isVip && (
+                            <StarIcon className="size-3.5 fill-amber-400 text-amber-400" />
+                          )}
+                          {!client.active && <Badge variant="outline">Arquivado</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-label-secondary">
+                        {client.phone || client.email || '—'}
+                      </TableCell>
+                      <TableCell onClick={(event) => event.stopPropagation()}>
+                        <Switch
+                          checked={client.active}
+                          onCheckedChange={(checked: boolean) =>
+                            toggleActive.mutate({ id: client.id, active: checked })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <ChevronRightIcon className="text-label-secondary size-4 transition-transform group-hover:translate-x-0.5" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <MobileList>
+              {filtered.map((client) => (
+                <MobileListItem
+                  key={client.id}
+                  href={`/clientes/${client.id}`}
+                  leading={
                     <InitialsAvatar
                       name={client.name}
                       color={client.isVip ? '#ff9500' : undefined}
+                      className="size-10 text-[14px]"
                     />
-                    <span className="font-medium">{client.name}</span>
-                    {client.isVip && (
-                      <StarIcon className="size-3.5 fill-amber-400 text-amber-400" />
-                    )}
-                    {!client.active && <Badge variant="outline">Arquivado</Badge>}
-                  </div>
-                </TableCell>
-                <TableCell className="text-label-secondary">
-                  {client.phone || client.email || '—'}
-                </TableCell>
-                <TableCell onClick={(event) => event.stopPropagation()}>
-                  <Switch
-                    checked={client.active}
-                    onCheckedChange={(checked: boolean) =>
-                      toggleActive.mutate({ id: client.id, active: checked })
-                    }
-                  />
-                </TableCell>
-                <TableCell>
-                  <ChevronRightIcon className="text-label-secondary size-4 transition-transform group-hover:translate-x-0.5" />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  }
+                  title={
+                    <>
+                      <span className="truncate">{client.name}</span>
+                      {client.isVip && (
+                        <StarIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />
+                      )}
+                      {!client.active && <Badge variant="outline">Arquivado</Badge>}
+                    </>
+                  }
+                  subtitle={client.phone || client.email || 'Sem contato'}
+                />
+              ))}
+            </MobileList>
+          </>
+        )}
       </Surface>
 
       <ClientDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />

@@ -28,6 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import { StatTile } from '@/components/dashboard/stat-tile';
 import { TransactionDrawer } from '@/components/financeiro/transaction-drawer';
 import {
@@ -208,131 +209,203 @@ export function FinanceView() {
       </ListToolbar>
 
       <Surface>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6}>
-                  <EmptyState
-                    icon={WalletIcon}
-                    title={
-                      !transactions || transactions.length === 0
-                        ? 'Nenhum lançamento ainda'
-                        : 'Nenhum lançamento encontrado'
-                    }
-                    description={
-                      !transactions || transactions.length === 0
-                        ? 'Entradas e saídas aparecem aqui, incluindo as geradas pela Agenda.'
-                        : 'Ajuste a busca ou o filtro.'
-                    }
-                  />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((t) => {
-                const overdue = isOverdue(t);
-                return (
-                  <TableRow
-                    key={t.id}
-                    className={cn('cursor-pointer', t.status === 'CANCELED' && 'opacity-50')}
-                    onClick={() => openEdit(t)}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <span
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={WalletIcon}
+            title={
+              !transactions || transactions.length === 0
+                ? 'Nenhum lançamento ainda'
+                : 'Nenhum lançamento encontrado'
+            }
+            description={
+              !transactions || transactions.length === 0
+                ? 'Entradas e saídas aparecem aqui, incluindo as geradas pela Agenda.'
+                : 'Ajuste a busca ou o filtro.'
+            }
+          />
+        ) : (
+          <>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((t) => {
+                    const overdue = isOverdue(t);
+                    return (
+                      <TableRow
+                        key={t.id}
+                        className={cn('cursor-pointer', t.status === 'CANCELED' && 'opacity-50')}
+                        onClick={() => openEdit(t)}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={cn(
+                                'flex size-8 shrink-0 items-center justify-center rounded-full',
+                                t.type === 'INCOME'
+                                  ? 'bg-system-green/15 text-delta-good'
+                                  : 'bg-system-red/12 text-destructive',
+                              )}
+                            >
+                              {t.type === 'INCOME' ? (
+                                <ArrowDownLeftIcon className="size-4" />
+                              ) : (
+                                <ArrowUpRightIcon className="size-4" />
+                              )}
+                            </span>
+                            <span
+                              className={cn(
+                                'font-medium',
+                                t.status === 'CANCELED' && 'line-through',
+                              )}
+                            >
+                              {t.description}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-label-secondary">{t.category || '—'}</TableCell>
+                        <TableCell className="text-label-secondary tabular-nums">
+                          {new Intl.DateTimeFormat('pt-BR').format(new Date(t.createdAt))}
+                          {t.status === 'PENDING' && t.dueDate && (
+                            <div
+                              className={cn(
+                                'text-[12px]',
+                                overdue && 'text-system-red font-medium',
+                              )}
+                            >
+                              vence {new Intl.DateTimeFormat('pt-BR').format(new Date(t.dueDate))}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                              t.status === 'PAID' && 'bg-system-green/15 text-delta-good',
+                              t.status === 'PENDING' &&
+                                (overdue
+                                  ? 'bg-system-red/12 text-destructive'
+                                  : 'bg-[#ff9500]/15 text-[#b25f00] dark:text-[#ffb340]'),
+                              t.status === 'CANCELED' &&
+                                'bg-foreground/[0.06] text-label-secondary',
+                            )}
+                          >
+                            {overdue ? 'Vencido' : STATUS_LABELS[t.status]}
+                          </span>
+                        </TableCell>
+                        <TableCell
                           className={cn(
-                            'flex size-8 shrink-0 items-center justify-center rounded-full',
-                            t.type === 'INCOME'
-                              ? 'bg-system-green/15 text-delta-good'
-                              : 'bg-system-red/12 text-destructive',
+                            'text-right font-semibold tabular-nums',
+                            t.type === 'INCOME' ? 'text-delta-good' : 'text-foreground',
                           )}
                         >
-                          {t.type === 'INCOME' ? (
-                            <ArrowDownLeftIcon className="size-4" />
-                          ) : (
-                            <ArrowUpRightIcon className="size-4" />
+                          {t.type === 'INCOME' ? '+' : '−'}
+                          {formatCurrencyBRL(t.amount)}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
+                          {t.status === 'PENDING' && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => markPaid.mutate(t.id)}
+                            >
+                              <CheckIcon className="size-3.5" />
+                              Marcar pago
+                            </Button>
                           )}
-                        </span>
-                        <span
-                          className={cn('font-medium', t.status === 'CANCELED' && 'line-through')}
-                        >
-                          {t.description}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-label-secondary">{t.category || '—'}</TableCell>
-                    <TableCell className="text-label-secondary tabular-nums">
-                      {new Intl.DateTimeFormat('pt-BR').format(new Date(t.createdAt))}
-                      {t.status === 'PENDING' && t.dueDate && (
-                        <div
-                          className={cn('text-[12px]', overdue && 'text-system-red font-medium')}
-                        >
-                          vence {new Intl.DateTimeFormat('pt-BR').format(new Date(t.dueDate))}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
+                          {t.status !== 'CANCELED' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => {
+                                if (window.confirm(`Cancelar o lançamento "${t.description}"?`)) {
+                                  cancel.mutate(t.id);
+                                }
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            <MobileList>
+              {filtered.map((t) => {
+                const overdue = isOverdue(t);
+                const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+                return (
+                  <MobileListItem
+                    key={t.id}
+                    onClick={() => openEdit(t)}
+                    chevron={false}
+                    leading={
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                          t.status === 'PAID' && 'bg-system-green/15 text-delta-good',
-                          t.status === 'PENDING' &&
-                            (overdue
-                              ? 'bg-system-red/12 text-destructive'
-                              : 'bg-[#ff9500]/15 text-[#b25f00] dark:text-[#ffb340]'),
-                          t.status === 'CANCELED' && 'bg-foreground/[0.06] text-label-secondary',
+                          'flex size-10 shrink-0 items-center justify-center rounded-full',
+                          t.type === 'INCOME'
+                            ? 'bg-system-green/15 text-delta-good'
+                            : 'bg-system-red/12 text-destructive',
+                          t.status === 'CANCELED' && 'opacity-50',
                         )}
                       >
-                        {overdue ? 'Vencido' : STATUS_LABELS[t.status]}
+                        {t.type === 'INCOME' ? (
+                          <ArrowDownLeftIcon className="size-4" />
+                        ) : (
+                          <ArrowUpRightIcon className="size-4" />
+                        )}
                       </span>
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        'text-right font-semibold tabular-nums',
-                        t.type === 'INCOME' ? 'text-delta-good' : 'text-foreground',
-                      )}
-                    >
-                      {t.type === 'INCOME' ? '+' : '−'}
-                      {formatCurrencyBRL(t.amount)}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
-                      {t.status === 'PENDING' && (
-                        <Button size="sm" variant="secondary" onClick={() => markPaid.mutate(t.id)}>
-                          <CheckIcon className="size-3.5" />
-                          Marcar pago
-                        </Button>
-                      )}
-                      {t.status !== 'CANCELED' && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive"
-                          onClick={() => {
-                            if (window.confirm(`Cancelar o lançamento "${t.description}"?`)) {
-                              cancel.mutate(t.id);
-                            }
-                          }}
-                        >
-                          Cancelar
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                    }
+                    title={
+                      <span
+                        className={cn(
+                          'truncate',
+                          t.status === 'CANCELED' && 'text-label-secondary line-through',
+                        )}
+                      >
+                        {t.description}
+                      </span>
+                    }
+                    subtitle={
+                      <span className={cn(overdue && 'text-system-red font-medium')}>
+                        {t.status === 'PENDING'
+                          ? overdue
+                            ? `Vencido${t.dueDate ? ` em ${date.format(new Date(t.dueDate))}` : ''}`
+                            : `Pendente${t.dueDate ? ` · vence ${date.format(new Date(t.dueDate))}` : ''}`
+                          : `${date.format(new Date(t.createdAt))}${t.status === 'CANCELED' ? ' · Cancelado' : t.category ? ` · ${t.category}` : ''}`}
+                      </span>
+                    }
+                    trailing={
+                      <span
+                        className={cn(
+                          'text-[15px] font-semibold tabular-nums',
+                          t.type === 'INCOME' ? 'text-delta-good' : 'text-foreground',
+                          t.status === 'CANCELED' && 'opacity-50',
+                        )}
+                      >
+                        {t.type === 'INCOME' ? '+' : '−'}
+                        {formatCurrencyBRL(t.amount)}
+                      </span>
+                    }
+                  />
                 );
-              })
-            )}
-          </TableBody>
-        </Table>
+              })}
+            </MobileList>
+          </>
+        )}
       </Surface>
 
       <TransactionDrawer

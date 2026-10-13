@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, SlidersHorizontalIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -51,6 +51,8 @@ export function AgendaToolbar({
   onNext,
   onToday,
   onCreate,
+  onOpenFilters,
+  activeFilterCount,
 }: {
   view: AgendaViewMode;
   onViewChange: (view: AgendaViewMode) => void;
@@ -61,6 +63,9 @@ export function AgendaToolbar({
   onToday: () => void;
   /** Só aparece no celular, onde a coluna com o botão "Criar" fica escondida. */
   onCreate: () => void;
+  /** Below lg the filters column is hidden; this opens it as a sheet. */
+  onOpenFilters: () => void;
+  activeFilterCount: number;
 }) {
   const label = { day: 'dia', week: 'semana', month: 'mês' }[view];
   return (
@@ -93,12 +98,27 @@ export function AgendaToolbar({
         >
           <ChevronRightIcon className="size-5" />
         </Button>
-        <h2 className="ml-1 text-[22px] font-semibold tracking-[-0.02em] first-letter:uppercase">
+        <h2 className="ml-1 text-[18px] font-semibold tracking-[-0.02em] first-letter:uppercase sm:text-[22px]">
           {periodTitle(view, anchorDate, weekStartDate)}
         </h2>
       </div>
 
       <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="relative lg:hidden"
+          onClick={onOpenFilters}
+          aria-label="Calendário e filtros"
+        >
+          <SlidersHorizontalIcon className="size-4" />
+          <span className="hidden sm:inline">Filtros</span>
+          {activeFilterCount > 0 && (
+            <span className="bg-system-blue absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full text-[10px] font-semibold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
         <Button size="sm" className="lg:hidden" onClick={onCreate}>
           <PlusIcon className="size-4" />
           Criar

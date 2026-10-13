@@ -3,7 +3,8 @@
 import * as React from 'react';
 import {
   DndContext,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useDraggable,
   useSensor,
   useSensors,
@@ -178,7 +179,7 @@ function DraggableAppointment({
         onContextMenu(appointment, { x: event.clientX, y: event.clientY });
       }}
       className={cn(
-        'absolute overflow-hidden rounded-lg border-l-[3px] py-1 pr-2 pl-2 text-left text-xs transition-[box-shadow,transform] duration-200 hover:z-30 hover:shadow-lg',
+        'absolute overflow-hidden rounded-lg border-l-[3px] py-1 pr-2 pl-2 text-left text-xs transition-[box-shadow,transform] duration-200 select-none [-webkit-touch-callout:none] hover:z-30 hover:shadow-lg',
         isDragging && 'z-50 scale-[1.02] opacity-90 shadow-xl',
         isInactive && 'opacity-60',
         appointment.status === 'NO_SHOW' && 'line-through decoration-1',
@@ -292,12 +293,14 @@ export function CalendarGrid({
     return () => window.clearInterval(id);
   }, []);
 
-  // Without an activation distance, dnd-kit's PointerSensor starts a drag on
-  // any pointer movement at all — even the couple of pixels of jitter a
-  // normal click has between mousedown/mouseup — which swallows the click
-  // and appointment-detail onClick never fires. Require an intentional
-  // 5px move before a drag begins; anything less is treated as a plain click.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Mouse: a 5px move starts a drag, so a click's tiny jitter still counts as a
+  // click and opens the appointment. Touch: a finger landing on an appointment
+  // is far more often the start of a scroll, so dragging needs a long-press
+  // (250ms held within 8px) — otherwise the grid couldn't be scrolled over cards.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
 
   // Prévia "+ 09:30" do horário sob o mouse, para o clique no vazio ser descoberto sem explicação.
   const [hoverSlot, setHoverSlot] = React.useState<{ columnId: string; minutes: number } | null>(
@@ -347,8 +350,8 @@ export function CalendarGrid({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1">
-        <div className="bg-background sticky left-0 z-20 w-14 shrink-0 border-r">
+      <div className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-17rem)] min-h-[420px] overflow-auto overscroll-contain rounded-[22px] ring-1 md:max-h-[calc(100svh-15rem)]">
+        <div className="bg-background sticky left-0 z-20 w-12 shrink-0 border-r sm:w-14">
           <div className="bg-background sticky top-0 z-10 h-16 border-b" />
           {hourMarks.map((hour) => (
             <div
@@ -377,7 +380,7 @@ export function CalendarGrid({
               ref={(el) => {
                 if (el) columnWidthRef.current = el.offsetWidth;
               }}
-              className="relative min-w-40 flex-1 border-r last:border-r-0"
+              className="relative min-w-32 flex-1 border-r last:border-r-0 sm:min-w-40"
             >
               {/* Cabeçalho como o do Google Agenda: dia da semana pequeno, número grande num círculo
                   (cheio quando é hoje). Na visão Dia, a coluna é o profissional. */}

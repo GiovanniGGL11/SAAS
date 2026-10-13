@@ -3,6 +3,7 @@
 import { CheckIcon, PlusIcon } from 'lucide-react';
 import { ptBR } from 'react-day-picker/locale';
 
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -45,6 +46,8 @@ export function AgendaSidebar({
   onServiceFilterChange,
   statusFilter,
   onStatusFilterChange,
+  showCreate = true,
+  className,
 }: {
   anchorDate: CalendarDate;
   onDateSelect: (date: CalendarDate) => void;
@@ -60,15 +63,20 @@ export function AgendaSidebar({
   onServiceFilterChange: (value: string | undefined) => void;
   statusFilter: string | undefined;
   onStatusFilterChange: (value: string | undefined) => void;
+  /** The phone toolbar has its own Criar button, so the filters sheet hides this one. */
+  showCreate?: boolean;
+  className?: string;
 }) {
   const selected = new Date(anchorDate.year, anchorDate.month - 1, anchorDate.day);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-5">
-      <Button onClick={onCreate} className="h-11 self-start rounded-2xl px-5 text-[15px] shadow-md">
-        <PlusIcon className="size-5" />
-        Criar
-      </Button>
+    <aside className={cn('flex w-64 shrink-0 flex-col gap-5', className)}>
+      {showCreate && (
+        <Button onClick={onCreate} className="h-11 self-start rounded-2xl px-5 text-[15px] shadow-md">
+          <PlusIcon className="size-5" />
+          Criar
+        </Button>
+      )}
 
       {/* Folhear meses no minicalendário não muda a agenda (como no Google); a key o realinha
           quando a agenda muda de mês por outro caminho. */}
