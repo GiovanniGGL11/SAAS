@@ -48,7 +48,7 @@ export async function buildConfirmationMessage(
     `Olá, ${firstName}! Seu horário na ${companyName} está reservado:`,
     '',
     `📅 ${day} às ${formatTimeInTz(appointment.startAt, timezone)}`,
-    `✂️ ${appointment.serviceNameSnapshot} com ${appointment.professional.name}`,
+    `🛎️ ${appointment.serviceNameSnapshot} com ${appointment.professional.name}`,
     '',
     `Por favor, confirme sua presença por aqui: ${url}`,
     '',

@@ -105,7 +105,7 @@ export function ServiceDrawer({
                 <FormItem>
                   <FormLabel>Categoria (opcional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ex: Cabelo, Unhas, Pele..." {...field} />
+                    <Input placeholder="Ex: Consultas, Pacotes, Avançados..." {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

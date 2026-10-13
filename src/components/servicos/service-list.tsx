@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon, ScissorsIcon } from 'lucide-react';
+import { ConciergeBellIcon, PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -113,7 +113,7 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
       </ListToolbar>
 
       {categories.length > 0 && (
-        <div className="-mx-4 -mt-1 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0">
+        <div className="-mx-4 -mt-1 flex [scrollbar-width:none] gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
           {[ALL, ...categories].map((value) => (
             <button
               key={value}
@@ -135,7 +135,7 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
       <Surface>
         {filtered.length === 0 ? (
           <EmptyState
-            icon={ScissorsIcon}
+            icon={ConciergeBellIcon}
             title={
               services.length === 0 ? 'Nenhum serviço cadastrado' : 'Nenhum serviço encontrado'
             }
@@ -171,7 +171,7 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
                             className="flex size-8 shrink-0 items-center justify-center rounded-[9px] text-white"
                             style={{ backgroundColor: service.color }}
                           >
-                            <ScissorsIcon className="size-4" />
+                            <ConciergeBellIcon className="size-4" />
                           </span>
                           <span className="font-medium">{service.name}</span>
                           {!service.active && <Badge variant="outline">Inativo</Badge>}
@@ -209,7 +209,7 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
                       className="flex size-10 shrink-0 items-center justify-center rounded-[11px] text-white"
                       style={{ backgroundColor: service.color }}
                     >
-                      <ScissorsIcon className="size-4" />
+                      <ConciergeBellIcon className="size-4" />
                     </span>
                   }
                   title={

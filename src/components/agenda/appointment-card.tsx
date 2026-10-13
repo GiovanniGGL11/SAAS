@@ -7,7 +7,7 @@ import {
   ClockIcon,
   MoreHorizontalIcon,
   PhoneIcon,
-  ScissorsIcon,
+  ConciergeBellIcon,
   SparklesIcon,
   StickyNoteIcon,
   UserRoundIcon,
@@ -122,7 +122,7 @@ export function AppointmentCard({
           </div>
         </div>
 
-        <Row icon={<ScissorsIcon className="size-4" />}>
+        <Row icon={<ConciergeBellIcon className="size-4" />}>
           {appointment.serviceNameSnapshot} · {formatCurrencyBRL(appointment.priceSnapshot)}
         </Row>
         <Row icon={<UserRoundIcon className="size-4" />}>
