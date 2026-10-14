@@ -1,4 +1,4 @@
-import type { Prisma } from '@/generated/prisma/client';
+import { Prisma as PrismaNamespace, type Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/db';
 import type {
   Appointment,
@@ -8,6 +8,38 @@ import type {
   TransactionType,
 } from '@/generated/prisma/client';
 import { UserError } from '@/server/errors';
+
+type Db = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * Taxa da maquininha e dia em que o dinheiro cai, para uma entrada paga. Calculado no momento do
+ * pagamento com a taxa configurada naquele dia — mudar a taxa depois não reescreve o passado.
+ */
+export async function feeFields(
+  db: Db,
+  companyId: string,
+  t: {
+    type: TransactionType;
+    status: TransactionStatus;
+    amount: Prisma.Decimal | number;
+    paymentMethod?: PaymentMethod | null;
+    paidAt?: Date | null;
+  },
+): Promise<{ feeAmount: Prisma.Decimal; settlesAt: Date | null }> {
+  const none = { feeAmount: new PrismaNamespace.Decimal(0), settlesAt: null };
+  if (t.type !== 'INCOME' || t.status !== 'PAID' || !t.paymentMethod || !t.paidAt) return none;
+  const config = await db.paymentMethodFee.findUnique({
+    where: { companyId_paymentMethod: { companyId, paymentMethod: t.paymentMethod } },
+  });
+  if (!config) return { ...none, settlesAt: t.paidAt };
+  return {
+    feeAmount: new PrismaNamespace.Decimal(t.amount)
+      .mul(config.feePercent)
+      .div(100)
+      .toDecimalPlaces(2),
+    settlesAt: new Date(t.paidAt.getTime() + config.settlementDays * 86_400_000),
+  };
+}
 
 export type TransactionInput = {
   type: TransactionType;
@@ -81,6 +113,7 @@ export async function createTransaction(
       paidAt: data.paidAt ?? null,
       notes: data.notes || null,
       createdByUserId,
+      ...(await feeFields(prisma, companyId, data)),
     },
   });
 }
@@ -117,6 +150,7 @@ export async function updateTransaction(
       dueDate: data.dueDate ?? null,
       paidAt,
       notes: data.notes || null,
+      ...(await feeFields(prisma, companyId, { ...data, paidAt })),
     },
   });
   if (result.count === 0) throw new UserError('Lançamento não encontrado.');
@@ -125,11 +159,17 @@ export async function updateTransaction(
 }
 
 export async function markTransactionPaid(companyId: string, id: string): Promise<void> {
-  const result = await prisma.transaction.updateMany({
+  const current = await prisma.transaction.findFirst({ where: { id, companyId } });
+  if (!current) throw new UserError('Lançamento não encontrado.');
+  const paidAt = new Date();
+  await prisma.transaction.updateMany({
     where: { id, companyId },
-    data: { status: 'PAID', paidAt: new Date() },
+    data: {
+      status: 'PAID',
+      paidAt,
+      ...(await feeFields(prisma, companyId, { ...current, status: 'PAID', paidAt })),
+    },
   });
-  if (result.count === 0) throw new UserError('Lançamento não encontrado.');
 }
 
 export async function cancelTransaction(companyId: string, id: string): Promise<void> {
@@ -141,11 +181,17 @@ export async function cancelTransaction(companyId: string, id: string): Promise<
 }
 
 export type CashFlowSummary = {
+  /** Entradas pagas, valor bruto (o que o cliente pagou). */
   income: number;
+  /** Taxas de cartão/maquininha descontadas das entradas. */
+  fees: number;
   expense: number;
+  /** Entradas líquidas − saídas. */
   balance: number;
   pendingReceivables: number;
   pendingPayables: number;
+  /** Já pago pelo cliente, mas ainda não caiu na conta (cartão de crédito, por exemplo). */
+  toSettle: number;
 };
 
 export async function getCashFlowSummary(
@@ -158,26 +204,41 @@ export async function getCashFlowSummary(
       status: { not: 'CANCELED' },
       ...effectiveDateFilter(range),
     },
-    select: { type: true, status: true, amount: true },
+    select: { type: true, status: true, amount: true, feeAmount: true, settlesAt: true },
   });
 
   let income = 0;
+  let fees = 0;
   let expense = 0;
   let pendingReceivables = 0;
   let pendingPayables = 0;
+  let toSettle = 0;
+  const now = Date.now();
 
   for (const t of transactions) {
     const amount = Number(t.amount);
     if (t.status === 'PAID') {
-      if (t.type === 'INCOME') income += amount;
-      else expense += amount;
+      if (t.type === 'INCOME') {
+        income += amount;
+        fees += Number(t.feeAmount);
+        if (t.settlesAt && t.settlesAt.getTime() > now) toSettle += amount - Number(t.feeAmount);
+      } else expense += amount;
     } else if (t.status === 'PENDING') {
       if (t.type === 'INCOME') pendingReceivables += amount;
       else pendingPayables += amount;
     }
   }
 
-  return { income, expense, balance: income - expense, pendingReceivables, pendingPayables };
+  const cents = (n: number) => Math.round(n * 100) / 100;
+  return {
+    income: cents(income),
+    fees: cents(fees),
+    expense: cents(expense),
+    balance: cents(income - fees - expense),
+    pendingReceivables: cents(pendingReceivables),
+    pendingPayables: cents(pendingPayables),
+    toSettle: cents(toSettle),
+  };
 }
 
 /**
@@ -188,10 +249,15 @@ export async function getCashFlowSummary(
  * be marked DONE more than once across status changes (e.g. DONE -> back to
  * CONFIRMED by mistake -> DONE again) and this must never double-book revenue.
  */
+/** Uma parte do pagamento (a comanda pode dividir: metade no PIX, metade no cartão). */
+export type IncomePayment = {
+  amount: Prisma.Decimal | number;
+  paymentMethod: PaymentMethod | null;
+};
+
 /** O que a comanda define na cobrança; sem ela, vale o preço do atendimento sem forma de pagamento. */
 export type IncomeCheckout = {
-  amount?: Prisma.Decimal | number;
-  paymentMethod?: PaymentMethod | null;
+  payments?: IncomePayment[];
   notes?: string | null;
 };
 
@@ -202,43 +268,53 @@ export async function createIncomeFromAppointment(
   db: Prisma.TransactionClient = prisma,
   checkout: IncomeCheckout = {},
 ): Promise<void> {
-  const amount = checkout.amount ?? appointment.priceSnapshot;
-  const existing = await db.transaction.findFirst({
+  const existing = await db.transaction.findMany({
     where: { companyId, appointmentId: appointment.id, category: 'Atendimento' },
     select: { id: true, status: true },
+    orderBy: { createdAt: 'asc' },
   });
-  if (existing) {
-    // Concluído de novo depois de desfeito: reativa o lançamento em vez de criar outro.
-    if (existing.status === 'CANCELED') {
-      await db.transaction.update({
-        where: { id: existing.id },
+  // Já cobrado (e não desfeito): não lança de novo.
+  if (existing.some((t) => t.status !== 'CANCELED')) return;
+  // Cobrado de novo depois de desfeito: reaproveita os lançamentos cancelados em vez de criar outros.
+  const reusable = existing.map((t) => t.id);
+
+  const payments: IncomePayment[] = checkout.payments?.length
+    ? checkout.payments
+    : [{ amount: appointment.priceSnapshot, paymentMethod: null }];
+  const paidAt = new Date();
+  for (const [index, payment] of payments.entries()) {
+    const data = {
+      status: 'PAID' as const,
+      amount: payment.amount,
+      paymentMethod: payment.paymentMethod,
+      // O cupom fica anotado na primeira parte — é de lá que o estorno o lê.
+      notes: index === 0 ? (checkout.notes ?? null) : null,
+      paidAt,
+      ...(await feeFields(db, companyId, {
+        type: 'INCOME',
+        status: 'PAID',
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        paidAt,
+      })),
+    };
+    const reuseId = reusable[index];
+    if (reuseId) {
+      await db.transaction.update({ where: { id: reuseId }, data });
+    } else {
+      await db.transaction.create({
         data: {
-          status: 'PAID',
-          paidAt: new Date(),
-          amount,
-          paymentMethod: checkout.paymentMethod ?? null,
-          notes: checkout.notes ?? null,
+          ...data,
+          companyId,
+          appointmentId: appointment.id,
+          type: 'INCOME',
+          description: appointment.serviceNameSnapshot,
+          category: 'Atendimento',
+          createdByUserId,
         },
       });
     }
-    return;
   }
-
-  await db.transaction.create({
-    data: {
-      companyId,
-      appointmentId: appointment.id,
-      type: 'INCOME',
-      status: 'PAID',
-      description: appointment.serviceNameSnapshot,
-      category: 'Atendimento',
-      amount,
-      paymentMethod: checkout.paymentMethod ?? null,
-      notes: checkout.notes ?? null,
-      paidAt: new Date(),
-      createdByUserId,
-    },
-  });
 }
 
 /**
@@ -251,11 +327,11 @@ export async function reverseIncomeFromAppointment(
   db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
   // Cupom usado na cobrança volta a ficar disponível (o código fica anotado no lançamento).
-  const charged = await db.transaction.findFirst({
+  const charged = await db.transaction.findMany({
     where: { companyId, appointmentId, category: 'Atendimento', status: { not: 'CANCELED' } },
     select: { notes: true },
   });
-  const couponCode = charged?.notes?.match(/cupom:(\S+)/)?.[1];
+  const couponCode = charged.map((t) => t.notes?.match(/cupom:(\S+)/)?.[1]).find(Boolean);
   if (couponCode) {
     await db.coupon.updateMany({
       where: { companyId, code: couponCode, usedCount: { gt: 0 } },

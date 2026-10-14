@@ -34,6 +34,10 @@ model Company {
   loyaltyEntries            LoyaltyEntry[]
   googleCalendarConnections GoogleCalendarConnection[]
   waitlistEntries           WaitlistEntry[]
+  paymentMethodFees         PaymentMethodFee[]
+  cashSessions              CashSession[]
+  recurringExpenses         RecurringExpense[]
+  financeCategories         FinanceCategory[]
 }
 
 model WebhookEvent {
@@ -317,10 +321,100 @@ model Transaction {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  // Taxa da maquininha descontada desta entrada e o dia em que o dinheiro cai na conta. Gravados
+  // no pagamento (mudar a taxa depois não reescreve o passado).
+  feeAmount          Decimal           @default(0) @db.Decimal(10, 2)
+  settlesAt          DateTime?
+  // Conta fixa que gerou este lançamento, e o mês dela ("2026-10") — um lançamento por mês.
+  recurringExpenseId String?
+  recurringExpense   RecurringExpense? @relation(fields: [recurringExpenseId], references: [id])
+  recurringMonth     String?
+
+  @@unique([recurringExpenseId, recurringMonth])
   @@index([companyId, type, status])
   @@index([companyId, dueDate])
   @@index([companyId, paidAt])
   @@index([appointmentId])
+}
+
+/// Taxa e prazo de recebimento de cada forma de pagamento (maquininha, PIX).
+model PaymentMethodFee {
+  id             String        @id @default(cuid())
+  companyId      String
+  company        Company       @relation(fields: [companyId], references: [id])
+  paymentMethod  PaymentMethod
+  feePercent     Decimal       @default(0) @db.Decimal(5, 2)
+  settlementDays Int           @default(0)
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([companyId, paymentMethod])
+}
+
+/// Caixa do dia: aberto com um troco, fechado com o dinheiro contado. Só um aberto por empresa
+/// (índice parcial na migration).
+model CashSession {
+  id             String         @id @default(cuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id])
+  openedAt       DateTime       @default(now())
+  openedByUserId String
+  openingAmount  Decimal        @db.Decimal(10, 2)
+  closedAt       DateTime?
+  closedByUserId String?
+  expectedCash   Decimal?       @db.Decimal(10, 2)
+  countedCash    Decimal?       @db.Decimal(10, 2)
+  notes          String?
+  movements      CashMovement[]
+
+  @@index([companyId, openedAt])
+}
+
+enum CashMovementKind {
+  WITHDRAWAL
+  DEPOSIT
+}
+
+/// Sangria (dinheiro tirado da gaveta) e suprimento (colocado). Não é receita nem despesa.
+model CashMovement {
+  id              String           @id @default(cuid())
+  sessionId       String
+  session         CashSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kind            CashMovementKind
+  amount          Decimal          @db.Decimal(10, 2)
+  reason          String?
+  createdByUserId String
+  createdAt       DateTime         @default(now())
+
+  @@index([sessionId])
+}
+
+/// Conta fixa (aluguel, luz, sistema): vira um lançamento pendente todo mês.
+model RecurringExpense {
+  id            String         @id @default(cuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  description   String
+  category      String?
+  amount        Decimal        @db.Decimal(10, 2)
+  dayOfMonth    Int
+  paymentMethod PaymentMethod?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  transactions  Transaction[]
+
+  @@index([companyId, active])
+}
+
+model FinanceCategory {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id])
+  type      TransactionType
+  name      String
+  createdAt DateTime        @default(now())
+
+  @@unique([companyId, type, name])
 }
 
 enum CouponDiscountType {

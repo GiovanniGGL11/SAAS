@@ -19,7 +19,7 @@ import { unwrapResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { PageHeader, Surface } from '@/components/layout/page';
+import { Surface } from '@/components/layout/page';
 import { ListToolbar, SearchField, matchesSearch } from '@/components/layout/list-controls';
 import { REPORT_PRESETS, type ReportPreset } from '@/lib/validations/report';
 import {
@@ -116,29 +116,23 @@ export function FinanceView() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Financeiro"
-        description="Fluxo de caixa, contas a pagar e a receber."
-        actions={
-          <>
-            <Button variant="outline" onClick={() => openCreate('EXPENSE')}>
-              <ArrowUpRightIcon className="text-system-red size-4" />
-              Nova saída
-            </Button>
-            <Button onClick={() => openCreate('INCOME')}>
-              <ArrowDownLeftIcon className="size-4" />
-              Nova entrada
-            </Button>
-          </>
-        }
-      />
-
-      <SegmentedControl
-        value={preset}
-        onValueChange={setPreset}
-        options={REPORT_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
-        className="self-start"
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl
+          value={preset}
+          onValueChange={setPreset}
+          options={REPORT_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
+        />
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => openCreate('EXPENSE')}>
+            <ArrowUpRightIcon className="text-system-red size-4" />
+            Nova saída
+          </Button>
+          <Button onClick={() => openCreate('INCOME')}>
+            <ArrowDownLeftIcon className="size-4" />
+            Nova entrada
+          </Button>
+        </div>
+      </div>
 
       {summary ? (
         <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
@@ -146,6 +140,16 @@ export function FinanceView() {
             index={0}
             label="Entradas"
             value={formatCurrencyBRL(summary.income)}
+            hint={
+              summary.fees > 0 || summary.toSettle > 0
+                ? [
+                    summary.fees > 0 && `${formatCurrencyBRL(summary.fees)} em taxas`,
+                    summary.toSettle > 0 && `${formatCurrencyBRL(summary.toSettle)} ainda vai cair`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : undefined
+            }
             icon={ArrowDownLeftIcon}
             iconColor="var(--system-green)"
           />
@@ -160,6 +164,7 @@ export function FinanceView() {
             index={2}
             label="Saldo"
             value={formatCurrencyBRL(summary.balance)}
+            hint={summary.fees > 0 ? 'Já sem as taxas de cartão' : undefined}
             valueClassName={summary.balance < 0 ? 'text-system-red' : undefined}
             icon={ScaleIcon}
             iconColor="var(--system-blue)"
@@ -314,6 +319,7 @@ export function FinanceView() {
                         >
                           {t.type === 'INCOME' ? '+' : '−'}
                           {formatCurrencyBRL(t.amount)}
+                          <SettlementHint transaction={t} now={now} />
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
                           {t.status === 'PENDING' && (
@@ -429,6 +435,28 @@ export function FinanceView() {
           if (!open) setToCancel(null);
         }}
       />
+    </div>
+  );
+}
+
+/** Taxa do cartão e quando o dinheiro cai, debaixo do valor de uma entrada. */
+function SettlementHint({
+  transaction: t,
+  now,
+}: {
+  transaction: SerializedTransaction;
+  now: number;
+}) {
+  if (t.type !== 'INCOME' || t.status !== 'PAID') return null;
+  const settles = t.settlesAt ? new Date(t.settlesAt) : null;
+  const future = settles && settles.getTime() > now;
+  if (t.feeAmount <= 0 && !future) return null;
+  return (
+    <div className="text-label-secondary text-[11px] font-normal">
+      {t.feeAmount > 0 && `taxa ${formatCurrencyBRL(t.feeAmount)}`}
+      {t.feeAmount > 0 && future && ' · '}
+      {future &&
+        `cai ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(settles)}`}
     </div>
   );
 }

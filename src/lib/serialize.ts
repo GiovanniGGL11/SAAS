@@ -53,11 +53,18 @@ export type SerializedProfessional = Omit<Professional, 'commissionValue'> & {
 
 export function serializeTransaction<T extends Transaction>(
   transaction: T,
-): Omit<T, 'amount'> & { amount: number } {
-  return { ...transaction, amount: Number(transaction.amount) };
+): Omit<T, 'amount' | 'feeAmount'> & { amount: number; feeAmount: number } {
+  return {
+    ...transaction,
+    amount: Number(transaction.amount),
+    feeAmount: Number(transaction.feeAmount),
+  };
 }
 
-export type SerializedTransaction = Omit<Transaction, 'amount'> & { amount: number };
+export type SerializedTransaction = Omit<Transaction, 'amount' | 'feeAmount'> & {
+  amount: number;
+  feeAmount: number;
+};
 
 export function serializeProduct<T extends Product>(
   product: T,

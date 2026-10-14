@@ -45,10 +45,19 @@ export function CheckoutForm({
   const [discount, setDiscount] = React.useState('');
   const [coupon, setCoupon] = React.useState('');
   const [tip, setTip] = React.useState('');
+  // Pagamento dividido: as outras formas com valor; a principal fica com o restante.
+  const [split, setSplit] = React.useState<{ method: Method; amount: string }[]>([]);
 
   const discountValue = parseMoney(discount);
   const tipValue = parseMoney(tip);
   const preview = Math.max(0, price - discountValue) + tipValue;
+  const splitValues = split.map((part) => ({
+    paymentMethod: part.method,
+    amount: parseMoney(part.amount),
+  }));
+  const splitTotal = splitValues.reduce((sum, part) => sum + part.amount, 0);
+  const remainder = Math.round((Math.max(0, price - discountValue) - splitTotal) * 100) / 100;
+  const methodLabel = (value: Method) => METHODS.find((m) => m.value === value)!.label;
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -58,6 +67,7 @@ export function CheckoutForm({
         discount: discountValue || undefined,
         couponCode: coupon.trim() || undefined,
         tip: tipValue || undefined,
+        split: splitValues.length ? splitValues.filter((part) => part.amount > 0) : undefined,
       }).then(unwrapResult),
     onSuccess: ({ total }) => {
       toast.success(`Concluído e cobrado: ${formatCurrencyBRL(total + tipValue)}.`);
@@ -100,6 +110,72 @@ export function CheckoutForm({
         ))}
       </div>
 
+      {split.map((part, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <span className="text-label-secondary w-6 text-[12px]">+</span>
+          <select
+            aria-label="Outra forma de pagamento"
+            value={part.method}
+            onChange={(e) =>
+              setSplit((rows) =>
+                rows.map((r, i) => (i === index ? { ...r, method: e.target.value as Method } : r)),
+              )
+            }
+            className="bg-background ring-foreground/[0.08] h-8 rounded-lg px-2 text-[12px] ring-1"
+          >
+            {METHODS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <Input
+            inputMode="decimal"
+            placeholder="Valor"
+            value={part.amount}
+            onChange={(e) =>
+              setSplit((rows) =>
+                rows.map((r, i) => (i === index ? { ...r, amount: e.target.value } : r)),
+              )
+            }
+            className="h-8 w-24"
+            aria-label="Valor desta forma de pagamento"
+          />
+          <button
+            type="button"
+            onClick={() => setSplit((rows) => rows.filter((_, i) => i !== index))}
+            className="text-label-secondary hover:text-foreground text-[12px]"
+          >
+            Remover
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center justify-between text-[12px]">
+        {split.length < 2 ? (
+          <button
+            type="button"
+            onClick={() =>
+              setSplit((rows) => [
+                ...rows,
+                { method: method === 'CREDIT_CARD' ? 'PIX' : 'CREDIT_CARD', amount: '' },
+              ])
+            }
+            className="text-system-blue font-medium hover:underline"
+          >
+            Dividir pagamento
+          </button>
+        ) : (
+          <span />
+        )}
+        {split.length > 0 && (
+          <span className={cn('text-label-secondary', remainder < 0 && 'text-destructive')}>
+            {remainder < 0
+              ? 'As partes passam do total'
+              : `${methodLabel(method)}: ${formatCurrencyBRL(remainder)}${coupon.trim() ? ' (− cupom)' : ''}`}
+          </span>
+        )}
+      </div>
+
       <div className="grid grid-cols-3 gap-2">
         <label className="flex flex-col gap-1 text-[11px]">
           <span className="text-label-secondary">Desconto (R$)</span>
@@ -134,7 +210,7 @@ export function CheckoutForm({
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           Voltar
         </Button>
-        <Button type="submit" size="sm" disabled={mutation.isPending}>
+        <Button type="submit" size="sm" disabled={mutation.isPending || remainder < 0}>
           {mutation.isPending
             ? 'Concluindo...'
             : `Concluir e cobrar ${formatCurrencyBRL(preview)}${coupon.trim() ? ' (− cupom)' : ''}`}

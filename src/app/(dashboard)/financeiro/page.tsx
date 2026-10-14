@@ -1,7 +1,13 @@
+import { Suspense } from 'react';
+
 import { requireAdminPage } from '@/server/auth/require-current-company';
-import { FinanceView } from '@/components/financeiro/finance-view';
+import { FinanceShell } from '@/components/financeiro/finance-shell';
 
 export default async function FinanceiroPage() {
   await requireAdminPage();
-  return <FinanceView />;
+  return (
+    <Suspense>
+      <FinanceShell />
+    </Suspense>
+  );
 }
