@@ -16,6 +16,7 @@ import {
 } from '@/components/agenda/calendar-grid';
 import { AgendaToolbar, type AgendaViewMode } from '@/components/agenda/agenda-toolbar';
 import { AgendaSidebar, type ColorMode } from '@/components/agenda/agenda-sidebar';
+import { GoogleCalendarCard } from '@/components/agenda/google-calendar-card';
 import { MonthView, monthGridRange } from '@/components/agenda/month-view';
 import { AppointmentCard } from '@/components/agenda/appointment-card';
 import { QuickCreateCard, type QuickCreateDefaults } from '@/components/agenda/quick-create-card';
@@ -592,7 +593,12 @@ export function AgendaView({
             <DrawerTitle>Calendário e filtros</DrawerTitle>
           </DrawerHeader>
           <div className="overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-            <AgendaSidebar {...sidebarProps} showCreate={false} className="w-full" />
+            <AgendaSidebar
+              {...sidebarProps}
+              showCreate={false}
+              showGoogle={false}
+              className="w-full"
+            />
           </div>
         </DrawerContent>
       </Drawer>
@@ -617,6 +623,11 @@ export function AgendaView({
           activeFilterCount={activeFilterCount}
           onShowShortcuts={() => setShowShortcuts(true)}
         />
+
+        {/* Phones: the sidebar is a sheet, so the Google sync entry gets its own always-visible pill. */}
+        <div className="lg:hidden">
+          <GoogleCalendarCard variant="chip" professionals={professionals} />
+        </div>
 
         {/* No celular a coluna esquerda some: os profissionais viram chips para mostrar/esconder. */}
         {professionals.length > 1 && (

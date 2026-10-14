@@ -50,6 +50,7 @@ export function AgendaSidebar({
   statusFilter,
   onStatusFilterChange,
   showCreate = true,
+  showGoogle = true,
   className,
 }: {
   anchorDate: CalendarDate;
@@ -68,6 +69,8 @@ export function AgendaSidebar({
   onStatusFilterChange: (value: string | undefined) => void;
   /** The phone toolbar has its own Criar button, so the filters sheet hides this one. */
   showCreate?: boolean;
+  /** On phones the Google Agenda pill sits under the toolbar, so the sheet hides the card. */
+  showGoogle?: boolean;
   className?: string;
 }) {
   const selected = new Date(anchorDate.year, anchorDate.month - 1, anchorDate.day);
@@ -215,7 +218,7 @@ export function AgendaSidebar({
 
       <RemindersCard />
 
-      <GoogleCalendarCard professionals={professionals} />
+      {showGoogle && <GoogleCalendarCard professionals={professionals} />}
     </aside>
   );
 }

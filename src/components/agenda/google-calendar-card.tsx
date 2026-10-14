@@ -33,8 +33,18 @@ const RETURN_MESSAGES: Record<string, { ok: boolean; text: string }> = {
 
 const STATUS_KEY = ['google-calendar-status'];
 
-/** Entry in the agenda sidebar: opt in to mirroring your professionals' appointments to Google. */
-export function GoogleCalendarCard({ professionals }: { professionals: SerializedProfessional[] }) {
+/**
+ * Entry to opt in to mirroring your professionals' appointments to Google. `row` is the card in the
+ * agenda sidebar; `chip` is the pill shown under the agenda toolbar on phones, where the sidebar
+ * lives inside the filters sheet.
+ */
+export function GoogleCalendarCard({
+  professionals,
+  variant = 'row',
+}: {
+  professionals: SerializedProfessional[];
+  variant?: 'row' | 'chip';
+}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -108,30 +118,53 @@ export function GoogleCalendarCard({ professionals }: { professionals: Serialize
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openDialog}
-        className="bg-foreground/[0.05] hover:bg-foreground/[0.08] flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition-colors"
-      >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-white shadow-sm">
-          <GoogleIcon />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">Google Agenda</span>
+      {variant === 'chip' ? (
+        <button
+          type="button"
+          onClick={openDialog}
+          aria-label={`Google Agenda: ${hint}`}
+          className="bg-foreground/[0.05] active:bg-foreground/[0.1] flex w-fit items-center gap-2 rounded-full py-1.5 pr-3.5 pl-1.5 text-[13px] font-medium transition-colors"
+        >
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
+            <GoogleIcon />
+          </span>
+          Google Agenda
           <span
             className={cn(
-              'block text-[12px]',
+              'flex items-center gap-1 text-[12px] font-normal',
               status.needsReconnect ? 'text-system-red' : 'text-label-secondary',
             )}
           >
-            {connected && (
-              <span className="bg-system-green mr-1 inline-block size-1.5 rounded-full" />
-            )}
+            {connected && <span className="bg-system-green inline-block size-1.5 rounded-full" />}
             {hint}
           </span>
-        </span>
-        <ChevronRightIcon className="text-label-secondary/60 size-4 shrink-0" />
-      </button>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={openDialog}
+          className="bg-foreground/[0.05] hover:bg-foreground/[0.08] flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition-colors"
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-white shadow-sm">
+            <GoogleIcon />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-medium">Google Agenda</span>
+            <span
+              className={cn(
+                'block text-[12px]',
+                status.needsReconnect ? 'text-system-red' : 'text-label-secondary',
+              )}
+            >
+              {connected && (
+                <span className="bg-system-green mr-1 inline-block size-1.5 rounded-full" />
+              )}
+              {hint}
+            </span>
+          </span>
+          <ChevronRightIcon className="text-label-secondary/60 size-4 shrink-0" />
+        </button>
+      )}
 
       <Dialog open={open} onOpenChange={(next: boolean) => setOpen(next)}>
         <DialogContent>
