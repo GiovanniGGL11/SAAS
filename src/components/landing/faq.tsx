@@ -16,6 +16,14 @@ const QUESTIONS = [
     a: 'Não. Financeiro, relatórios e configurações são só do dono e de quem você tornar administrador. A equipe usa a agenda e os clientes, e cada profissional pode abrir a agenda já na própria coluna.',
   },
   {
+    q: 'Dá para controlar o caixa e as taxas da maquininha?',
+    a: 'Sim. Você abre o caixa com o troco, registra sangrias e confere a gaveta no fechamento. Cadastrando a taxa e o prazo de cada forma de pagamento, o financeiro mostra o valor líquido e quando o dinheiro cai na conta.',
+  },
+  {
+    q: 'Meus dados ficam seguros?',
+    a: 'Cada empresa só enxerga os próprios dados, o acesso é por login e você decide quem da equipe é administrador.',
+  },
+  {
     q: 'Funciona no celular?',
     a: 'Funciona no navegador do celular, do computador e do tablet, sem instalar nada.',
   },
@@ -24,7 +32,7 @@ const QUESTIONS = [
 /** Perguntas que todo dono de salão faz antes de trocar de sistema. */
 export function Faq() {
   return (
-    <section className="px-5 pb-24 md:pb-32">
+    <section id="duvidas" className="scroll-mt-20 px-5 pb-24 md:pb-32">
       <div className="mx-auto max-w-3xl">
         <h2 className="text-center text-[34px] leading-[1.1] font-bold tracking-[-0.03em] md:text-[44px]">
           Perguntas frequentes

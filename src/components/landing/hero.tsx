@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ArrowRightIcon, ChevronRightIcon } from 'lucide-react';
+import { ArrowRightIcon, CheckIcon, ChevronRightIcon } from 'lucide-react';
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from 'motion/react';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -102,15 +102,15 @@ export function Hero() {
           className="bg-background/60 ring-foreground/10 text-foreground/80 hover:text-foreground group inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium ring-1 backdrop-blur-md transition-colors"
         >
           <span className="bg-system-green size-1.5 rounded-full" />
-          Agenda, clientes e financeiro em um só lugar
+          Agendamento online + WhatsApp + caixa
           <ChevronRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </motion.div>
 
       <h1 className="mx-auto mt-7 max-w-4xl text-[40px] leading-[1.05] font-bold tracking-[-0.035em] text-balance sm:text-[56px] md:text-[76px]">
-        <RevealWords text="O SaaS de agendamentos" delay={0.1} />{' '}
+        <RevealWords text="Agenda cheia." delay={0.1} />{' '}
         <RevealWords
-          text="mais completo do Brasil."
+          text="Caixa no controle."
           delay={0.35}
           className="from-system-blue bg-gradient-to-r via-[#7d5cf6] to-[#ff2d55] bg-clip-text pb-2 text-transparent"
         />
@@ -122,8 +122,8 @@ export function Hero() {
         transition={{ duration: 0.8, delay: 0.75, ease: EASE }}
         className="text-label-secondary mx-auto mt-6 max-w-xl text-[19px] leading-relaxed text-balance md:text-[21px]"
       >
-        Agenda, clientes, profissionais, estoque e financeiro trabalhando juntos, para você cuidar
-        do que importa: o seu negócio.
+        Seus clientes marcam sozinhos, confirmam pelo WhatsApp e você cobra, fecha o caixa e vê o
+        lucro do mês — tudo no mesmo lugar.
       </motion.p>
 
       <motion.div
@@ -147,6 +147,22 @@ export function Hero() {
           <ChevronRightIcon className="size-4" />
         </Link>
       </motion.div>
+
+      <motion.ul
+        initial={reduceMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8, delay: 1.05, ease: EASE }}
+        className="text-label-secondary mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[14px]"
+      >
+        {['Sem instalar nada', 'Funciona no celular', 'Cada empresa vê só os próprios dados'].map(
+          (item) => (
+            <li key={item} className="flex items-center gap-1.5">
+              <CheckIcon className="text-system-green size-4" />
+              {item}
+            </li>
+          ),
+        )}
+      </motion.ul>
     </section>
   );
 }
