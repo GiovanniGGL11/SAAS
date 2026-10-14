@@ -6,6 +6,7 @@ import Image from 'next/image';
 
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { LINKS } from '@/components/landing/landing-links';
 
 /** Frosted sticky header that gains a hairline border once the page scrolls. */
 export function LandingHeader() {
@@ -34,6 +35,17 @@ export function LandingHeader() {
             Atenda<span className="text-system-blue">fy</span>
           </span>
         </Link>
+        <nav aria-label="Seções" className="hidden items-center gap-1 md:flex">
+          {LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="text-foreground/70 hover:text-foreground rounded-full px-3 py-1.5 text-sm transition-colors"
+            >
+              {link.label}
+            </a>
+          ))}
+        </nav>
         <nav className="flex items-center gap-1 sm:gap-2">
           <ThemeToggle />
           <Link

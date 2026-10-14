@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/db';
 import { recordAuditLog } from '@/server/data/audit';
-import { createIncomeFromAppointment, reverseIncomeFromAppointment } from '@/server/data/finance';
+import {
+  createIncomeFromAppointment,
+  feeFields,
+  reverseIncomeFromAppointment,
+} from '@/server/data/finance';
 import { earnLoyaltyFromAppointment, reverseLoyaltyFromAppointment } from '@/server/data/loyalty';
 import { Prisma as PrismaNamespace } from '@/generated/prisma/client';
 import type {
@@ -424,6 +428,11 @@ export type CheckoutInput = {
   discount?: number;
   couponCode?: string;
   tip?: number;
+  /**
+   * Pagamento dividido: as outras partes, com valor fixo. A forma principal (`paymentMethod`) fica
+   * com o que sobrar do total — o total só é conhecido aqui, depois do cupom.
+   */
+  split?: { paymentMethod: PaymentMethod; amount: number }[];
   updatedByUserId: string;
 };
 
@@ -472,6 +481,25 @@ export async function checkoutAppointment(params: CheckoutInput) {
     }
 
     const total = PrismaNamespace.Decimal.max(0, price.sub(discount));
+    const splitTotal = (params.split ?? []).reduce(
+      (sum, part) => sum.add(part.amount),
+      new PrismaNamespace.Decimal(0),
+    );
+    if (splitTotal.gt(total)) {
+      throw new UserError(
+        `A soma das outras formas de pagamento passa do total (R$ ${total.toFixed(2).replace('.', ',')}).`,
+      );
+    }
+    const remainder = total.sub(splitTotal);
+    const payments = [
+      ...(remainder.gt(0) || splitTotal.eq(0)
+        ? [{ amount: remainder, paymentMethod: params.paymentMethod }]
+        : []),
+      ...(params.split ?? []).map((part) => ({
+        amount: new PrismaNamespace.Decimal(part.amount),
+        paymentMethod: part.paymentMethod,
+      })),
+    ];
 
     await tx.appointment.updateMany({
       where: { id: params.id, companyId: params.companyId },
@@ -482,13 +510,20 @@ export async function checkoutAppointment(params: CheckoutInput) {
     }))!;
 
     await createIncomeFromAppointment(params.companyId, done, params.updatedByUserId, tx, {
-      amount: total,
-      paymentMethod: params.paymentMethod,
+      payments,
       notes: notes.join(' · ') || null,
     });
     if (params.tip && params.tip > 0) {
+      const paidAt = new Date();
       await tx.transaction.create({
         data: {
+          ...(await feeFields(tx, params.companyId, {
+            type: 'INCOME',
+            status: 'PAID',
+            amount: params.tip,
+            paymentMethod: params.paymentMethod,
+            paidAt,
+          })),
           companyId: params.companyId,
           appointmentId: params.id,
           type: 'INCOME',
@@ -497,7 +532,7 @@ export async function checkoutAppointment(params: CheckoutInput) {
           category: 'Gorjeta',
           amount: params.tip,
           paymentMethod: params.paymentMethod,
-          paidAt: new Date(),
+          paidAt,
           createdByUserId: params.updatedByUserId,
         },
       });
@@ -515,6 +550,7 @@ export async function checkoutAppointment(params: CheckoutInput) {
           status: 'DONE',
           total: total.toString(),
           paymentMethod: params.paymentMethod,
+          split: params.split ?? [],
           coupon: params.couponCode ?? null,
           tip: params.tip ?? 0,
         },

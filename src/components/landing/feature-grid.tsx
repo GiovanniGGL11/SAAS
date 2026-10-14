@@ -4,107 +4,87 @@ import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3Icon,
   CalendarDaysIcon,
-  MegaphoneIcon,
+  GiftIcon,
   PackageIcon,
   UserRoundIcon,
   UsersIcon,
+  VaultIcon,
   WalletIcon,
 } from 'lucide-react';
-import { motion, useReducedMotion } from 'motion/react';
 
-import { cn } from '@/lib/utils';
 import { AppleTile } from '@/components/dashboard/apple-tile';
+import { SectionTitle } from '@/components/landing/reveal';
 
-type Feature = {
-  icon: LucideIcon;
-  color: string;
-  title: string;
-  description: string;
-  className?: string;
-};
+type Feature = { icon: LucideIcon; color: string; title: string; description: string };
 
 const FEATURES: Feature[] = [
   {
     icon: CalendarDaysIcon,
-    color: '#007aff',
-    title: 'Agenda inteligente',
+    color: '#ff3b30',
+    title: 'Agenda',
     description:
-      'Visualize o dia de cada profissional, arraste horários para remarcar e evite conflitos automaticamente. Seus clientes também agendam sozinhos, por um link.',
-    className: 'sm:col-span-2',
+      'Dia, semana e mês por profissional. Arraste para remarcar, sem conflito de horário.',
   },
   {
     icon: UsersIcon,
     color: '#34c759',
     title: 'Clientes',
-    description: 'Histórico completo de atendimentos e informações de cada cliente.',
+    description: 'Histórico, aniversários, VIPs e quem não volta há tempos.',
   },
   {
     icon: UserRoundIcon,
     color: '#af52de',
     title: 'Profissionais',
-    description:
-      'Cadastre a equipe, defina o expediente e veja a comissão de cada um no relatório.',
+    description: 'Expediente, folgas e comissão de cada um.',
+  },
+  {
+    icon: VaultIcon,
+    color: '#34aadc',
+    title: 'Caixa',
+    description: 'Abertura, sangria, suprimento e fechamento conferido.',
   },
   {
     icon: WalletIcon,
-    color: '#ff9500',
+    color: '#30b0c7',
     title: 'Financeiro',
-    description: 'Entradas, saídas e faturamento do período sempre à vista.',
+    description: 'Contas a pagar e receber, taxas de cartão e lucro do mês.',
   },
   {
     icon: PackageIcon,
     color: '#5856d6',
     title: 'Estoque',
-    description: 'Controle de produtos e movimentações, vinculados aos atendimentos.',
+    description: 'Produtos vendidos e usados nos atendimentos, com aviso de estoque baixo.',
   },
   {
-    icon: MegaphoneIcon,
-    color: '#ff2d55',
-    title: 'Campanhas',
-    description:
-      'Cupons de desconto aplicados na hora de cobrar, e confirmação de horário pelo WhatsApp.',
+    icon: GiftIcon,
+    color: '#ff9500',
+    title: 'Fidelidade e cupons',
+    description: 'Cartão fidelidade, pontos ou cashback, e cupons de desconto.',
   },
   {
     icon: BarChart3Icon,
-    color: '#30b0c7',
+    color: '#007aff',
     title: 'Relatórios',
-    description:
-      'Faturamento por profissional, serviço e dia da semana, além das taxas de cancelamento e de faltas.',
+    description: 'Faturamento por profissional, serviço e dia da semana, faltas e cancelamentos.',
   },
 ];
 
 export function FeatureGrid() {
-  const reduceMotion = useReducedMotion();
-
   return (
-    <section className="mx-auto max-w-6xl px-5 pb-24 md:pb-32">
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-80px' }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="mx-auto mb-12 max-w-2xl text-center md:mb-16"
-      >
-        <p className="text-system-blue text-[15px] font-semibold">Tudo em um só lugar</p>
-        <h2 className="mt-2 text-[34px] leading-[1.1] font-bold tracking-[-0.03em] text-balance md:text-[48px]">
-          Feito para quem vive de agendamentos.
-        </h2>
-      </motion.div>
+    <section id="recursos" className="mx-auto max-w-6xl scroll-mt-20 px-5 pb-24 md:pb-32">
+      <SectionTitle eyebrow="Tudo em um só lugar" title="Feito para quem vive de agendamentos." />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4 md:gap-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-5">
         {FEATURES.map((feature, i) => {
           const Icon = feature.icon;
           return (
             <AppleTile
               key={feature.title}
               index={i % 4}
-              className={cn(
-                'flex min-h-48 flex-col justify-between gap-8 p-6 md:p-7',
-                feature.className,
-              )}
+              className="flex flex-col gap-5 p-4 md:gap-8 md:p-7"
             >
               <span
-                className="flex size-11 items-center justify-center rounded-[12px] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3)] transition-transform duration-500 group-hover/tile:scale-110 group-hover/tile:-rotate-6"
+                className="flex size-10 items-center justify-center rounded-[11px] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3)] transition-transform duration-500 group-hover/tile:scale-110 group-hover/tile:-rotate-6 md:size-11"
                 style={{
                   background: `linear-gradient(145deg, color-mix(in oklab, ${feature.color} 70%, white), ${feature.color})`,
                 }}
@@ -112,8 +92,10 @@ export function FeatureGrid() {
                 <Icon className="size-5" />
               </span>
               <div>
-                <h3 className="text-[21px] font-semibold tracking-[-0.02em]">{feature.title}</h3>
-                <p className="text-label-secondary mt-1.5 text-[15px] leading-relaxed">
+                <h3 className="text-[17px] font-semibold tracking-[-0.02em] md:text-[21px]">
+                  {feature.title}
+                </h3>
+                <p className="text-label-secondary mt-1 text-[13px] leading-snug md:mt-1.5 md:text-[15px] md:leading-relaxed">
                   {feature.description}
                 </p>
               </div>

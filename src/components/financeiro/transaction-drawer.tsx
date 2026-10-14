@@ -1,7 +1,7 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
@@ -33,7 +33,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { createTransactionAction, updateTransactionAction } from '@/server/actions/finance-actions';
+import {
+  createTransactionAction,
+  listFinanceCategoriesAction,
+  updateTransactionAction,
+} from '@/server/actions/finance-actions';
 import { transactionInput } from '@/lib/validations/finance';
 import { PAYMENT_METHODS } from '@/lib/validations/finance';
 import type { SerializedTransaction } from '@/lib/serialize';
@@ -52,6 +56,11 @@ export function TransactionDrawer({
   defaultType?: 'INCOME' | 'EXPENSE';
 }) {
   const queryClient = useQueryClient();
+  const { data: categories } = useQuery({
+    queryKey: ['finance-categories'],
+    queryFn: () => listFinanceCategoriesAction(),
+    enabled: open,
+  });
   const isEdit = !!transaction;
 
   const form = useForm({
@@ -67,6 +76,7 @@ export function TransactionDrawer({
       notes: transaction?.notes ?? '',
     },
   });
+  const selectedType = useWatch({ control: form.control, name: 'type' });
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
@@ -183,8 +193,19 @@ export function TransactionDrawer({
                   <FormItem>
                     <FormLabel>Categoria (opcional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Aluguel, Produtos..." {...field} />
+                      <Input
+                        placeholder="Ex: Aluguel, Produtos..."
+                        list="finance-categories"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
+                    {/* Sugestões das categorias da empresa (Financeiro → Ajustes); dá para digitar outra. */}
+                    <datalist id="finance-categories">
+                      {(categories?.[selectedType] ?? []).map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
                     <FormMessage />
                   </FormItem>
                 )}

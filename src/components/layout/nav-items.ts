@@ -7,6 +7,7 @@ import {
   ConciergeBell,
   Package,
   Wallet,
+  Vault,
   Megaphone,
   Gift,
   BarChart3,
@@ -54,6 +55,7 @@ export const navItems: NavItem[] = [
     group: 'Operação',
   },
   { label: 'Estoque', href: '/estoque', icon: Package, color: '#5856d6', group: 'Operação' },
+  { label: 'Caixa', href: '/caixa', icon: Vault, color: '#34aadc', group: 'Operação' },
   {
     label: 'Financeiro',
     href: '/financeiro',

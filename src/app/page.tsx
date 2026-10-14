@@ -3,9 +3,13 @@ import { ArrowRightIcon } from 'lucide-react';
 
 import { LandingHeader } from '@/components/landing/landing-header';
 import { Hero } from '@/components/landing/hero';
-import { ProductPreview } from '@/components/landing/product-preview';
 import { FeatureGrid } from '@/components/landing/feature-grid';
 import { Faq } from '@/components/landing/faq';
+import { Segments } from '@/components/landing/segments';
+import { Highlights } from '@/components/landing/highlights';
+import { HowItWorks } from '@/components/landing/how-it-works';
+import { LandingFooter } from '@/components/landing/landing-footer';
+import { WhatsappButton } from '@/components/landing/whatsapp-button';
 
 export default function Home() {
   return (
@@ -13,8 +17,10 @@ export default function Home() {
       <LandingHeader />
       <main className="flex-1">
         <Hero />
-        <ProductPreview />
+        <Segments />
+        <Highlights />
         <FeatureGrid />
+        <HowItWorks />
         <Faq />
 
         <section className="px-5 pb-24 md:pb-32">
@@ -40,12 +46,8 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-foreground/[0.06] border-t">
-        <div className="text-label-secondary mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-6 text-[13px] sm:flex-row">
-          <span>© {new Date().getFullYear()} Atendafy</span>
-          <span>Gestão completa para negócios baseados em agendamento.</span>
-        </div>
-      </footer>
+      <LandingFooter />
+      <WhatsappButton />
     </div>
   );
 }

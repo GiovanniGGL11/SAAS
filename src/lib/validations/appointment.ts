@@ -95,6 +95,22 @@ export const checkoutAppointmentInput = z.object({
   discount: z.number().min(0).max(99_999).optional(),
   couponCode: z.string().trim().max(40).optional(),
   tip: z.number().min(0).max(99_999).optional(),
+  split: z
+    .array(
+      z.object({
+        paymentMethod: z.enum([
+          'CASH',
+          'PIX',
+          'CREDIT_CARD',
+          'DEBIT_CARD',
+          'BANK_TRANSFER',
+          'OTHER',
+        ]),
+        amount: z.number().positive('Informe o valor de cada forma de pagamento.').max(99_999),
+      }),
+    )
+    .max(3)
+    .optional(),
 });
 
 export const updateAppointmentDetailsInput = z.object({
