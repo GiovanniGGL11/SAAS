@@ -21,7 +21,7 @@ export default async function ConfiguracoesPage() {
     <div className="flex w-full flex-col gap-8">
       <PageHeader
         title="Configurações"
-        description="Dados da empresa, aparência, organização e membros da equipe."
+        description="Agendamento online, área do cliente, lembretes, fuso horário e equipe."
       />
 
       <OnlineBookingCard

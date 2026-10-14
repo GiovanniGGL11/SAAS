@@ -5,10 +5,12 @@ import { animate, useInView, useReducedMotion } from 'motion/react';
 
 import { formatCurrencyBRL } from '@/lib/serialize';
 
-export type NumberFormat = 'currency' | 'integer';
+export type NumberFormat = 'currency' | 'integer' | 'percent';
 
 function format(value: number, kind: NumberFormat): string {
-  return kind === 'currency' ? formatCurrencyBRL(value) : Math.round(value).toLocaleString('pt-BR');
+  if (kind === 'currency') return formatCurrencyBRL(value);
+  if (kind === 'percent') return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+  return Math.round(value).toLocaleString('pt-BR');
 }
 
 /** Counts up from zero to `value` the first time it scrolls into view. */

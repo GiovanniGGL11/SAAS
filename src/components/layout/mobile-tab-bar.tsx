@@ -3,11 +3,13 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 import {
   CalendarDaysIcon,
   LayoutGridIcon,
   MoreHorizontalIcon,
   UsersIcon,
+  VaultIcon,
   WalletIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -16,12 +18,19 @@ import { cn } from '@/lib/utils';
 import { NavList } from '@/components/layout/nav-list';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 
-const TABS: { label: string; href: string; icon: LucideIcon }[] = [
+type Tab = { label: string; href: string; icon: LucideIcon };
+
+const COMMON_TABS: Tab[] = [
   { label: 'Início', href: '/dashboard', icon: LayoutGridIcon },
   { label: 'Agenda', href: '/agenda', icon: CalendarDaysIcon },
   { label: 'Clientes', href: '/clientes', icon: UsersIcon },
+];
+// Financeiro é só do admin; a equipe (recepção) usa o Caixa no lugar.
+const ADMIN_TABS: Tab[] = [
+  ...COMMON_TABS,
   { label: 'Financeiro', href: '/financeiro', icon: WalletIcon },
 ];
+const STAFF_TABS: Tab[] = [...COMMON_TABS, { label: 'Caixa', href: '/caixa', icon: VaultIcon }];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -31,6 +40,7 @@ function isActive(pathname: string, href: string) {
 export function MobileTabBar() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = React.useState(false);
+  const TABS = useAuth().orgRole === 'org:admin' ? ADMIN_TABS : STAFF_TABS;
   const inTabs = TABS.some((tab) => isActive(pathname, tab.href));
 
   return (

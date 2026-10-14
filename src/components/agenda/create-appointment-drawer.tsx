@@ -462,8 +462,9 @@ export function CreateAppointmentDrawer({
           >
             {mutation.isPending ? 'Criando...' : 'Criar agendamento'}
           </Button>
+          {/* "Fechar", não "Cancelar": na agenda, cancelar é cancelar o agendamento. */}
           <DrawerClose asChild>
-            <Button variant="outline">Cancelar</Button>
+            <Button variant="outline">Fechar</Button>
           </DrawerClose>
         </DrawerFooter>
       </DrawerContent>

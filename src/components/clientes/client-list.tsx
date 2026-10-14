@@ -36,9 +36,26 @@ import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { listClientsAction, setClientActiveAction } from '@/server/actions/client-actions';
 import type { Client } from '@/generated/prisma/client';
 
-type Filter = 'active' | 'vip' | 'archived' | 'all';
+export type ClientFilter = 'active' | 'vip' | 'lapsed' | 'birthdays' | 'new' | 'archived' | 'all';
 
-export function ClientList({ initialClients }: { initialClients: Client[] }) {
+const FILTER_HINTS: Partial<Record<ClientFilter, string>> = {
+  lapsed: 'Ninguém sumido: todos os clientes vieram nos últimos 60 dias ou já têm horário marcado.',
+  birthdays: 'Nenhum aniversariante este mês (ou faltam datas de nascimento no cadastro).',
+  new: 'Nenhum cliente cadastrado nos últimos 30 dias.',
+};
+
+export function ClientList({
+  initialClients,
+  lapsedIds,
+  initialFilter = 'active',
+  timezone,
+}: {
+  initialClients: Client[];
+  /** Ativos que não voltam há mais de 60 dias e não têm nada marcado. */
+  lapsedIds: string[];
+  initialFilter?: ClientFilter;
+  timezone: string;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -46,7 +63,19 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
   // Importar é de admin; a equipe só cadastra um por vez.
   const isAdmin = useAuth().orgRole === 'org:admin';
   const [search, setSearch] = React.useState('');
-  const [filter, setFilter] = React.useState<Filter>('active');
+  const [filter, setFilter] = React.useState<ClientFilter>(initialFilter);
+  const lapsedSet = React.useMemo(() => new Set(lapsedIds), [lapsedIds]);
+  // Mês atual no fuso da empresa e o corte de "novo" (cadastrado nos últimos 30 dias).
+  const [{ month, newSince }] = React.useState(() => ({
+    month: Number(
+      new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: timezone }).format(new Date()),
+    ),
+    newSince: Date.now() - 30 * 86_400_000,
+  }));
+  // Aniversário gravado como meia-noite UTC: o mês certo é o UTC.
+  const isBirthdayMonth = (c: Client) =>
+    !!c.birthDate && new Date(c.birthDate).getUTCMonth() + 1 === month;
+  const isNew = (c: Client) => new Date(c.createdAt).getTime() >= newSince;
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -71,6 +100,9 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
     if (filter === 'active' && !client.active) return false;
     if (filter === 'archived' && client.active) return false;
     if (filter === 'vip' && !client.isVip) return false;
+    if (filter === 'lapsed' && !lapsedSet.has(client.id)) return false;
+    if (filter === 'birthdays' && (!client.active || !isBirthdayMonth(client))) return false;
+    if (filter === 'new' && !isNew(client)) return false;
     return matchesSearch(search, client.name, client.phone, client.email);
   });
 
@@ -78,6 +110,9 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
     active: clients.filter((c) => c.active).length,
     vip: clients.filter((c) => c.isVip).length,
     archived: clients.filter((c) => !c.active).length,
+    lapsed: lapsedIds.length,
+    birthdays: clients.filter((c) => c.active && isBirthdayMonth(c)).length,
+    new: clients.filter(isNew).length,
   };
 
   return (
@@ -112,6 +147,12 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
           options={[
             { value: 'active', label: 'Ativos' },
             { value: 'vip', label: `VIP${counts.vip ? ` · ${counts.vip}` : ''}` },
+            { value: 'lapsed', label: `Sumidos${counts.lapsed ? ` · ${counts.lapsed}` : ''}` },
+            {
+              value: 'birthdays',
+              label: `Aniversariantes${counts.birthdays ? ` · ${counts.birthdays}` : ''}`,
+            },
+            { value: 'new', label: `Novos${counts.new ? ` · ${counts.new}` : ''}` },
             { value: 'archived', label: 'Arquivados' },
             { value: 'all', label: 'Todos' },
           ]}
@@ -126,7 +167,7 @@ export function ClientList({ initialClients }: { initialClients: Client[] }) {
             description={
               clients.length === 0
                 ? 'Cadastre seu primeiro cliente para começar a agendar.'
-                : 'Ajuste a busca ou o filtro.'
+                : (FILTER_HINTS[filter] ?? 'Ajuste a busca ou o filtro.')
             }
           />
         ) : (

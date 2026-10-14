@@ -1,9 +1,9 @@
 import type { AppointmentStatus } from '@/generated/prisma/client';
 
 export const STATUS_LABELS: Record<AppointmentStatus, string> = {
-  SCHEDULED: 'Agendado',
+  SCHEDULED: 'A confirmar',
   CONFIRMED: 'Confirmado',
-  IN_PROGRESS: 'Em andamento',
+  IN_PROGRESS: 'Em atendimento',
   DONE: 'Concluído',
   CANCELED: 'Cancelado',
   NO_SHOW: 'Faltou',

@@ -154,7 +154,7 @@ export function ReportView({ initialData }: { initialData: ReportData }) {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Relatórios"
-        description="Detalhamento por profissional, serviço e dia da semana."
+        description="Quem mais fatura, quais serviços vendem mais, em que dias a casa enche e a comissão de cada profissional."
         actions={
           <Button
             variant="outline"
