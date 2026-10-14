@@ -203,3 +203,12 @@
     color 0.4s ease,
     fill 0.4s ease !important;
 }
+
+/* Pontilhado do hero da landing. */
+.hero-dots {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--foreground) 14%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+}

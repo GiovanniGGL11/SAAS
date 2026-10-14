@@ -3,7 +3,6 @@ import { ArrowRightIcon } from 'lucide-react';
 
 import { LandingHeader } from '@/components/landing/landing-header';
 import { Hero } from '@/components/landing/hero';
-import { ProductPreview } from '@/components/landing/product-preview';
 import { FeatureGrid } from '@/components/landing/feature-grid';
 import { Faq } from '@/components/landing/faq';
 import { Segments } from '@/components/landing/segments';
@@ -18,7 +17,6 @@ export default function Home() {
       <LandingHeader />
       <main className="flex-1">
         <Hero />
-        <ProductPreview />
         <Segments />
         <Highlights />
         <FeatureGrid />
