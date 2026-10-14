@@ -64,8 +64,8 @@ const FEATURES: Feature[] = [
   {
     icon: BarChart3Icon,
     color: '#007aff',
-    title: 'Relatórios',
-    description: 'Faturamento por profissional, serviço e dia da semana, faltas e cancelamentos.',
+    title: 'Painel e relatórios',
+    description: 'Ocupação, retorno de clientes, meta do mês, comissões e faturamento por serviço.',
   },
 ];
 

@@ -44,7 +44,7 @@ export function Hero() {
               <span className="bg-system-blue rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
                 Novo
               </span>
-              Caixa do dia e resultado do mês
+              Painel de gestão com meta do mês
               <ArrowRightIcon className="text-label-secondary size-3.5" />
             </a>
           </motion.div>

@@ -13,11 +13,15 @@ const QUESTIONS = [
   },
   {
     q: 'A equipe vê o financeiro?',
-    a: 'Não. Financeiro, relatórios e configurações são só do dono e de quem você tornar administrador. A equipe usa a agenda e os clientes, e cada profissional pode abrir a agenda já na própria coluna.',
+    a: 'Não. Financeiro, relatórios, metas e configurações são só do dono e de quem você tornar administrador. A equipe usa a agenda, os clientes e o caixa da recepção; faturamento, metas e relatórios ficam com você. Cada profissional pode abrir a agenda já na própria coluna.',
   },
   {
     q: 'Dá para controlar o caixa e as taxas da maquininha?',
     a: 'Sim. Você abre o caixa com o troco, registra sangrias e confere a gaveta no fechamento. Cadastrando a taxa e o prazo de cada forma de pagamento, o financeiro mostra o valor líquido e quando o dinheiro cai na conta.',
+  },
+  {
+    q: 'Como eu sei se o negócio está indo bem?',
+    a: 'O painel mostra o dia de hoje, o que precisa de atenção (horários sem confirmação, contas vencendo, clientes sumidos) e os indicadores que o mercado acompanha: ocupação da equipe, clientes que voltaram, faltas, ticket médio e a meta do mês com projeção.',
   },
   {
     q: 'Meus dados ficam seguros?',

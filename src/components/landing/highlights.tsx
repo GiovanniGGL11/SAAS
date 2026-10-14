@@ -56,6 +56,16 @@ const HIGHLIGHTS: Highlight[] = [
     ],
     visual: <StatementVisual />,
   },
+  {
+    eyebrow: 'Painel de gestão',
+    title: 'Os números que os melhores salões acompanham.',
+    bullets: [
+      'Ocupação da equipe, clientes que voltaram, faltas e ticket médio, comparados ao período anterior',
+      'Meta do mês com projeção: você sabe hoje se vai bater',
+      'Lista de quem sumiu, com a mensagem pronta para chamar de volta',
+    ],
+    visual: <DashboardVisual />,
+  },
 ];
 
 export function Highlights() {
@@ -220,6 +230,50 @@ function CheckoutVisual() {
         <span className="font-semibold tabular-nums">R$ 412,00</span>
       </div>
     </Card>
+  );
+}
+
+function DashboardVisual() {
+  const kpis: [string, string, string, boolean][] = [
+    ['Ocupação da equipe', '68%', '+4 p.p.', true],
+    ['Clientes que voltaram', '72%', '+6 p.p.', true],
+    ['Ticket médio', 'R$ 94', '+8%', true],
+    ['Faltas e cancelamentos', '3,1%', '−2 p.p.', true],
+  ];
+  return (
+    <div className="flex w-full max-w-[360px] flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2.5">
+        {kpis.map(([label, value, delta, good]) => (
+          <Card key={label} className="rounded-[18px] p-3.5">
+            <p className="text-label-secondary text-[11px] leading-tight">{label}</p>
+            <p className="mt-1.5 text-[22px] leading-none font-semibold tracking-tight tabular-nums">
+              {value}
+            </p>
+            <span
+              className={cn(
+                'mt-2 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                good ? 'bg-system-green/15 text-system-green' : 'bg-system-red/12 text-destructive',
+              )}
+            >
+              {delta}
+            </span>
+          </Card>
+        ))}
+      </div>
+      <Card className="rounded-[18px] p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-label-secondary text-[12px]">Meta do mês</p>
+          <p className="text-system-green text-[12px] font-semibold">No ritmo para bater</p>
+        </div>
+        <p className="mt-1 text-[17px] font-semibold tabular-nums">
+          R$ 14.200{' '}
+          <span className="text-label-secondary text-[12px] font-normal">de R$ 20.000</span>
+        </p>
+        <div className="bg-foreground/[0.07] mt-2 h-2 overflow-hidden rounded-full">
+          <div className="bg-system-green h-full w-[71%] rounded-full" />
+        </div>
+      </Card>
+    </div>
   );
 }
 
