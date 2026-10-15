@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CopyIcon, MegaphoneIcon, PlusIcon } from 'lucide-react';
+import { CopyIcon, TicketPercentIcon, PlusIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
@@ -102,7 +102,7 @@ export function CouponList({ initialCoupons }: { initialCoupons: SerializedCoupo
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Campanhas"
+        title="Cupons"
         description={`${validCount} ${validCount === 1 ? 'cupom válido' : 'cupons válidos'} · ${totalUses} ${totalUses === 1 ? 'uso' : 'usos'} no total.`}
         actions={
           <Button onClick={openCreate}>
@@ -128,7 +128,7 @@ export function CouponList({ initialCoupons }: { initialCoupons: SerializedCoupo
       {filtered.length === 0 ? (
         <Surface>
           <EmptyState
-            icon={MegaphoneIcon}
+            icon={TicketPercentIcon}
             title={coupons.length === 0 ? 'Nenhum cupom cadastrado' : 'Nenhum cupom encontrado'}
             description={
               coupons.length === 0

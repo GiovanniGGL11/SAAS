@@ -3,6 +3,8 @@ import { listAllCoupons } from '@/server/data/coupons';
 import { serializeCoupon } from '@/lib/serialize';
 import { CouponList } from '@/components/campanhas/coupon-list';
 
+export const metadata = { title: 'Cupons' };
+
 export default async function CampanhasPage() {
   const { company } = await requireAdminPage();
   const coupons = await listAllCoupons(company.id);
