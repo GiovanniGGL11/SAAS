@@ -35,6 +35,7 @@ export default async function ConfiguracoesPage() {
 
       <OnlineBookingCard
         initialEnabled={bookingEnabled}
+        initialSlotStep={company.bookingSlotStep}
         withoutSchedule={withoutSchedule}
         url={`${baseUrl}/agendar/${company.slug}`}
       />

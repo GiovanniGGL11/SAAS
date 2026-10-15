@@ -8,15 +8,36 @@ import { CopyIcon, ExternalLinkIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { unwrapResult } from '@/lib/action-result';
-import { setOnlineBookingAction } from '@/server/actions/public-booking-actions';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import {
+  setBookingSlotStepAction,
+  setOnlineBookingAction,
+} from '@/server/actions/public-booking-actions';
+
+const STEP_OPTIONS = [
+  { value: '15', label: '15 min' },
+  { value: '30', label: '30 min' },
+  { value: '60', label: '1 hora' },
+  { value: '0', label: 'Duração do serviço' },
+];
+
+const STEP_HINT: Record<string, string> = {
+  '15': 'Um serviço de 30 min no expediente das 9h oferece 09:00, 09:15, 09:30…',
+  '30': 'Oferece 09:00, 09:30, 10:00… a partir do início do expediente.',
+  '60': 'Oferece 09:00, 10:00, 11:00… a partir do início do expediente.',
+  '0': 'Um serviço de 30 min oferece 09:00, 09:30…; um de 1h oferece 09:00, 10:00…',
+};
 
 /** Liga o link público onde o cliente marca sozinho, e mostra o link para divulgar. */
 export function OnlineBookingCard({
   initialEnabled,
+  initialSlotStep,
   withoutSchedule,
   url,
 }: {
   initialEnabled: boolean;
+  /** De quantos em quantos minutos o link oferece horários; 0 = pela duração do serviço. */
+  initialSlotStep: number;
   /** Profissionais ativos sem expediente: ficam de fora do link até o horário ser definido. */
   withoutSchedule: string[];
   url: string;
@@ -29,6 +50,18 @@ export function OnlineBookingCard({
       toast.success(next ? 'Agendamento online ligado.' : 'Agendamento online desligado.');
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível salvar.'),
+  });
+
+  const [slotStep, setSlotStep] = React.useState(String(initialSlotStep));
+  const stepMutation = useMutation({
+    mutationFn: (step: string) =>
+      setBookingSlotStepAction({ step: Number(step) }).then(unwrapResult),
+    onSuccess: () => toast.success('Intervalo entre horários salvo.'),
+    onError: (error: Error, _step, previous) => {
+      toast.error(error.message || 'Não foi possível salvar.');
+      if (previous) setSlotStep(previous);
+    },
+    onMutate: () => slotStep,
   });
 
   return (
@@ -59,6 +92,20 @@ export function OnlineBookingCard({
           .
         </p>
       )}
+      <div className="flex flex-col gap-2">
+        <span className="text-[13px] font-medium">Oferecer horários a cada</span>
+        <SegmentedControl
+          value={slotStep}
+          onValueChange={(next: string) => {
+            setSlotStep(next);
+            stepMutation.mutate(next);
+          }}
+          options={STEP_OPTIONS}
+        />
+        <p className="text-label-secondary text-[12px]">
+          {STEP_HINT[slotStep]} Sempre dentro do expediente de cada profissional.
+        </p>
+      </div>
       {enabled && (
         <div className="bg-background ring-foreground/[0.06] flex flex-wrap items-center gap-2 rounded-xl p-3 ring-1">
           <code className="min-w-0 flex-1 truncate text-[13px]">{url}</code>

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { PlusIcon, XIcon } from 'lucide-react';
+import { CheckIcon, Loader2Icon, PlusIcon, XIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,9 +26,26 @@ function emptyWeek(): Week {
   return { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
 }
 
+function toPayload(professionalId: string, week: Week) {
+  return {
+    professionalId,
+    availabilities: Object.entries(week).flatMap(([weekday, intervals]) =>
+      intervals.map((i) => ({ weekday: Number(weekday), ...i })),
+    ),
+  };
+}
+
+function isInvalid(week: Week) {
+  return Object.values(week).some((intervals) => intervals.some((i) => i.endTime <= i.startTime));
+}
+
 /**
- * O expediente da semana: é o que pinta de cinza a agenda fora do horário e o que o "Próximo
- * horário livre" respeita. Até dois intervalos por dia, para o almoço caber no meio.
+ * O expediente da semana: é o que pinta de cinza a agenda fora do horário e o que o link público
+ * e o "Próximo horário livre" respeitam. Até dois intervalos por dia, para o almoço caber no meio.
+ *
+ * Salva sozinho a cada mudança. Antes havia um botão "Salvar expediente" separado do "Salvar" do
+ * painel: quem mudava a sexta para 9h–12h e clicava só no "Salvar" de baixo perdia a mudança, e o
+ * link público seguia oferecendo a tarde.
  */
 export function AvailabilityEditor({ professionalId }: { professionalId: string }) {
   const queryClient = useQueryClient();
@@ -51,17 +68,9 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
   }
 
   const save = useMutation({
-    mutationFn: async () =>
-      unwrapResult(
-        await setProfessionalAvailabilityAction({
-          professionalId,
-          availabilities: Object.entries(week ?? {}).flatMap(([weekday, intervals]) =>
-            intervals.map((i) => ({ weekday: Number(weekday), ...i })),
-          ),
-        }),
-      ),
+    mutationFn: async (snapshot: Week) =>
+      unwrapResult(await setProfessionalAvailabilityAction(toPayload(professionalId, snapshot))),
     onSuccess: () => {
-      toast.success('Expediente salvo.');
       queryClient.invalidateQueries({ queryKey: ['availability', professionalId] });
       queryClient.invalidateQueries({ queryKey: ['schedule-context'] });
     },
@@ -69,13 +78,35 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
       toast.error(error.message || 'Não foi possível salvar o expediente.'),
   });
 
+  // Mudança ainda não enviada (espera a pessoa parar de digitar). Fechar o painel antes do envio
+  // não perde nada: a desmontagem envia o que ficou pendente.
+  const pending = React.useRef<Week | null>(null);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      if (pending.current && !isInvalid(pending.current)) {
+        void setProfessionalAvailabilityAction(toPayload(professionalId, pending.current));
+      }
+    },
+    [professionalId],
+  );
+
   if (!week) return <Skeleton className="h-64 w-full rounded-2xl" />;
 
+  const change = (next: Week) => {
+    setWeek(next);
+    pending.current = next;
+    if (timer.current) clearTimeout(timer.current);
+    if (isInvalid(next)) return;
+    timer.current = setTimeout(() => {
+      pending.current = null;
+      save.mutate(next);
+    }, 700);
+  };
   const update = (weekday: number, intervals: Interval[]) =>
-    setWeek({ ...week, [weekday]: intervals });
-  const invalid = Object.values(week).some((intervals) =>
-    intervals.some((i) => i.endTime <= i.startTime),
-  );
+    change({ ...week, [weekday]: intervals });
+  const invalid = isInvalid(week);
 
   return (
     <section className="flex flex-col gap-3">
@@ -90,7 +121,7 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
           size="sm"
           onClick={() => {
             const monday = week[1];
-            setWeek({ ...week, 2: [...monday], 3: [...monday], 4: [...monday], 5: [...monday] });
+            change({ ...week, 2: [...monday], 3: [...monday], 4: [...monday], 5: [...monday] });
           }}
         >
           Copiar segunda para ter–sex
@@ -190,18 +221,26 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
         })}
       </div>
 
-      {invalid && (
-        <p className="text-destructive text-xs">Em algum dia o fim está antes do início.</p>
-      )}
-      <Button
-        type="button"
-        variant="outline"
-        className="self-start"
-        disabled={invalid || save.isPending}
-        onClick={() => save.mutate()}
-      >
-        {save.isPending ? 'Salvando...' : 'Salvar expediente'}
-      </Button>
+      <p aria-live="polite" className="flex items-center gap-1.5 text-xs">
+        {invalid ? (
+          <span className="text-destructive">
+            Em algum dia o fim está antes do início — corrija para salvar.
+          </span>
+        ) : save.isPending ? (
+          <span className="text-label-secondary flex items-center gap-1.5">
+            <Loader2Icon className="size-3.5 animate-spin" /> Salvando expediente…
+          </span>
+        ) : save.isError ? (
+          <span className="text-destructive">Não foi salvo. Altere de novo para tentar.</span>
+        ) : save.isSuccess ? (
+          <span className="text-system-green flex items-center gap-1">
+            <CheckIcon className="size-3.5" /> Expediente salvo — o link público já usa estes
+            horários.
+          </span>
+        ) : (
+          <span className="text-label-secondary">As mudanças são salvas automaticamente.</span>
+        )}
+      </p>
     </section>
   );
 }

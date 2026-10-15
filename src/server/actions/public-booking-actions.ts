@@ -19,6 +19,7 @@ import {
   getAppointmentForToken,
   getBookableCompany,
   BOOKING_DAYS_AHEAD,
+  SLOT_STEP_OPTIONS,
   SlotUnavailableError,
   listAvailabilityRange,
   setOnlineBookingEnabled,
@@ -222,5 +223,22 @@ export async function setOnlineBookingAction(input: unknown) {
     await setOnlineBookingEnabled(company.clerkOrgId, enabled);
     revalidatePath('/configuracoes');
     return { enabled };
+  });
+}
+
+/** Configurações → Agendamento online: de quantos em quantos minutos o link oferece horários. */
+export async function setBookingSlotStepAction(input: unknown) {
+  return toActionResult(async () => {
+    const { step } = z
+      .object({
+        step: z.number().refine((v) => (SLOT_STEP_OPTIONS as readonly number[]).includes(v), {
+          message: 'Escolha um intervalo válido.',
+        }),
+      })
+      .parse(input);
+    const { company } = await requireCompanyAdmin();
+    await prisma.company.update({ where: { id: company.id }, data: { bookingSlotStep: step } });
+    revalidatePath('/configuracoes');
+    return { step };
   });
 }

@@ -19,6 +19,8 @@ model Company {
   remindersByEmail   Boolean   @default(false)
   // Empresa de demonstração (dados fictícios): fica fora do link público e pode ser excluída.
   isDemo             Boolean   @default(false)
+  // Link público: de quantos em quantos minutos oferecer horários (15, 30, 60). 0 = pela duração do serviço.
+  bookingSlotStep    Int       @default(15)
   // Identidade na página pública de agendamento (/agendar/[slug]). A logo vem da organização no Clerk.
   zipCode            String?
   street             String?

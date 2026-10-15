@@ -17,7 +17,14 @@ import { createAppointment } from '@/server/data/appointments';
 const ACTIVE = ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE'] as const;
 /** Antecedência mínima: ninguém marca para daqui a 5 minutos sem o salão saber. */
 const LEAD_MINUTES = 60;
-const STEP_MINUTES = 15;
+/** Intervalos que a empresa pode escolher; 0 = pela duração do serviço. */
+export const SLOT_STEP_OPTIONS = [15, 30, 60, 0] as const;
+const DEFAULT_SLOT_STEP = 15;
+
+export function slotStepFor(setting: number, durationMinutes: number): number {
+  if (setting === 0) return Math.max(5, durationMinutes);
+  return (SLOT_STEP_OPTIONS as readonly number[]).includes(setting) ? setting : DEFAULT_SLOT_STEP;
+}
 export const BOOKING_DAYS_AHEAD = 21;
 
 export async function isOnlineBookingEnabled(clerkOrgId: string): Promise<boolean> {
@@ -129,12 +136,21 @@ export async function listAvailabilityRange(params: {
   /** Remarcação: o próprio horário não conta como ocupado, e a duração é a do agendamento. */
   reschedule?: { appointmentId: string; durationMinutes: number };
 }): Promise<Map<string, PublicSlot[]>> {
-  const found = await prisma.service.findFirst({
-    where: { id: params.serviceId, companyId: params.companyId, active: true },
-    select: { durationMinutes: true },
-  });
+  const [found, company] = await Promise.all([
+    prisma.service.findFirst({
+      where: { id: params.serviceId, companyId: params.companyId, active: true },
+      select: { durationMinutes: true },
+    }),
+    prisma.company.findFirst({
+      where: { id: params.companyId },
+      select: { bookingSlotStep: true },
+    }),
+  ]);
   if (!found) throw new UserError('Serviço indisponível.');
   const durationMinutes = params.reschedule?.durationMinutes ?? found.durationMinutes;
+  // De quantos em quantos minutos oferecer horário (Configurações → Agendamento online);
+  // 0 = pela duração do serviço (30 min → 09:00, 09:30…; 1h → 09:00, 10:00…).
+  const stepMinutes = slotStepFor(company?.bookingSlotStep ?? DEFAULT_SLOT_STEP, durationMinutes);
 
   const professionals = await prisma.professional.findMany({
     where: {
@@ -186,7 +202,7 @@ export async function listAvailabilityRange(params: {
         for (
           let m = window.startMinutes;
           m + durationMinutes <= window.endMinutes;
-          m += STEP_MINUTES
+          m += stepMinutes
         ) {
           const startAt = calendarDateToUtc(date, m, params.timezone);
           if (startAt.getTime() < earliest || byTime.has(startAt.getTime())) continue;

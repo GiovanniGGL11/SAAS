@@ -100,6 +100,53 @@ describe('agendamento público: regras do novo fluxo', () => {
     expect(tuesday[0]?.label).toBe('02:00');
   });
 
+  it('oferece horários no intervalo configurado pela empresa', async () => {
+    const labels = async () =>
+      (
+        await listAvailableSlots({
+          companyId: fixture.company.id,
+          timezone: tz,
+          serviceId: fixture.service.id,
+          date: monday,
+        })
+      ).map((s) => s.label);
+    const setStep = (bookingSlotStep: number) =>
+      prisma.company.update({ where: { id: fixture.company.id }, data: { bookingSlotStep } });
+
+    // Padrão: 15 em 15 (expediente 09h–12h e 14h–18h, serviço de 30 min).
+    expect((await labels()).slice(0, 3)).toEqual(['09:00', '09:15', '09:30']);
+
+    await setStep(30);
+    expect(await labels()).toEqual([
+      '09:00',
+      '09:30',
+      '10:00',
+      '10:30',
+      '11:00',
+      '11:30',
+      '14:00',
+      '14:30',
+      '15:00',
+      '15:30',
+      '16:00',
+      '16:30',
+      '17:00',
+      '17:30',
+    ]);
+
+    await setStep(60);
+    expect(await labels()).toEqual(['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00']);
+
+    // Pela duração: serviço de 45 min → 09:00, 09:45, 10:30, 11:15 (termina 12:00).
+    await setStep(0);
+    await prisma.service.update({
+      where: { id: fixture.service.id },
+      data: { durationMinutes: 45 },
+    });
+    expect((await labels()).slice(0, 4)).toEqual(['09:00', '09:45', '10:30', '11:15']);
+    expect(await labels()).not.toContain('12:00');
+  });
+
   it('repetir o mesmo pedido (duplo clique, nova tentativa) devolve a mesma reserva', async () => {
     const first = await book(at(10));
     const again = await book(at(10));
