@@ -43,10 +43,26 @@ export async function savePaymentFees(companyId: string, fees: PaymentFee[]): Pr
 }
 
 /** Categorias que o próprio sistema usa nos lançamentos automáticos: não podem ser removidas. */
-export const SYSTEM_CATEGORIES = ['Atendimento', 'Gorjeta', 'Produto'];
+export const SYSTEM_CATEGORIES = [
+  'Atendimento',
+  'Gorjeta',
+  'Produto',
+  'Pacotes',
+  'Assinaturas',
+  'Vale-presente',
+  'Comissões',
+];
 
 const DEFAULT_CATEGORIES: Record<TransactionType, string[]> = {
-  INCOME: ['Atendimento', 'Gorjeta', 'Produto', 'Outras receitas'],
+  INCOME: [
+    'Atendimento',
+    'Gorjeta',
+    'Produto',
+    'Pacotes',
+    'Assinaturas',
+    'Vale-presente',
+    'Outras receitas',
+  ],
   EXPENSE: [
     'Aluguel',
     'Energia',
@@ -72,6 +88,25 @@ export async function listFinanceCategories(companyId: string): Promise<FinanceC
     orderBy: { name: 'asc' },
     select: { type: true, name: true },
   });
+  // As categorias que o sistema usa sozinho sempre existem (empresas antigas não tinham as novas).
+  const missingSystem = SYSTEM_CATEGORIES.filter(
+    (name) => rows.length > 0 && !rows.some((r) => r.name === name),
+  );
+  if (missingSystem.length) {
+    await prisma.financeCategory.createMany({
+      data: missingSystem.map((name) => ({
+        companyId,
+        type: name === 'Comissões' ? ('EXPENSE' as const) : ('INCOME' as const),
+        name,
+      })),
+      skipDuplicates: true,
+    });
+    rows = await prisma.financeCategory.findMany({
+      where: { companyId },
+      orderBy: { name: 'asc' },
+      select: { type: true, name: true },
+    });
+  }
   if (rows.length === 0) {
     await prisma.financeCategory.createMany({
       data: (['INCOME', 'EXPENSE'] as const).flatMap((type) =>

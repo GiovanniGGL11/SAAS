@@ -4,6 +4,7 @@ import {
   CalendarClockIcon,
   CheckCircle2Icon,
   ChevronRightIcon,
+  HandCoinsIcon,
   PackageIcon,
   ReceiptIcon,
   UserRoundXIcon,
@@ -46,6 +47,14 @@ export function AttentionCard({ overview, isAdmin }: { overview: Overview; isAdm
         color: '#ff3b30',
         text: `${overview.billsDue.count} ${overview.billsDue.count === 1 ? 'conta a pagar vence' : 'contas a pagar vencem'} em até 7 dias · ${formatCurrencyBRL(overview.billsDue.amount)}`,
         action: 'Ver contas',
+        href: '/financeiro',
+      },
+    isAdmin &&
+      overview.openTab.amount > 0 && {
+        icon: HandCoinsIcon,
+        color: '#ff9500',
+        text: `${formatCurrencyBRL(overview.openTab.amount)} a receber de ${overview.openTab.clients} ${overview.openTab.clients === 1 ? 'cliente' : 'clientes'} (fiado e mensalidades)`,
+        action: 'Ver',
         href: '/financeiro',
       },
     overview.birthdays.length > 0 && {

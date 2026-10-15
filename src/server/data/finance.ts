@@ -253,6 +253,8 @@ export async function getCashFlowSummary(
 export type IncomePayment = {
   amount: Prisma.Decimal | number;
   paymentMethod: PaymentMethod | null;
+  /** Fiado: fica pendente, ligado ao cliente, até ser recebido. */
+  pending?: boolean;
 };
 
 /** O que a comanda define na cobrança; sem ela, vale o preço do atendimento sem forma de pagamento. */
@@ -283,19 +285,24 @@ export async function createIncomeFromAppointment(
     : [{ amount: appointment.priceSnapshot, paymentMethod: null }];
   const paidAt = new Date();
   for (const [index, payment] of payments.entries()) {
+    const status = payment.pending ? ('PENDING' as const) : ('PAID' as const);
     const data = {
-      status: 'PAID' as const,
+      status,
       amount: payment.amount,
-      paymentMethod: payment.paymentMethod,
+      paymentMethod: payment.pending ? null : payment.paymentMethod,
+      clientId: appointment.clientId,
       // O cupom fica anotado na primeira parte — é de lá que o estorno o lê.
-      notes: index === 0 ? (checkout.notes ?? null) : null,
-      paidAt,
+      notes:
+        index === 0
+          ? [checkout.notes, payment.pending ? 'Fiado' : null].filter(Boolean).join(' · ') || null
+          : null,
+      paidAt: payment.pending ? null : paidAt,
       ...(await feeFields(db, companyId, {
         type: 'INCOME',
-        status: 'PAID',
+        status,
         amount: payment.amount,
         paymentMethod: payment.paymentMethod,
-        paidAt,
+        paidAt: payment.pending ? null : paidAt,
       })),
     };
     const reuseId = reusable[index];
@@ -338,6 +345,24 @@ export async function reverseIncomeFromAppointment(
       data: { usedCount: { decrement: 1 } },
     });
   }
+  // Sessão de pacote e saldo de vale-presente usados nesta comanda voltam para o cliente.
+  const credits = await db.appointmentCredit.findMany({ where: { appointmentId } });
+  for (const credit of credits) {
+    if (credit.clientPackageId) {
+      await db.clientPackage.updateMany({
+        where: { id: credit.clientPackageId, sessionsUsed: { gt: 0 } },
+        data: { sessionsUsed: { decrement: 1 } },
+      });
+    }
+    if (credit.giftCardId) {
+      await db.giftCard.updateMany({
+        where: { id: credit.giftCardId },
+        data: { balance: { increment: credit.amount } },
+      });
+    }
+  }
+  if (credits.length) await db.appointmentCredit.deleteMany({ where: { appointmentId } });
+
   // Serviço e gorjeta saem juntos; produto vendido continua (a mercadoria saiu).
   await db.transaction.updateMany({
     where: {

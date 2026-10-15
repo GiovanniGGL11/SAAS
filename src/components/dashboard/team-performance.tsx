@@ -19,7 +19,7 @@ export function TeamPerformance({
       <div className="flex items-end justify-between gap-2">
         <TileEyebrow>Desempenho da equipe</TileEyebrow>
         <Link
-          href="/relatorios"
+          href="/financeiro?aba=comissoes"
           className="text-system-blue text-[13px] font-medium hover:underline"
         >
           Comissões e detalhes

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
-import { PageHeader, Surface } from '@/components/layout/page';
+import { Surface } from '@/components/layout/page';
 import { ListToolbar, SearchField, matchesSearch } from '@/components/layout/list-controls';
 import { EmptyState } from '@/components/ui/empty-state';
 import { CouponDrawer } from '@/components/campanhas/coupon-drawer';
@@ -101,16 +101,15 @@ export function CouponList({ initialCoupons }: { initialCoupons: SerializedCoupo
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Cupons"
-        description={`${validCount} ${validCount === 1 ? 'cupom válido' : 'cupons válidos'} · ${totalUses} ${totalUses === 1 ? 'uso' : 'usos'} no total.`}
-        actions={
-          <Button onClick={openCreate}>
-            <PlusIcon className="size-4" />
-            Novo cupom
-          </Button>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-label-secondary text-[14px]">
+          {`${validCount} ${validCount === 1 ? 'cupom válido' : 'cupons válidos'} · ${totalUses} ${totalUses === 1 ? 'uso' : 'usos'} no total.`}
+        </p>
+        <Button onClick={openCreate}>
+          <PlusIcon className="size-4" />
+          Novo cupom
+        </Button>
+      </div>
 
       <ListToolbar>
         <SearchField value={search} onChange={setSearch} placeholder="Buscar cupom" />

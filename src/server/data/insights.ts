@@ -324,6 +324,7 @@ export async function getTodayOverview(companyId: string, timezone: string) {
     withHistory,
     lowStock,
     birthdays,
+    tab,
   ] = await Promise.all([
     prisma.appointment.groupBy({
       by: ['status'],
@@ -356,6 +357,12 @@ export async function getTodayOverview(companyId: string, timezone: string) {
           AND EXTRACT(MONTH FROM "birthDate") = ${today.month}
           AND EXTRACT(DAY FROM "birthDate") = ${today.day}
         ORDER BY name LIMIT 10`,
+    // Fiado e mensalidades a receber de clientes.
+    prisma.transaction.groupBy({
+      by: ['clientId'],
+      where: { companyId, type: 'INCOME', status: 'PENDING', clientId: { not: null } },
+      _sum: { amount: true },
+    }),
   ]);
 
   const byStatus = Object.fromEntries(todayRows.map((r) => [r.status, r])) as Record<
@@ -386,6 +393,10 @@ export async function getTodayOverview(companyId: string, timezone: string) {
       })),
     },
     lowStock: lowStock.length,
+    openTab: {
+      clients: tab.length,
+      amount: cents(tab.reduce((s, t) => s + Number(t._sum.amount ?? 0), 0)),
+    },
     birthdays,
     tomorrowDate: addDays(today, 1),
   };

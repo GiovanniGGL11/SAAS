@@ -47,6 +47,8 @@ export async function computeCommissions(
         where: { category: 'Atendimento', status: 'PAID' },
         select: { amount: true },
       },
+      // Sessão de pacote e vale-presente: o cliente já pagou antes, mas o serviço foi feito agora.
+      credits: { select: { amount: true } },
     },
   });
   const proIds = professionalIds ?? [...new Set(appointments.map((a) => a.professionalId))];
@@ -80,7 +82,9 @@ export async function computeCommissions(
     const pro = byId.get(a.professionalId);
     const row = totals.get(a.professionalId);
     if (!pro || !row) continue;
-    const charged = a.transactions.reduce((s, t) => s + Number(t.amount), 0);
+    const charged =
+      a.transactions.reduce((s, t) => s + Number(t.amount), 0) +
+      a.credits.reduce((s, c) => s + Number(c.amount), 0);
     const parts = a.items.length
       ? a.items.map((i) => ({ serviceId: i.serviceId, price: Number(i.priceSnapshot) }))
       : [{ serviceId: a.serviceId, price: Number(a.priceSnapshot) }];

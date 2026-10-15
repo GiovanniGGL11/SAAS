@@ -113,6 +113,9 @@ export const checkoutAppointmentInput = z.object({
     )
     .max(3)
     .optional(),
+  packageId: z.string().min(1).max(64).optional(),
+  giftCardCode: z.string().trim().max(20).optional(),
+  payOnTab: z.boolean().optional(),
 });
 
 export const updateAppointmentDetailsInput = z.object({

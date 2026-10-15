@@ -1,13 +1,19 @@
+import { Suspense } from 'react';
+
 import { requireAdminPage } from '@/server/auth/require-current-company';
 import { listAllCoupons } from '@/server/data/coupons';
 import { serializeCoupon } from '@/lib/serialize';
-import { CouponList } from '@/components/campanhas/coupon-list';
+import { CampaignsShell } from '@/components/campanhas/campaigns-shell';
 
-export const metadata = { title: 'Cupons' };
+export const metadata = { title: 'Marketing' };
 
 export default async function CampanhasPage() {
   const { company } = await requireAdminPage();
   const coupons = await listAllCoupons(company.id);
 
-  return <CouponList initialCoupons={coupons.map(serializeCoupon)} />;
+  return (
+    <Suspense>
+      <CampaignsShell coupons={coupons.map(serializeCoupon)} />
+    </Suspense>
+  );
 }

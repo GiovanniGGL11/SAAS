@@ -18,7 +18,15 @@ import {
   savePaymentFeesAction,
 } from '@/server/actions/finance-actions';
 
-const SYSTEM_CATEGORIES = ['Atendimento', 'Gorjeta', 'Produto'];
+const SYSTEM_CATEGORIES = [
+  'Atendimento',
+  'Gorjeta',
+  'Produto',
+  'Pacotes',
+  'Assinaturas',
+  'Vale-presente',
+  'Comissões',
+];
 
 export function FinanceSettingsView() {
   return (

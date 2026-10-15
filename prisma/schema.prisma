@@ -50,6 +50,9 @@ model Company {
   financeCategories         FinanceCategory[]
   professionalAdvances      ProfessionalAdvance[]
   commissionPayouts         CommissionPayout[]
+  packagePlans              PackagePlan[]
+  clientPackages            ClientPackage[]
+  giftCards                 GiftCard[]
 }
 
 model WebhookEvent {
@@ -132,6 +135,8 @@ model Service {
   // Comissão própria deste serviço (%), no lugar da regra do profissional. Vazio = regra dele.
   commissionPercent Float?
   appointmentItems  AppointmentItem[]
+  packagePlans      PackagePlan[]
+  clientPackages    ClientPackage[]
   appointments      Appointment[]
   loyaltyRewardOf   LoyaltyProgram[]
   waitlistEntries   WaitlistEntry[]
@@ -167,6 +172,9 @@ model Client {
   appointments    Appointment[]
   loyaltyEntries  LoyaltyEntry[]
   waitlistEntries WaitlistEntry[]
+  transactions    Transaction[]
+  packages        ClientPackage[]
+  giftCards       GiftCard[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -218,6 +226,7 @@ model Appointment {
   /// Serviços do atendimento quando há mais de um (corte + barba). Com um só, fica vazio e vale
   /// o serviceId/snapshots do próprio agendamento; com vários, eles guardam a soma.
   items          AppointmentItem[]
+  credits        AppointmentCredit[]
   transactions   Transaction[]
   loyaltyEntries LoyaltyEntry[]
   googleEvents   GoogleCalendarEvent[]
@@ -367,12 +376,16 @@ model Transaction {
   recurringExpenseId String?
   recurringExpense   RecurringExpense? @relation(fields: [recurringExpenseId], references: [id])
   recurringMonth     String?
+  // Cliente da venda/cobrança (fiado, pacote, vale-presente, atendimento): para cobrar o fiado.
+  clientId           String?
+  client             Client?           @relation(fields: [clientId], references: [id])
 
   @@unique([recurringExpenseId, recurringMonth])
   @@index([companyId, type, status])
   @@index([companyId, dueDate])
   @@index([companyId, paidAt])
   @@index([appointmentId])
+  @@index([companyId, clientId, status])
 }
 
 /// Taxa e prazo de recebimento de cada forma de pagamento (maquininha, PIX).
@@ -644,4 +657,108 @@ model CommissionPayout {
   createdAt       DateTime              @default(now())
 
   @@index([companyId, professionalId, periodStart])
+}
+
+/// Pacote ("10 cortes por R$ 400") ou assinatura ("4 cortes por mês por R$ 150, renova todo mês").
+model PackagePlan {
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id])
+  name         String
+  serviceId    String
+  service      Service         @relation(fields: [serviceId], references: [id])
+  sessions     Int
+  price        Decimal         @db.Decimal(10, 2)
+  /// Pacote: validade em dias (vazio = sem validade). Assinatura: o ciclo é mensal.
+  validityDays Int?
+  recurring    Boolean         @default(false)
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  sold         ClientPackage[]
+
+  @@index([companyId, active])
+}
+
+enum ClientPackageStatus {
+  ACTIVE
+  CANCELED
+}
+
+/// Pacote/assinatura vendido a um cliente: sessões usadas na comanda.
+model ClientPackage {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  clientId        String
+  client          Client              @relation(fields: [clientId], references: [id])
+  planId          String
+  plan            PackagePlan         @relation(fields: [planId], references: [id])
+  nameSnapshot    String
+  serviceId       String
+  service         Service             @relation(fields: [serviceId], references: [id])
+  sessionsTotal   Int
+  sessionsUsed    Int                 @default(0)
+  /// Valor de cada sessão (preço ÷ sessões): base da comissão quando a sessão é usada.
+  sessionValue    Decimal             @db.Decimal(10, 2)
+  price           Decimal             @db.Decimal(10, 2)
+  recurring       Boolean             @default(false)
+  /// Ciclo atual da assinatura; no pacote, periodEnd é a validade (vazio = sem validade).
+  periodStart     DateTime            @default(now())
+  periodEnd       DateTime?
+  status          ClientPackageStatus @default(ACTIVE)
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  credits         AppointmentCredit[]
+
+  @@index([companyId, clientId, status])
+}
+
+enum GiftCardStatus {
+  ACTIVE
+  CANCELED
+}
+
+/// Vale-presente: vendido por um valor, usado como pagamento na comanda até acabar o saldo.
+model GiftCard {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  code            String
+  initialAmount   Decimal             @db.Decimal(10, 2)
+  balance         Decimal             @db.Decimal(10, 2)
+  buyerName       String?
+  recipientName   String?
+  clientId        String?
+  client          Client?             @relation(fields: [clientId], references: [id])
+  expiresAt       DateTime?
+  status          GiftCardStatus      @default(ACTIVE)
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  credits         AppointmentCredit[]
+
+  @@unique([companyId, code])
+}
+
+enum AppointmentCreditKind {
+  PACKAGE
+  GIFT_CARD
+}
+
+/// Parte do atendimento paga com crédito vendido antes (sessão de pacote, saldo de vale).
+/// Não é dinheiro novo no caixa, mas entra na base da comissão.
+model AppointmentCredit {
+  id              String                @id @default(cuid())
+  appointmentId   String
+  appointment     Appointment           @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  kind            AppointmentCreditKind
+  clientPackageId String?
+  clientPackage   ClientPackage?        @relation(fields: [clientPackageId], references: [id])
+  giftCardId      String?
+  giftCard        GiftCard?             @relation(fields: [giftCardId], references: [id])
+  amount          Decimal               @db.Decimal(10, 2)
+  createdAt       DateTime              @default(now())
+
+  @@index([appointmentId])
 }

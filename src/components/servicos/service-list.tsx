@@ -1,5 +1,8 @@
 'use client';
 
+import { useAuth } from '@clerk/nextjs';
+import { PackagePlans } from '@/components/servicos/package-plans';
+
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ConciergeBellIcon, PlusIcon } from 'lucide-react';
@@ -39,6 +42,7 @@ function formatDuration(minutes: number): string {
 }
 
 export function ServiceList({ initialServices }: { initialServices: SerializedService[] }) {
+  const isAdmin = useAuth().orgRole === 'org:admin';
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [editingService, setEditingService] = React.useState<SerializedService | null>(null);
@@ -241,6 +245,8 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
       </Surface>
 
       <ServiceDrawer open={drawerOpen} onOpenChange={setDrawerOpen} service={editingService} />
+
+      <PackagePlans services={services} isAdmin={isAdmin} />
     </div>
   );
 }

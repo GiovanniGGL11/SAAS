@@ -2,7 +2,14 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownToLineIcon, ArrowUpFromLineIcon, LockIcon, VaultIcon } from 'lucide-react';
+import {
+  ArrowDownToLineIcon,
+  ArrowUpFromLineIcon,
+  LockIcon,
+  ShoppingBagIcon,
+  VaultIcon,
+} from 'lucide-react';
+import { SaleDialog } from '@/components/vendas/sale-dialog';
 import { toast } from 'sonner';
 
 import { PageHeader, Surface } from '@/components/layout/page';
@@ -41,6 +48,7 @@ export function CashRegisterView({ timezone }: { timezone: string }) {
     refetchInterval: 30_000,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['cash-register'] });
+  const [saleOpen, setSaleOpen] = React.useState(false);
   const time = (d: Date | string) =>
     new Intl.DateTimeFormat('pt-BR', {
       timeZone: timezone,
@@ -61,7 +69,14 @@ export function CashRegisterView({ timezone }: { timezone: string }) {
       <PageHeader
         title="Caixa"
         description="Abra com o troco, registre sangrias e suprimentos e confira a gaveta no fechamento."
+        actions={
+          <Button onClick={() => setSaleOpen(true)}>
+            <ShoppingBagIcon className="size-4" />
+            Nova venda
+          </Button>
+        }
       />
+      <SaleDialog open={saleOpen} onOpenChange={setSaleOpen} />
       {!data ? (
         <Skeleton className="h-64 rounded-[22px]" />
       ) : data.current ? (

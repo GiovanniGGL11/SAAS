@@ -24,6 +24,7 @@ import {
 import { EmptyState } from '@/components/ui/empty-state';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { ClientLoyalty } from '@/components/clientes/client-loyalty';
+import { ClientCredits } from '@/components/clientes/client-credits';
 import { ClientPortalLinkButton } from '@/components/clientes/client-portal-link';
 import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import {
@@ -174,6 +175,8 @@ export function ClientDetail({
           }
         />
       </div>
+
+      <ClientCredits clientId={clientId} />
 
       <ClientLoyalty clientId={clientId} clientName={client.name} timezone={timezone} />
 

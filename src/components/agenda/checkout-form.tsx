@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { unwrapResult } from '@/lib/action-result';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { checkoutAppointmentAction } from '@/server/actions/agenda-actions';
+import { getCheckoutOptionsAction } from '@/server/actions/sales-actions';
 import { cn } from '@/lib/utils';
 
 const METHODS = [
@@ -47,6 +48,17 @@ export function CheckoutForm({
   const [tip, setTip] = React.useState('');
   // Pagamento dividido: as outras formas com valor; a principal fica com o restante.
   const [split, setSplit] = React.useState<{ method: Method; amount: string }[]>([]);
+  // Créditos do cliente e fiado.
+  const [packageId, setPackageId] = React.useState<string | null>(null);
+  const [giftCode, setGiftCode] = React.useState('');
+  const [payOnTab, setPayOnTab] = React.useState(false);
+  const { data: options } = useQuery({
+    queryKey: ['checkout-options', appointmentId],
+    queryFn: () => getCheckoutOptionsAction(appointmentId),
+  });
+  const credits = [packageId && '− pacote', giftCode.trim() && '− vale', coupon.trim() && '− cupom']
+    .filter(Boolean)
+    .join(', ');
 
   const typedDiscount = parseMoney(discount);
   // Desconto acima do serviço vira de graça, não crédito: limita e avisa (o servidor faz o mesmo).
@@ -71,10 +83,21 @@ export function CheckoutForm({
         discount: discountValue || undefined,
         couponCode: coupon.trim() || undefined,
         tip: tipValue || undefined,
-        split: splitValues.length ? splitValues.filter((part) => part.amount > 0) : undefined,
+        split:
+          !payOnTab && splitValues.length
+            ? splitValues.filter((part) => part.amount > 0)
+            : undefined,
+        packageId: packageId ?? undefined,
+        giftCardCode: giftCode.trim() || undefined,
+        payOnTab: payOnTab || undefined,
       }).then(unwrapResult),
     onSuccess: ({ total }) => {
-      toast.success(`Concluído e cobrado: ${formatCurrencyBRL(total + tipValue)}.`);
+      toast.success(
+        payOnTab
+          ? `Concluído. ${formatCurrencyBRL(total + tipValue)} ficaram no fiado do cliente.`
+          : `Concluído e cobrado: ${formatCurrencyBRL(total + tipValue)}.`,
+      );
+      queryClient.invalidateQueries({ queryKey: ['checkout-options'] });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onDone();
     },
@@ -94,96 +117,123 @@ export function CheckoutForm({
         <span className="text-label-secondary text-[12px]">Serviço {formatCurrencyBRL(price)}</span>
       </div>
 
-      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Forma de pagamento">
-        {METHODS.map((m) => (
-          <button
-            key={m.value}
-            type="button"
-            role="radio"
-            aria-checked={method === m.value}
-            onClick={() => setMethod(m.value)}
-            className={cn(
-              'rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors',
-              method === m.value
-                ? 'bg-foreground text-background'
-                : 'bg-foreground/[0.06] hover:bg-foreground/[0.1]',
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-
-      {split.map((part, index) => (
-        <div key={index} className="flex items-center gap-2">
-          <span className="text-label-secondary w-6 text-[12px]">+</span>
-          <select
-            aria-label="Outra forma de pagamento"
-            value={part.method}
-            onChange={(e) =>
-              setSplit((rows) =>
-                rows.map((r, i) => (i === index ? { ...r, method: e.target.value as Method } : r)),
-              )
-            }
-            className="bg-background ring-foreground/[0.08] h-8 rounded-lg px-2 text-[12px] ring-1"
-          >
-            {METHODS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <Input
-            inputMode="decimal"
-            placeholder="Valor"
-            value={part.amount}
-            onChange={(e) =>
-              setSplit((rows) =>
-                rows.map((r, i) => (i === index ? { ...r, amount: e.target.value } : r)),
-              )
-            }
-            className="h-8 w-24"
-            aria-label="Valor desta forma de pagamento"
-          />
-          <button
-            type="button"
-            onClick={() => setSplit((rows) => rows.filter((_, i) => i !== index))}
-            className="text-label-secondary hover:text-foreground text-[12px]"
-          >
-            Remover
-          </button>
+      {options && options.packages.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {options.packages.map((pkg) => (
+            <button
+              key={pkg.id}
+              type="button"
+              aria-pressed={packageId === pkg.id}
+              onClick={() => setPackageId((current) => (current === pkg.id ? null : pkg.id))}
+              className={cn(
+                'rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors',
+                packageId === pkg.id
+                  ? 'bg-system-blue text-white'
+                  : 'bg-system-blue/10 text-system-blue hover:bg-system-blue/15',
+              )}
+            >
+              {packageId === pkg.id ? '✓ ' : ''}Usar {pkg.name} · restam {pkg.remaining}
+            </button>
+          ))}
         </div>
-      ))}
-      <div className="flex items-center justify-between text-[12px]">
-        {split.length < 2 ? (
-          <button
-            type="button"
-            onClick={() =>
-              setSplit((rows) => [
-                ...rows,
-                { method: method === 'CREDIT_CARD' ? 'PIX' : 'CREDIT_CARD', amount: '' },
-              ])
-            }
-            className="text-system-blue font-medium hover:underline"
-          >
-            Dividir pagamento
-          </button>
-        ) : (
-          <span />
-        )}
-        {split.length > 0 && (
-          <span className={cn('text-label-secondary', remainder < 0 && 'text-destructive')}>
-            {remainder < 0
-              ? 'As partes passam do total do serviço'
-              : // A gorjeta entra inteira na forma principal: mostra a conta para fechar com o total.
-                `${methodLabel(method)}: ${formatCurrencyBRL(remainder)}${
-                  tipValue > 0
-                    ? ` + ${formatCurrencyBRL(tipValue)} de gorjeta = ${formatCurrencyBRL(remainder + tipValue)}`
-                    : ''
-                }${coupon.trim() ? ' (− cupom)' : ''}`}
-          </span>
-        )}
-      </div>
+      )}
+
+      {!payOnTab && (
+        <>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Forma de pagamento">
+            {METHODS.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                role="radio"
+                aria-checked={method === m.value}
+                onClick={() => setMethod(m.value)}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors',
+                  method === m.value
+                    ? 'bg-foreground text-background'
+                    : 'bg-foreground/[0.06] hover:bg-foreground/[0.1]',
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {split.map((part, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <span className="text-label-secondary w-6 text-[12px]">+</span>
+              <select
+                aria-label="Outra forma de pagamento"
+                value={part.method}
+                onChange={(e) =>
+                  setSplit((rows) =>
+                    rows.map((r, i) =>
+                      i === index ? { ...r, method: e.target.value as Method } : r,
+                    ),
+                  )
+                }
+                className="bg-background ring-foreground/[0.08] h-8 rounded-lg px-2 text-[12px] ring-1"
+              >
+                {METHODS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <Input
+                inputMode="decimal"
+                placeholder="Valor"
+                value={part.amount}
+                onChange={(e) =>
+                  setSplit((rows) =>
+                    rows.map((r, i) => (i === index ? { ...r, amount: e.target.value } : r)),
+                  )
+                }
+                className="h-8 w-24"
+                aria-label="Valor desta forma de pagamento"
+              />
+              <button
+                type="button"
+                onClick={() => setSplit((rows) => rows.filter((_, i) => i !== index))}
+                className="text-label-secondary hover:text-foreground text-[12px]"
+              >
+                Remover
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center justify-between text-[12px]">
+            {split.length < 2 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setSplit((rows) => [
+                    ...rows,
+                    { method: method === 'CREDIT_CARD' ? 'PIX' : 'CREDIT_CARD', amount: '' },
+                  ])
+                }
+                className="text-system-blue font-medium hover:underline"
+              >
+                Dividir pagamento
+              </button>
+            ) : (
+              <span />
+            )}
+            {split.length > 0 && (
+              <span className={cn('text-label-secondary', remainder < 0 && 'text-destructive')}>
+                {remainder < 0
+                  ? 'As partes passam do total do serviço'
+                  : // A gorjeta entra inteira na forma principal: mostra a conta para fechar com o total.
+                    `${methodLabel(method)}: ${formatCurrencyBRL(remainder)}${
+                      tipValue > 0
+                        ? ` + ${formatCurrencyBRL(tipValue)} de gorjeta = ${formatCurrencyBRL(remainder + tipValue)}`
+                        : ''
+                    }${credits ? ` (${credits})` : ''}`}
+              </span>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         <label className="flex flex-col gap-1 text-[11px]">
@@ -227,6 +277,29 @@ export function CheckoutForm({
         </p>
       )}
 
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-1 flex-col gap-1 text-[11px]">
+          <span className="text-label-secondary">Vale-presente</span>
+          <Input
+            placeholder="Código do vale"
+            value={giftCode}
+            onChange={(e) => setGiftCode(e.target.value.toUpperCase())}
+            maxLength={20}
+          />
+        </label>
+        <button
+          type="button"
+          aria-pressed={payOnTab}
+          onClick={() => setPayOnTab((v) => !v)}
+          className={cn(
+            'h-9 rounded-full px-3 text-[12px] font-medium transition-colors',
+            payOnTab ? 'bg-[#ff9500] text-white' : 'bg-foreground/[0.06] hover:bg-foreground/[0.1]',
+          )}
+        >
+          {payOnTab ? '✓ No fiado' : 'Deixar no fiado'}
+        </button>
+      </div>
+
       <div className="flex items-center justify-between gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           Voltar
@@ -234,7 +307,7 @@ export function CheckoutForm({
         <Button type="submit" size="sm" disabled={mutation.isPending || remainder < 0}>
           {mutation.isPending
             ? 'Concluindo...'
-            : `Concluir e cobrar ${formatCurrencyBRL(preview)}${coupon.trim() ? ' (− cupom)' : ''}`}
+            : `${payOnTab ? 'Concluir no fiado' : 'Concluir e cobrar'} ${formatCurrencyBRL(preview)}${credits ? ` (${credits})` : ''}`}
         </Button>
       </div>
     </form>

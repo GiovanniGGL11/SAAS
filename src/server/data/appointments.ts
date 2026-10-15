@@ -491,6 +491,12 @@ export type CheckoutInput = {
    * com o que sobrar do total — o total só é conhecido aqui, depois do cupom.
    */
   split?: { paymentMethod: PaymentMethod; amount: number }[];
+  /** Usar uma sessão deste pacote/assinatura do cliente no serviço correspondente. */
+  packageId?: string;
+  /** Pagar (parte) com o saldo de um vale-presente. */
+  giftCardCode?: string;
+  /** Deixar o restante no fiado do cliente. */
+  payOnTab?: boolean;
   updatedByUserId: string;
 };
 
@@ -540,25 +546,98 @@ export async function checkoutAppointment(params: CheckoutInput) {
     }
 
     const total = PrismaNamespace.Decimal.max(0, price.sub(discount));
+    const credits: Prisma.AppointmentCreditCreateManyInput[] = [];
+    let toCharge = total;
+
+    if (params.packageId) {
+      const pkg = await tx.clientPackage.findFirst({
+        where: {
+          id: params.packageId,
+          companyId: params.companyId,
+          clientId: appointment.clientId,
+          status: 'ACTIVE',
+        },
+      });
+      if (!pkg) throw new UserError('Pacote não encontrado para este cliente.');
+      if (!pkg.recurring && pkg.periodEnd && pkg.periodEnd < new Date()) {
+        throw new UserError('Este pacote venceu.');
+      }
+      const items = await tx.appointmentItem.findMany({ where: { appointmentId: appointment.id } });
+      const parts = items.length
+        ? items.map((i) => ({
+            serviceId: i.serviceId,
+            price: new PrismaNamespace.Decimal(i.priceSnapshot),
+          }))
+        : [{ serviceId: appointment.serviceId, price: price }];
+      const part = parts.find((p) => p.serviceId === pkg.serviceId);
+      if (!part) throw new UserError('Este pacote é de outro serviço.');
+      // Conferido no próprio UPDATE: duas comandas ao mesmo tempo não gastam a última sessão duas vezes.
+      const used = await tx.clientPackage.updateMany({
+        where: { id: pkg.id, sessionsUsed: { lt: pkg.sessionsTotal } },
+        data: { sessionsUsed: { increment: 1 } },
+      });
+      if (used.count === 0) throw new UserError('As sessões deste pacote acabaram.');
+      toCharge = PrismaNamespace.Decimal.max(0, toCharge.sub(part.price));
+      credits.push({
+        appointmentId: appointment.id,
+        kind: 'PACKAGE',
+        clientPackageId: pkg.id,
+        amount: pkg.sessionValue,
+      });
+      notes.push(
+        `pacote:${pkg.nameSnapshot} (sessão ${pkg.sessionsUsed + 1}/${pkg.sessionsTotal})`,
+      );
+    }
+
+    if (params.giftCardCode?.trim()) {
+      const code = params.giftCardCode.trim().toUpperCase();
+      const card = await tx.giftCard.findFirst({
+        where: { companyId: params.companyId, code, status: 'ACTIVE' },
+      });
+      if (!card) throw new UserError('Vale-presente não encontrado.');
+      if (card.expiresAt && card.expiresAt < new Date())
+        throw new UserError('Este vale-presente venceu.');
+      const use = PrismaNamespace.Decimal.min(card.balance, toCharge);
+      if (use.lte(0)) throw new UserError('Não há valor a pagar com o vale-presente.');
+      const spent = await tx.giftCard.updateMany({
+        where: { id: card.id, balance: { gte: use } },
+        data: { balance: { decrement: use } },
+      });
+      if (spent.count === 0) throw new UserError('O saldo do vale-presente mudou. Tente de novo.');
+      toCharge = toCharge.sub(use);
+      credits.push({
+        appointmentId: appointment.id,
+        kind: 'GIFT_CARD',
+        giftCardId: card.id,
+        amount: use,
+      });
+      notes.push(`vale:${code} (−R$ ${use.toFixed(2).replace('.', ',')})`);
+    }
+
+    if (params.payOnTab && params.split?.length) {
+      throw new UserError('No fiado não dá para dividir o pagamento.');
+    }
     const splitTotal = (params.split ?? []).reduce(
       (sum, part) => sum.add(part.amount),
       new PrismaNamespace.Decimal(0),
     );
-    if (splitTotal.gt(total)) {
+    if (splitTotal.gt(toCharge)) {
       throw new UserError(
-        `A soma das outras formas de pagamento passa do total (R$ ${total.toFixed(2).replace('.', ',')}).`,
+        `A soma das outras formas de pagamento passa do total (R$ ${toCharge.toFixed(2).replace('.', ',')}).`,
       );
     }
-    const remainder = total.sub(splitTotal);
-    const payments = [
-      ...(remainder.gt(0) || splitTotal.eq(0)
-        ? [{ amount: remainder, paymentMethod: params.paymentMethod }]
-        : []),
-      ...(params.split ?? []).map((part) => ({
-        amount: new PrismaNamespace.Decimal(part.amount),
-        paymentMethod: part.paymentMethod,
-      })),
-    ];
+    const remainder = toCharge.sub(splitTotal);
+    const payments = params.payOnTab
+      ? [{ amount: toCharge, paymentMethod: null, pending: true }]
+      : [
+          ...(remainder.gt(0) || splitTotal.eq(0)
+            ? [{ amount: remainder, paymentMethod: params.paymentMethod }]
+            : []),
+          ...(params.split ?? []).map((part) => ({
+            amount: new PrismaNamespace.Decimal(part.amount),
+            paymentMethod: part.paymentMethod,
+          })),
+        ];
 
     await tx.appointment.updateMany({
       where: { id: params.id, companyId: params.companyId },
@@ -572,25 +651,29 @@ export async function checkoutAppointment(params: CheckoutInput) {
       payments,
       notes: notes.join(' · ') || null,
     });
+    if (credits.length) await tx.appointmentCredit.createMany({ data: credits });
     if (params.tip && params.tip > 0) {
-      const paidAt = new Date();
+      // No fiado, a gorjeta também fica para receber junto.
+      const tipPaid = !params.payOnTab;
+      const paidAt = tipPaid ? new Date() : null;
       await tx.transaction.create({
         data: {
           ...(await feeFields(tx, params.companyId, {
             type: 'INCOME',
-            status: 'PAID',
+            status: tipPaid ? 'PAID' : 'PENDING',
             amount: params.tip,
             paymentMethod: params.paymentMethod,
             paidAt,
           })),
           companyId: params.companyId,
           appointmentId: params.id,
+          clientId: done.clientId,
           type: 'INCOME',
-          status: 'PAID',
+          status: tipPaid ? 'PAID' : 'PENDING',
           description: `Gorjeta — ${done.serviceNameSnapshot}`,
           category: 'Gorjeta',
           amount: params.tip,
-          paymentMethod: params.paymentMethod,
+          paymentMethod: tipPaid ? params.paymentMethod : null,
           paidAt,
           createdByUserId: params.updatedByUserId,
         },
@@ -611,12 +694,16 @@ export async function checkoutAppointment(params: CheckoutInput) {
           paymentMethod: params.paymentMethod,
           split: params.split ?? [],
           coupon: params.couponCode ?? null,
+          packageId: params.packageId ?? null,
+          giftCard: params.giftCardCode ?? null,
+          tab: !!params.payOnTab,
+          charged: toCharge.toString(),
           tip: params.tip ?? 0,
         },
       },
       tx,
     );
-    return { appointment: done, total: Number(total) };
+    return { appointment: done, total: Number(toCharge) };
   });
 }
 
