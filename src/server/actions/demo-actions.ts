@@ -1,6 +1,5 @@
 'use server';
 
-import { randomBytes } from 'node:crypto';
 import { clerkClient } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/db';
@@ -40,7 +39,8 @@ export async function openDemoCompanyAction() {
         await clerkClient()
       ).organizations.createOrganization({
         name: DEMO_NAME,
-        slug: `demonstracao-${randomBytes(4).toString('hex')}`,
+        // Sem slug: esta instância do Clerk não aceita slug de organização (organization_slugs_disabled);
+        // a empresa usa o id da organização como endereço, como as demais.
         createdBy: userId,
         // Fica fora do agendamento online: ninguém de fora reserva na demonstração.
         publicMetadata: { demo: true, onlineBooking: false },

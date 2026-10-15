@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { prisma } from '@/lib/db';
+import { validateBookingName, validateBookingPhone } from '@/lib/booking';
+import { addDays, calendarDateToUtc, utcToCalendarDate } from '@/lib/time';
 import { toActionResult } from '@/server/action-result';
 import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { rateLimit } from '@/server/rate-limit';
@@ -16,7 +18,9 @@ import {
   createPublicBooking,
   getAppointmentForToken,
   getBookableCompany,
-  listAvailableSlots,
+  BOOKING_DAYS_AHEAD,
+  SlotUnavailableError,
+  listAvailabilityRange,
   setOnlineBookingEnabled,
   signAppointmentToken,
 } from '@/server/data/public-booking';
@@ -28,33 +32,89 @@ const dateSchema = z.object({
   day: z.number().int().min(1).max(31),
 });
 
-export async function getPublicSlotsAction(input: unknown) {
+/**
+ * Horários livres de vários dias (até uma semana) numa chamada: a faixa de dias sabe quais estão
+ * sem horário, e trocar de dia dentro da semana não precisa de outra ida ao servidor. Só dias
+ * dentro da janela de agendamento.
+ */
+export async function getPublicAvailabilityAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = z
       .object({
         slug: slugSchema,
         serviceId: idSchema,
         professionalId: idSchema.optional(),
-        date: dateSchema,
+        from: dateSchema,
+        days: z.number().int().min(1).max(7),
       })
       .parse(input);
     await rateLimit('slots', 120, 60_000);
     const company = await getBookableCompany(parsed.slug);
     if (!company) throw new UserError('Agendamento online indisponível.');
-    return listAvailableSlots({ companyId: company.id, timezone: company.timezone, ...parsed });
+
+    const today = utcToCalendarDate(new Date(), company.timezone);
+    const fromTime = calendarDateToUtc(parsed.from, 0, company.timezone).getTime();
+    const firstTime = calendarDateToUtc(today, 0, company.timezone).getTime();
+    const limitTime = calendarDateToUtc(
+      addDays(today, BOOKING_DAYS_AHEAD),
+      0,
+      company.timezone,
+    ).getTime();
+    // Dias antes de hoje ou depois da janela não entram (nem pedindo à mão).
+    const from = fromTime < firstTime ? today : parsed.from;
+    const remaining = Math.round(
+      (limitTime - calendarDateToUtc(from, 0, company.timezone).getTime()) / 86_400_000,
+    );
+    const days = Math.max(0, Math.min(parsed.days, remaining));
+    if (days === 0) return {};
+
+    const range = await listAvailabilityRange({
+      companyId: company.id,
+      timezone: company.timezone,
+      serviceId: parsed.serviceId,
+      professionalId: parsed.professionalId,
+      from,
+      days,
+    });
+    return Object.fromEntries(range);
   });
 }
 
+export type PublicBookingResult =
+  | {
+      kind: 'booked';
+      token: string;
+      startAt: string;
+      endAt: string;
+      serviceName: string;
+      professionalName: string;
+      durationMinutes: number;
+      price: number;
+    }
+  | { kind: 'conflict'; message: string };
+
 export async function createPublicBookingAction(input: unknown) {
-  return toActionResult(async () => {
+  return toActionResult(async (): Promise<PublicBookingResult> => {
     const parsed = z
       .object({
         slug: slugSchema,
         serviceId: idSchema,
         professionalId: idSchema,
         startAt: z.coerce.date(),
-        name: z.string().trim().min(2, 'Informe seu nome.').max(120),
-        phone: z.string().trim().min(10, 'Informe um telefone com DDD.').max(30),
+        name: z
+          .string()
+          .max(200)
+          .superRefine((value, ctx) => {
+            const error = validateBookingName(value);
+            if (error) ctx.addIssue({ code: 'custom', message: error });
+          }),
+        phone: z
+          .string()
+          .max(30)
+          .superRefine((value, ctx) => {
+            const error = validateBookingPhone(value);
+            if (error) ctx.addIssue({ code: 'custom', message: error });
+          }),
         // Campo escondido: gente não preenche, robô preenche.
         website: z.string().max(0).optional(),
       })
@@ -62,14 +122,37 @@ export async function createPublicBookingAction(input: unknown) {
     await rateLimit('booking', 5, 10 * 60_000);
     const company = await getBookableCompany(parsed.slug);
     if (!company) throw new UserError('Agendamento online indisponível.');
-    const appointment = await createPublicBooking({
-      companyId: company.id,
-      timezone: company.timezone,
-      ...parsed,
-    });
+
+    let appointment;
+    try {
+      appointment = await createPublicBooking({
+        companyId: company.id,
+        timezone: company.timezone,
+        ...parsed,
+      });
+    } catch (error) {
+      // Conflito é um caminho esperado: a tela volta à escolha de horário sem perder os dados.
+      if (error instanceof SlotUnavailableError)
+        return { kind: 'conflict', message: error.message };
+      throw error;
+    }
     scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
-    return { token: signAppointmentToken(appointment.id) };
+
+    const professional = await prisma.professional.findFirst({
+      where: { id: appointment.professionalId, companyId: company.id },
+      select: { name: true },
+    });
+    return {
+      kind: 'booked',
+      token: signAppointmentToken(appointment.id),
+      startAt: appointment.startAt.toISOString(),
+      endAt: appointment.endAt.toISOString(),
+      serviceName: appointment.serviceNameSnapshot,
+      professionalName: professional?.name ?? '',
+      durationMinutes: appointment.durationMinutesSnapshot,
+      price: Number(appointment.priceSnapshot),
+    };
   });
 }
 

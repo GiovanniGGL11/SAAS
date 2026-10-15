@@ -3,6 +3,7 @@ import { clerkClient } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/db';
 import { normalizePhone } from '@/lib/phone';
+import { validateBookingName, validateBookingPhone } from '@/lib/booking';
 import { addDays, calendarDateToUtc, utcToCalendarDate, type CalendarDate } from '@/lib/time';
 import { UserError } from '@/server/errors';
 import { createAppointment } from '@/server/data/appointments';
@@ -108,25 +109,32 @@ function timeToMinutes(value: string): number {
 
 export type PublicSlot = { startAt: string; professionalId: string; label: string };
 
+function dayKey(d: CalendarDate): string {
+  return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
+}
+
 /**
- * Horários livres de um dia para o serviço: dentro do expediente, sem agendamento nem bloqueio,
- * com a antecedência mínima. Sem profissional escolhido, junta os de todos (um por horário).
+ * Horários livres de vários dias seguidos para o serviço, numa só ida ao banco: dentro do
+ * expediente, sem agendamento nem bloqueio, com a antecedência mínima e cabendo inteiro (a duração
+ * do serviço termina dentro do expediente). Sem profissional escolhido, junta os de todos (um por
+ * horário). A chave do mapa é o dia "AAAA-MM-DD" no fuso da empresa.
  */
-export async function listAvailableSlots(params: {
+export async function listAvailabilityRange(params: {
   companyId: string;
   timezone: string;
   serviceId: string;
   professionalId?: string;
-  date: CalendarDate;
+  from: CalendarDate;
+  days: number;
   /** Remarcação: o próprio horário não conta como ocupado, e a duração é a do agendamento. */
   reschedule?: { appointmentId: string; durationMinutes: number };
-}): Promise<PublicSlot[]> {
+}): Promise<Map<string, PublicSlot[]>> {
   const found = await prisma.service.findFirst({
     where: { id: params.serviceId, companyId: params.companyId, active: true },
     select: { durationMinutes: true },
   });
   if (!found) throw new UserError('Serviço indisponível.');
-  const service = { durationMinutes: params.reschedule?.durationMinutes ?? found.durationMinutes };
+  const durationMinutes = params.reschedule?.durationMinutes ?? found.durationMinutes;
 
   const professionals = await prisma.professional.findMany({
     where: {
@@ -136,8 +144,8 @@ export async function listAvailableSlots(params: {
     },
     select: { id: true, availabilities: true },
   });
-  const dayStart = calendarDateToUtc(params.date, 0, params.timezone);
-  const dayEnd = calendarDateToUtc(addDays(params.date, 1), 0, params.timezone);
+  const rangeStart = calendarDateToUtc(params.from, 0, params.timezone);
+  const rangeEnd = calendarDateToUtc(addDays(params.from, params.days), 0, params.timezone);
   const ids = professionals.map((p) => p.id);
   const [busy, blocks] = await Promise.all([
     prisma.appointment.findMany({
@@ -145,59 +153,87 @@ export async function listAvailableSlots(params: {
         companyId: params.companyId,
         professionalId: { in: ids },
         status: { in: [...ACTIVE] },
-        startAt: { lt: dayEnd },
-        endAt: { gt: dayStart },
+        startAt: { lt: rangeEnd },
+        endAt: { gt: rangeStart },
         ...(params.reschedule ? { id: { not: params.reschedule.appointmentId } } : {}),
       },
       select: { professionalId: true, startAt: true, endAt: true },
     }),
     prisma.scheduleBlock.findMany({
-      where: { professionalId: { in: ids }, startAt: { lt: dayEnd }, endAt: { gt: dayStart } },
+      where: { professionalId: { in: ids }, startAt: { lt: rangeEnd }, endAt: { gt: rangeStart } },
       select: { professionalId: true, startAt: true, endAt: true },
     }),
   ]);
   const occupied = [...busy, ...blocks];
-  const weekday = new Date(
-    Date.UTC(params.date.year, params.date.month - 1, params.date.day),
-  ).getUTCDay();
   const earliest = Date.now() + LEAD_MINUTES * 60_000;
-  const durationMs = service.durationMinutes * 60_000;
-  const byTime = new Map<number, PublicSlot>();
+  const durationMs = durationMinutes * 60_000;
+  const result = new Map<string, PublicSlot[]>();
 
-  for (const professional of professionals) {
-    // Só vale o expediente cadastrado, nos dias de trabalho. Sem expediente não há janela
-    // "padrão": reservar fora do que a empresa confirmou é o que este link não pode fazer.
-    const windows = professional.availabilities
-      .filter((a) => a.weekday === weekday)
-      .map((a) => ({
-        startMinutes: timeToMinutes(a.startTime),
-        endMinutes: timeToMinutes(a.endTime),
-      }));
-    for (const window of windows) {
-      for (
-        let m = window.startMinutes;
-        m + service.durationMinutes <= window.endMinutes;
-        m += STEP_MINUTES
-      ) {
-        const startAt = calendarDateToUtc(params.date, m, params.timezone);
-        if (startAt.getTime() < earliest || byTime.has(startAt.getTime())) continue;
-        const endAt = startAt.getTime() + durationMs;
-        const clash = occupied.some(
-          (o) =>
-            o.professionalId === professional.id &&
-            o.startAt.getTime() < endAt &&
-            o.endAt.getTime() > startAt.getTime(),
-        );
-        if (clash) continue;
-        byTime.set(startAt.getTime(), {
-          startAt: startAt.toISOString(),
-          professionalId: professional.id,
-          label: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`,
-        });
+  for (let offset = 0; offset < params.days; offset++) {
+    const date = addDays(params.from, offset);
+    const weekday = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay();
+    const byTime = new Map<number, PublicSlot>();
+    for (const professional of professionals) {
+      // Só vale o expediente cadastrado, nos dias de trabalho. Sem expediente não há janela
+      // "padrão": reservar fora do que a empresa confirmou é o que este link não pode fazer.
+      const windows = professional.availabilities
+        .filter((a) => a.weekday === weekday)
+        .map((a) => ({
+          startMinutes: timeToMinutes(a.startTime),
+          endMinutes: timeToMinutes(a.endTime),
+        }));
+      for (const window of windows) {
+        for (
+          let m = window.startMinutes;
+          m + durationMinutes <= window.endMinutes;
+          m += STEP_MINUTES
+        ) {
+          const startAt = calendarDateToUtc(date, m, params.timezone);
+          if (startAt.getTime() < earliest || byTime.has(startAt.getTime())) continue;
+          const endAt = startAt.getTime() + durationMs;
+          const clash = occupied.some(
+            (o) =>
+              o.professionalId === professional.id &&
+              o.startAt.getTime() < endAt &&
+              o.endAt.getTime() > startAt.getTime(),
+          );
+          if (clash) continue;
+          byTime.set(startAt.getTime(), {
+            startAt: startAt.toISOString(),
+            professionalId: professional.id,
+            label: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`,
+          });
+        }
       }
     }
+    result.set(
+      dayKey(date),
+      [...byTime.values()].sort((a, b) => a.startAt.localeCompare(b.startAt)),
+    );
   }
-  return [...byTime.values()].sort((a, b) => a.startAt.localeCompare(b.startAt));
+  return result;
+}
+
+/** Horários livres de um dia (o mesmo cálculo de listAvailabilityRange). */
+export async function listAvailableSlots(params: {
+  companyId: string;
+  timezone: string;
+  serviceId: string;
+  professionalId?: string;
+  date: CalendarDate;
+  reschedule?: { appointmentId: string; durationMinutes: number };
+}): Promise<PublicSlot[]> {
+  const { date, ...rest } = params;
+  const range = await listAvailabilityRange({ ...rest, from: date, days: 1 });
+  return range.get(dayKey(date)) ?? [];
+}
+
+/** O horário pedido saiu da lista (ocupado, fora do expediente ou já passou): escolher outro. */
+export class SlotUnavailableError extends UserError {
+  constructor(message = 'Esse horário não está mais disponível. Escolha outro.') {
+    super(message);
+    this.name = 'SlotUnavailableError';
+  }
 }
 
 /**
@@ -214,16 +250,41 @@ export async function createPublicBooking(params: {
   name: string;
   phone: string;
 }) {
-  const phone = normalizePhone(params.phone);
-  if (!phone || phone.length < 10) throw new UserError('Informe um telefone com DDD.');
-  if (params.startAt.getTime() < Date.now() + LEAD_MINUTES * 60_000) {
-    throw new UserError('Esse horário não está mais disponível. Escolha outro.');
-  }
+  const nameError = validateBookingName(params.name);
+  if (nameError) throw new UserError(nameError);
+  const phoneError = validateBookingPhone(params.phone);
+  if (phoneError) throw new UserError(phoneError);
+  const phone = normalizePhone(params.phone)!;
+
   const lastDay = addDays(utcToCalendarDate(new Date(), params.timezone), BOOKING_DAYS_AHEAD);
   if (params.startAt.getTime() > calendarDateToUtc(lastDay, 0, params.timezone).getTime()) {
     throw new UserError('Data fora do período de agendamento.');
   }
 
+  const existingClient = await prisma.client.findFirst({
+    where: { companyId: params.companyId, phone },
+  });
+  // O mesmo pedido de novo (duplo clique, nova tentativa depois de falha de rede): devolve a
+  // reserva que já foi feita, em vez de acusar conflito com ela mesma.
+  if (existingClient) {
+    const same = await prisma.appointment.findFirst({
+      where: {
+        companyId: params.companyId,
+        clientId: existingClient.id,
+        professionalId: params.professionalId,
+        serviceId: params.serviceId,
+        startAt: params.startAt,
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+        createdByUserId: 'online-booking',
+        createdAt: { gte: new Date(Date.now() - 15 * 60_000) },
+      },
+    });
+    if (same) return same;
+  }
+
+  if (params.startAt.getTime() < Date.now() + LEAD_MINUTES * 60_000) {
+    throw new SlotUnavailableError();
+  }
   // O pedido vem do navegador: só passa um horário que a própria lista de horários ofereceria
   // (dentro do expediente cadastrado, livre, com o profissional e o serviço da empresa).
   const offered = await listAvailableSlots({
@@ -234,14 +295,23 @@ export async function createPublicBooking(params: {
     date: utcToCalendarDate(params.startAt, params.timezone),
   });
   if (!offered.some((slot) => slot.startAt === params.startAt.toISOString())) {
-    throw new UserError('Esse horário não está mais disponível. Escolha outro.');
+    throw new SlotUnavailableError();
   }
 
+  // Cliente que já existe (mesmo telefone) mantém o nome do cadastro: o link público não altera
+  // dados de quem a empresa já conhece.
   const client =
-    (await prisma.client.findFirst({ where: { companyId: params.companyId, phone } })) ??
-    (await prisma.client.create({
-      data: { companyId: params.companyId, name: params.name.trim(), phone },
-    }));
+    existingClient ??
+    (await prisma.client
+      .create({ data: { companyId: params.companyId, name: params.name.trim(), phone } })
+      .catch(async (error) => {
+        // Dois pedidos ao mesmo tempo com o mesmo telefone: o outro acabou de criar o cadastro.
+        const again = await prisma.client.findFirst({
+          where: { companyId: params.companyId, phone },
+        });
+        if (again) return again;
+        throw error;
+      }));
 
   try {
     return await createAppointment({
@@ -255,7 +325,7 @@ export async function createPublicBooking(params: {
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'AppointmentConflictError') {
-      throw new UserError('Alguém acabou de reservar esse horário. Escolha outro.');
+      throw new SlotUnavailableError('Alguém acabou de reservar esse horário. Escolha outro.');
     }
     throw error;
   }
@@ -296,7 +366,19 @@ export async function getAppointmentForToken(token: string) {
     include: {
       client: { select: { name: true } },
       professional: { select: { name: true } },
-      company: { select: { name: true, timezone: true } },
+      company: {
+        select: {
+          name: true,
+          timezone: true,
+          street: true,
+          number: true,
+          complement: true,
+          district: true,
+          city: true,
+          state: true,
+          zipCode: true,
+        },
+      },
     },
   });
 }
