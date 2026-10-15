@@ -8,6 +8,8 @@ export const createAppointmentInput = z.object({
   extraServiceIds: z.array(z.string().min(1).max(64)).max(5).optional(),
   startAt: z.coerce.date(),
   notes: z.string().max(2000).optional(),
+  /** Sessão de pacote planejada (escolha explícita de quem agenda). */
+  clientPackageId: z.string().min(1).max(64).nullable().optional(),
   /** Repetir o mesmo horário: a cada 1, 2 ou 4 semanas, até 12 vezes ao todo. */
   repeat: z
     .object({
@@ -123,4 +125,5 @@ export const updateAppointmentDetailsInput = z.object({
   clientId: z.string().min(1).max(64).optional(),
   serviceIds: z.array(z.string().min(1).max(64)).min(1).max(6).optional(),
   notes: z.string().max(2000).nullable().optional(),
+  clientPackageId: z.string().min(1).max(64).nullable().optional(),
 });

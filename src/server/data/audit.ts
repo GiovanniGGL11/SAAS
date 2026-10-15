@@ -2,7 +2,26 @@ import { prisma } from '@/lib/db';
 import type { Prisma } from '@/generated/prisma/client';
 
 export type AuditAction =
-  'created' | 'updated' | 'moved' | 'status_changed' | 'canceled' | 'deleted';
+  | 'created'
+  | 'updated'
+  | 'moved'
+  | 'status_changed'
+  | 'canceled'
+  | 'deleted'
+  // Fichas e pacotes: quem viu, exportou, enviou, revisou, assinou. Nunca com o conteúdo.
+  | 'viewed'
+  | 'exported'
+  | 'requested'
+  | 'submitted'
+  | 'reviewed'
+  | 'link_created'
+  | 'link_revoked'
+  | 'archived'
+  | 'restored'
+  | 'finalized'
+  | 'amended'
+  | 'signed'
+  | 'adjusted';
 
 export async function recordAuditLog(
   params: {

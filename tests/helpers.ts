@@ -62,6 +62,15 @@ export async function deleteTestCompany(companyId: string) {
   await prisma.waitlistEntry.deleteMany({ where: { companyId } });
   await prisma.review.deleteMany({ where: { companyId } });
   await prisma.campaign.deleteMany({ where: { companyId } });
+  await prisma.formAccessToken.deleteMany({ where: { companyId } });
+  await prisma.formEntryRevision.deleteMany({ where: { companyId } });
+  await prisma.formEntry.deleteMany({ where: { companyId } });
+  await prisma.formTemplateService.deleteMany({ where: { companyId } });
+  await prisma.formTemplate.deleteMany({ where: { companyId } });
+  await prisma.formPermission.deleteMany({ where: { companyId } });
+  await prisma.sessionSignature.deleteMany({ where: { companyId } });
+  await prisma.sessionRecord.deleteMany({ where: { companyId } });
+  await prisma.packageMovement.deleteMany({ where: { companyId } });
   await prisma.appointment.deleteMany({ where: { companyId } });
   await prisma.clientPackage.deleteMany({ where: { companyId } });
   await prisma.packagePlan.deleteMany({ where: { companyId } });

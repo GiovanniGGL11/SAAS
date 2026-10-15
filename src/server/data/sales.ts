@@ -18,7 +18,7 @@ const brl = (v: Prisma.Decimal | number) =>
   Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /** Lança a entrada da venda: paga (com taxa da maquininha) ou pendente no fiado do cliente. */
-async function recordSaleIncome(
+export async function recordSaleIncome(
   tx: Db,
   params: {
     companyId: string;
@@ -29,6 +29,8 @@ async function recordSaleIncome(
     payment: SalePayment;
     userId: string;
     notes?: string | null;
+    /** Pacote que este lançamento paga (o "total pago" do pacote sai destes lançamentos). */
+    clientPackageId?: string | null;
   },
 ) {
   if ('tab' in params.payment && !params.clientId) {
@@ -41,6 +43,7 @@ async function recordSaleIncome(
     data: {
       companyId: params.companyId,
       clientId: params.clientId ?? null,
+      clientPackageId: params.clientPackageId ?? null,
       type: 'INCOME',
       status: paid ? 'PAID' : 'PENDING',
       category: params.category,
@@ -169,6 +172,7 @@ export async function sellPackage(params: {
         sessionValue: D(plan.price).div(plan.sessions).toDecimalPlaces(2),
         price: plan.price,
         recurring: plan.recurring,
+        contractedAt: now,
         periodStart: now,
         periodEnd: plan.recurring
           ? addMonths(now, 1)
@@ -186,6 +190,7 @@ export async function sellPackage(params: {
       amount: D(plan.price),
       payment: params.payment,
       userId: params.userId,
+      clientPackageId: pkg.id,
     });
     return pkg;
   });
@@ -215,11 +220,25 @@ export async function ensureMembershipRenewals(companyId: string, userId = 'syst
         data: { periodStart: cycles[cycles.length - 1], periodEnd, sessionsUsed: 0 },
       });
       if (moved.count === 0) return;
+      // O livro do pacote acompanha o ciclo: zera as sessões do mês que fechou.
+      if (pkg.sessionsUsed > 0) {
+        await tx.packageMovement.create({
+          data: {
+            companyId,
+            clientPackageId: pkg.id,
+            kind: 'ADJUST',
+            quantity: -pkg.sessionsUsed,
+            reason: 'Novo ciclo da assinatura',
+            createdByUserId: userId,
+          },
+        });
+      }
       for (const start of cycles) {
         await tx.transaction.create({
           data: {
             companyId,
             clientId: pkg.clientId,
+            clientPackageId: pkg.id,
             type: 'INCOME',
             status: 'PENDING',
             category: 'Assinaturas',

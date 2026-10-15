@@ -1,0 +1,2 @@
+ALTER TABLE "FormPermission" ADD COLUMN "canRequest" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "FormPermission" ADD COLUMN "canAudit" BOOLEAN NOT NULL DEFAULT false;

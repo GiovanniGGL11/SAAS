@@ -43,6 +43,7 @@ import { toActionResult } from '@/server/action-result';
 import { scheduleGoogleSync } from '@/server/google/background';
 import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { findWaitlistMatchesForFreedSlot } from '@/server/data/waitlist';
+import { PackageUnavailableError } from '@/server/data/package-sessions';
 
 export async function getAppointmentsForRangeAction(input: unknown) {
   const parsed = appointmentRangeInput.parse(input);
@@ -93,7 +94,7 @@ export async function createAppointmentAction(input: unknown) {
     const parsed = createAppointmentInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
 
-    const create = (startAt: Date) =>
+    const create = (startAt: Date, clientPackageId: string | null) =>
       createAppointment({
         companyId: company.id,
         clientId: parsed.clientId,
@@ -102,14 +103,18 @@ export async function createAppointmentAction(input: unknown) {
         extraServiceIds: parsed.extraServiceIds,
         startAt,
         notes: parsed.notes,
+        clientPackageId,
         createdByUserId: userId,
       });
 
-    // O primeiro precisa entrar: conflito nele é erro para quem está agendando.
-    const appointment = await create(parsed.startAt);
+    // O primeiro precisa entrar: conflito (ou pacote que não serve) nele é erro para quem agenda.
+    const appointment = await create(parsed.startAt, parsed.clientPackageId ?? null);
     const createdIds = [appointment.id];
     const skipped: string[] = [];
     let repeated = 0;
+    // Repetições além do saldo do pacote entram como atendimento avulso (e são avisadas).
+    let repeatPackage = parsed.clientPackageId ?? null;
+    let withoutPackage = 0;
     if (parsed.repeat) {
       // Recorrência: as próximas datas no mesmo horário; ocupadas são puladas e avisadas.
       for (let i = 1; i < parsed.repeat.times; i++) {
@@ -117,7 +122,16 @@ export async function createAppointmentAction(input: unknown) {
           parsed.startAt.getTime() + i * parsed.repeat.everyWeeks * 7 * 86_400_000,
         );
         try {
-          createdIds.push((await create(startAt)).id);
+          let created;
+          try {
+            created = await create(startAt, repeatPackage);
+          } catch (error) {
+            if (!(repeatPackage && error instanceof PackageUnavailableError)) throw error;
+            repeatPackage = null;
+            created = await create(startAt, null);
+          }
+          if (parsed.clientPackageId && !repeatPackage) withoutPackage++;
+          createdIds.push(created.id);
           repeated++;
         } catch (error) {
           if (error instanceof AppointmentConflictError) {
@@ -141,7 +155,13 @@ export async function createAppointmentAction(input: unknown) {
     const confirmation = await buildConfirmationMessage(company.id, appointment.id).catch(
       () => null,
     );
-    return { ...serializeAppointment(appointment), repeated, skipped, confirmation };
+    return {
+      ...serializeAppointment(appointment),
+      repeated,
+      skipped,
+      withoutPackage,
+      confirmation,
+    };
   });
 }
 

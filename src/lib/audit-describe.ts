@@ -27,6 +27,7 @@ const SYSTEM_ACTORS: Record<string, string> = {
   'client-portal': 'Cliente (área do cliente)',
   'client-link': 'Cliente (link de confirmação)',
   'demo-seed': 'Dados de demonstração',
+  'client-form-link': 'Cliente (link da ficha)',
   system: 'Sistema',
 };
 
@@ -127,6 +128,21 @@ export function describeAudit(
 
   const name = typeof m.name === 'string' ? m.name : null;
   const entity = ENTITY[entry.entityType] ?? entry.entityType;
+  // Fichas, pacotes e registros: o histórico diz o que aconteceu, nunca o conteúdo.
+  const recordAction = RECORD_ACTION[entry.action];
+  if (recordAction) {
+    const version = num(m.version);
+    return {
+      title: `${entity}: ${recordAction}`,
+      detail: [name, version ? `versão ${version}` : null].filter(Boolean).join(' · ') || null,
+    };
+  }
+  if (entry.entityType === 'FormPermission') {
+    return { title: 'Permissões de fichas alteradas', detail: null };
+  }
+  if (entry.entityType === 'ClientPackage' && m.extended) {
+    return { title: 'Pacote ampliado', detail: `${name ?? ''} +${num(m.extended)} sessões`.trim() };
+  }
   if (entry.action === 'created') {
     if (entry.entityType === 'ScheduleBlock') {
       const count = num(m.count);
@@ -155,7 +171,27 @@ export function describeAudit(
   return { title: `${entity}: ${entry.action}`, detail: null };
 }
 
+const RECORD_ACTION: Record<string, string> = {
+  viewed: 'aberta para leitura',
+  exported: 'PDF exportado',
+  requested: 'pedida',
+  submitted: 'enviada',
+  reviewed: 'revisada',
+  link_created: 'link gerado',
+  link_revoked: 'link revogado',
+  archived: 'arquivado',
+  restored: 'restaurado',
+  finalized: 'finalizado',
+  amended: 'adendo registrado',
+  signed: 'assinatura coletada',
+  adjusted: 'saldo corrigido',
+};
+
 const ENTITY: Record<string, string> = {
+  FormTemplate: 'Modelo de ficha',
+  FormEntry: 'Ficha',
+  ClientPackage: 'Pacote',
+  SessionRecord: 'Registro de sessão',
   Client: 'Cliente',
   Service: 'Serviço',
   Product: 'Produto',

@@ -332,6 +332,7 @@ export async function reverseIncomeFromAppointment(
   companyId: string,
   appointmentId: string,
   db: Prisma.TransactionClient = prisma,
+  userId = 'system',
 ): Promise<void> {
   // Cupom usado na cobrança volta a ficar disponível (o código fica anotado no lançamento).
   const charged = await db.transaction.findMany({
@@ -349,10 +350,24 @@ export async function reverseIncomeFromAppointment(
   const credits = await db.appointmentCredit.findMany({ where: { appointmentId } });
   for (const credit of credits) {
     if (credit.clientPackageId) {
-      await db.clientPackage.updateMany({
+      const restored = await db.clientPackage.updateMany({
         where: { id: credit.clientPackageId, sessionsUsed: { gt: 0 } },
         data: { sessionsUsed: { decrement: 1 } },
       });
+      // No livro do pacote, o estorno fica registrado (a sessão consumida não some do histórico).
+      if (restored.count > 0) {
+        await db.packageMovement.create({
+          data: {
+            companyId,
+            clientPackageId: credit.clientPackageId,
+            kind: 'RESTORE',
+            quantity: -1,
+            appointmentId,
+            reason: 'Atendimento deixou de estar concluído',
+            createdByUserId: userId,
+          },
+        });
+      }
     }
     if (credit.giftCardId) {
       await db.giftCard.updateMany({

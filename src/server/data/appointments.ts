@@ -15,6 +15,8 @@ import type {
 } from '@/generated/prisma/client';
 import { UserError } from '@/server/errors';
 import { addDays, calendarDateToUtc, utcToCalendarDate } from '@/lib/time';
+import { assertAppointmentFormsReady } from '@/server/data/forms';
+import { assertPackageForAppointment } from '@/server/data/package-sessions';
 
 export class AppointmentConflictError extends Error {
   constructor(reason: 'overlap' | 'blocked') {
@@ -196,6 +198,8 @@ export async function createAppointment(params: {
   extraServiceIds?: string[];
   startAt: Date;
   notes?: string;
+  /** Sessão de pacote planejada (escolhida por quem agenda; a baixa só acontece ao concluir). */
+  clientPackageId?: string | null;
   createdByUserId: string;
 }): Promise<Appointment> {
   const [client, professional, resolved] = await Promise.all([
@@ -228,6 +232,16 @@ export async function createAppointment(params: {
       },
       tx,
     );
+    if (params.clientPackageId) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'pkgplan:' + params.clientPackageId}))`;
+      await assertPackageForAppointment(tx, {
+        companyId: params.companyId,
+        clientId: params.clientId,
+        clientPackageId: params.clientPackageId,
+        serviceIds: [params.serviceId, ...(params.extraServiceIds ?? [])],
+        startAt: params.startAt,
+      });
+    }
     return tx.appointment.create({
       data: {
         companyId: params.companyId,
@@ -237,6 +251,7 @@ export async function createAppointment(params: {
         startAt: params.startAt,
         endAt,
         notes: params.notes,
+        clientPackageId: params.clientPackageId ?? null,
         createdByUserId: params.createdByUserId,
         ...(resolved.items.length ? { items: { create: resolved.items } } : {}),
       },
@@ -352,6 +367,14 @@ export async function updateAppointmentStatus(params: {
     const before = (await tx.appointment.findFirst({
       where: { id: params.id, companyId: params.companyId },
     }))!;
+    // Ficha exigida pelo serviço ou pacote: conferida aqui, não só na tela.
+    if (params.status === 'IN_PROGRESS' && before.status !== 'IN_PROGRESS') {
+      await assertAppointmentFormsReady(tx, params.companyId, params.id);
+    }
+    // Sessão de pacote conclui pela comanda ("Concluir sessão"), que dá a baixa no pacote.
+    if (params.status === 'DONE' && before.status !== 'DONE' && before.clientPackageId) {
+      throw new UserError('Esta é uma sessão de pacote: use "Concluir sessão" para dar baixa no pacote.');
+    }
 
     await tx.appointment.updateMany({
       where: { id: params.id, companyId: params.companyId },
@@ -365,7 +388,7 @@ export async function updateAppointmentStatus(params: {
       await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
       await earnLoyaltyFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
     } else if (before.status === 'DONE') {
-      await reverseIncomeFromAppointment(params.companyId, params.id, tx);
+      await reverseIncomeFromAppointment(params.companyId, params.id, tx, params.updatedByUserId);
       await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
     }
 
@@ -396,6 +419,8 @@ export async function updateAppointmentDetails(params: {
   /** Lista completa de serviços, na ordem (troca o serviço ou adiciona/remove outros). */
   serviceIds?: string[];
   notes?: string | null;
+  /** Trocar ou tirar o pacote planejado (null tira). */
+  clientPackageId?: string | null;
   updatedByUserId: string;
 }): Promise<Appointment> {
   return prisma.$transaction(async (tx) => {
@@ -455,6 +480,36 @@ export async function updateAppointmentDetails(params: {
       }
     }
 
+    // Pacote planejado: confere com o cliente e os serviços finais. Trocar o cliente sem dizer o
+    // pacote tira o pacote (era do outro cliente).
+    const finalClientId = (data.clientId as string | undefined) ?? current.clientId;
+    let packageId =
+      params.clientPackageId !== undefined ? params.clientPackageId : current.clientPackageId;
+    if (params.clientPackageId === undefined && finalClientId !== current.clientId) packageId = null;
+    if (packageId) {
+      const finalServiceIds = params.serviceIds?.length
+        ? params.serviceIds
+        : [
+            current.serviceId,
+            ...(
+              await tx.appointmentItem.findMany({
+                where: { appointmentId: current.id },
+                select: { serviceId: true },
+              })
+            ).map((i) => i.serviceId),
+          ];
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'pkgplan:' + packageId}))`;
+      await assertPackageForAppointment(tx, {
+        companyId: params.companyId,
+        clientId: finalClientId,
+        clientPackageId: packageId,
+        serviceIds: finalServiceIds,
+        startAt: current.startAt,
+        excludeAppointmentId: current.id,
+      });
+    }
+    if (packageId !== current.clientPackageId) data.clientPackageId = packageId;
+
     await tx.appointment.updateMany({
       where: { id: params.id, companyId: params.companyId },
       data,
@@ -470,6 +525,7 @@ export async function updateAppointmentDetails(params: {
           edited: true,
           clientId: params.clientId ?? null,
           serviceIds: params.serviceIds ?? null,
+          ...(packageId !== current.clientPackageId ? { clientPackageId: packageId } : {}),
         },
       },
       tx,
@@ -579,6 +635,27 @@ export async function checkoutAppointment(params: CheckoutInput) {
         data: { sessionsUsed: { increment: 1 } },
       });
       if (used.count === 0) throw new UserError('As sessões deste pacote acabaram.');
+      // O livro do pacote: esta é a sessão n (o progresso "2 de 8" sai daqui).
+      const after = await tx.clientPackage.findUniqueOrThrow({
+        where: { id: pkg.id },
+        select: { sessionsUsed: true },
+      });
+      await tx.packageMovement.create({
+        data: {
+          companyId: params.companyId,
+          clientPackageId: pkg.id,
+          kind: 'CONSUME',
+          quantity: 1,
+          appointmentId: appointment.id,
+          sessionNumber: after.sessionsUsed,
+          createdByUserId: params.updatedByUserId,
+        },
+      });
+      // O registro da sessão (se já existe) fica ligado ao pacote que pagou a sessão.
+      await tx.sessionRecord.updateMany({
+        where: { appointmentId: appointment.id, clientPackageId: null },
+        data: { clientPackageId: pkg.id },
+      });
       toCharge = PrismaNamespace.Decimal.max(0, toCharge.sub(part.price));
       credits.push({
         appointmentId: appointment.id,
@@ -586,9 +663,7 @@ export async function checkoutAppointment(params: CheckoutInput) {
         clientPackageId: pkg.id,
         amount: pkg.sessionValue,
       });
-      notes.push(
-        `pacote:${pkg.nameSnapshot} (sessão ${pkg.sessionsUsed + 1}/${pkg.sessionsTotal})`,
-      );
+      notes.push(`pacote:${pkg.nameSnapshot} (sessão ${after.sessionsUsed}/${pkg.sessionsTotal})`);
     }
 
     if (params.giftCardCode?.trim()) {
@@ -728,7 +803,7 @@ export async function cancelAppointment(params: {
       },
     });
     // Cancelar um atendimento já concluído também tira a receita e a fidelidade dele.
-    await reverseIncomeFromAppointment(params.companyId, params.id, tx);
+    await reverseIncomeFromAppointment(params.companyId, params.id, tx, params.canceledByUserId);
     await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
 
     await recordAuditLog(

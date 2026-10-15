@@ -16,7 +16,7 @@ export type HistoryEntry = {
 };
 
 /** Nome das pessoas da equipe pelo id do Clerk; quem não for achado vira "Equipe". */
-async function actorNames(userIds: string[]): Promise<Map<string, string>> {
+export async function actorNames(userIds: string[]): Promise<Map<string, string>> {
   const ids = [...new Set(userIds.filter((id) => id.startsWith('user_')))];
   const names = new Map<string, string>();
   if (ids.length === 0) return names;

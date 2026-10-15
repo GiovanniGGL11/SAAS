@@ -35,9 +35,12 @@ export function CheckoutForm({
   price,
   onDone,
   onCancel,
+  plannedPackageId = null,
 }: {
   appointmentId: string;
   price: number;
+  /** Pacote escolhido ao agendar: já vem marcado ("Concluir sessão"). */
+  plannedPackageId?: string | null;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -49,7 +52,7 @@ export function CheckoutForm({
   // Pagamento dividido: as outras formas com valor; a principal fica com o restante.
   const [split, setSplit] = React.useState<{ method: Method; amount: string }[]>([]);
   // Créditos do cliente e fiado.
-  const [packageId, setPackageId] = React.useState<string | null>(null);
+  const [packageId, setPackageId] = React.useState<string | null>(plannedPackageId);
   const [giftCode, setGiftCode] = React.useState('');
   const [payOnTab, setPayOnTab] = React.useState(false);
   const { data: options } = useQuery({
@@ -99,6 +102,9 @@ export function CheckoutForm({
       );
       queryClient.invalidateQueries({ queryKey: ['checkout-options'] });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['client-packages'] });
+      queryClient.invalidateQueries({ queryKey: ['client-packages-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['client-sessions'] });
       onDone();
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível concluir.'),
@@ -113,7 +119,9 @@ export function CheckoutForm({
       }}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-semibold">Concluir e cobrar</span>
+        <span className="text-[13px] font-semibold">
+          {packageId ? 'Concluir sessão' : 'Concluir e cobrar'}
+        </span>
         <span className="text-label-secondary text-[12px]">Serviço {formatCurrencyBRL(price)}</span>
       </div>
 
@@ -132,7 +140,8 @@ export function CheckoutForm({
                   : 'bg-system-blue/10 text-system-blue hover:bg-system-blue/15',
               )}
             >
-              {packageId === pkg.id ? '✓ ' : ''}Usar {pkg.name} · restam {pkg.remaining}
+              {packageId === pkg.id ? '✓ ' : ''}Usar {pkg.name} · sessão {pkg.sessionsUsed + 1} de{' '}
+              {pkg.sessionsTotal}
             </button>
           ))}
         </div>
