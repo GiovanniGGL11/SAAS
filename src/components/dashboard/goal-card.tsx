@@ -10,19 +10,10 @@ import { AppleTile, TileEyebrow } from '@/components/dashboard/apple-tile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { unwrapResult } from '@/lib/action-result';
+import { maskMoneyInput, moneyToInput, parseMoneyInput } from '@/lib/money-input';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { cn } from '@/lib/utils';
 import { setRevenueGoalAction } from '@/server/actions/dashboard-actions';
-
-function parseMoney(value: string): number {
-  const n = Number(
-    value
-      .replace(/[^\d,.-]/g, '')
-      .replace(/\./g, '')
-      .replace(',', '.'),
-  );
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
-}
 
 /** Meta de faturamento do mês: quanto já entrou, a projeção no ritmo atual e quanto falta por dia. */
 export function GoalCard({
@@ -40,7 +31,7 @@ export function GoalCard({
 }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState(goal ? String(goal).replace('.', ',') : '');
+  const [draft, setDraft] = React.useState(moneyToInput(goal));
   const save = useMutation({
     mutationFn: (value: number | null) => setRevenueGoalAction({ goal: value }).then(unwrapResult),
     onSuccess: () => {
@@ -56,16 +47,16 @@ export function GoalCard({
       className="flex flex-wrap items-center gap-2"
       onSubmit={(e) => {
         e.preventDefault();
-        const value = parseMoney(draft);
+        const value = parseMoneyInput(draft);
         save.mutate(value > 0 ? value : null);
       }}
     >
       <Input
         autoFocus
         inputMode="decimal"
-        placeholder="Ex: 20.000"
+        placeholder="Ex: 20.000,00"
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => setDraft(maskMoneyInput(e.target.value))}
         className="h-9 w-36"
         aria-label="Meta de faturamento do mês"
       />
