@@ -8,18 +8,28 @@ datasource db {
 }
 
 model Company {
-  id               String    @id @default(cuid())
-  clerkOrgId       String    @unique
-  name             String
-  slug             String    @unique
-  timezone         String    @default("America/Sao_Paulo")
+  id                 String    @id @default(cuid())
+  clerkOrgId         String    @unique
+  name               String
+  slug               String    @unique
+  timezone           String    @default("America/Sao_Paulo")
   // Where clients without a link ask for one ("Pedir acesso"); digits only, with country code.
-  whatsapp         String?
+  whatsapp           String?
   // Lembrete automático por e-mail na véspera do atendimento (precisa de RESEND_API_KEY e CRON_SECRET).
-  remindersByEmail Boolean   @default(false)
-  deletedAt        DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  remindersByEmail   Boolean   @default(false)
+  // Identidade na página pública de agendamento (/agendar/[slug]). A logo vem da organização no Clerk.
+  zipCode            String?
+  street             String?
+  number             String?
+  complement         String?
+  district           String?
+  city               String?
+  state              String?
+  instagram          String?
+  cancellationPolicy String?
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   professionals             Professional[]
   services                  Service[]

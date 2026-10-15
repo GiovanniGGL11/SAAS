@@ -29,6 +29,17 @@ export async function isOnlineBookingEnabled(clerkOrgId: string): Promise<boolea
   }
 }
 
+/** Foto da organização no Clerk, usada como logo da empresa; null se não houver. */
+export async function getCompanyLogoUrl(clerkOrgId: string): Promise<string | null> {
+  try {
+    const client = await clerkClient();
+    const org = await client.organizations.getOrganization({ organizationId: clerkOrgId });
+    return org.hasImage ? org.imageUrl : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function setOnlineBookingEnabled(clerkOrgId: string, enabled: boolean) {
   const client = await clerkClient();
   await client.organizations.updateOrganizationMetadata(clerkOrgId, {
@@ -36,12 +47,21 @@ export async function setOnlineBookingEnabled(clerkOrgId: string, enabled: boole
   });
 }
 
-/** Empresa pelo endereço público, só se o agendamento online estiver ligado. */
+/**
+ * Empresa pelo endereço público, só se o agendamento online estiver ligado. A logo é a foto da
+ * organização no Clerk (a mesma de Configurações → Organização): uma única consulta serve aos dois.
+ */
 export async function getBookableCompany(slug: string) {
   const company = await prisma.company.findFirst({ where: { slug, deletedAt: null } });
   if (!company) return null;
-  if (!(await isOnlineBookingEnabled(company.clerkOrgId))) return null;
-  return company;
+  try {
+    const client = await clerkClient();
+    const org = await client.organizations.getOrganization({ organizationId: company.clerkOrgId });
+    if (org.publicMetadata?.onlineBooking !== true) return null;
+    return { ...company, logoUrl: org.hasImage ? org.imageUrl : null };
+  } catch {
+    return null;
+  }
 }
 
 /** Profissionais ativos sem expediente: enquanto isso não for definido, o link público não os oferece. */

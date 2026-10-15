@@ -7,18 +7,21 @@ import { ClientAreaCard } from '@/components/configuracoes/client-area-card';
 import { RemindersSettingsCard } from '@/components/configuracoes/reminders-card';
 import { isEmailConfigured } from '@/server/email';
 import {
+  getCompanyLogoUrl,
   isOnlineBookingEnabled,
   listProfessionalsWithoutSchedule,
 } from '@/server/data/public-booking';
+import { PublicProfileCard } from '@/components/configuracoes/public-profile-card';
 import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
 
 export default async function ConfiguracoesPage() {
   const { company } = await requireAdminPage();
-  const [bookingEnabled, baseUrl, withoutSchedule] = await Promise.all([
+  const [bookingEnabled, baseUrl, withoutSchedule, logoUrl] = await Promise.all([
     isOnlineBookingEnabled(company.clerkOrgId),
     appBaseUrl(),
     listProfessionalsWithoutSchedule(company.id),
+    getCompanyLogoUrl(company.clerkOrgId),
   ]);
 
   return (
@@ -32,6 +35,21 @@ export default async function ConfiguracoesPage() {
         initialEnabled={bookingEnabled}
         withoutSchedule={withoutSchedule}
         url={`${baseUrl}/agendar/${company.slug}`}
+      />
+
+      <PublicProfileCard
+        hasLogo={logoUrl !== null}
+        initial={{
+          zipCode: company.zipCode,
+          street: company.street,
+          number: company.number,
+          complement: company.complement,
+          district: company.district,
+          city: company.city,
+          state: company.state,
+          instagram: company.instagram,
+          cancellationPolicy: company.cancellationPolicy,
+        }}
       />
 
       <ClientAreaCard

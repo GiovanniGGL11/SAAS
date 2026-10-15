@@ -38,7 +38,10 @@ export function BookingFlow({
   services,
   professionals,
   today,
+  cancellationPolicy,
 }: {
+  /** Mostrada antes de confirmar: o cliente sabe as regras antes de reservar. */
+  cancellationPolicy?: string | null;
   slug: string;
   services: Service[];
   professionals: Professional[];
@@ -274,6 +277,14 @@ export function BookingFlow({
             onChange={(e) => setWebsite(e.target.value)}
             name="website"
           />
+          {cancellationPolicy && (
+            <div className="bg-foreground/[0.04] rounded-2xl px-4 py-3 text-[13px]">
+              <p className="font-semibold">Política de cancelamento</p>
+              <p className="text-label-secondary mt-0.5 whitespace-pre-line">
+                {cancellationPolicy}
+              </p>
+            </div>
+          )}
           {booking.error && (
             <p className="text-destructive text-sm">{(booking.error as Error).message}</p>
           )}

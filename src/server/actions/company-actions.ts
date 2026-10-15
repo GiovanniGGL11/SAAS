@@ -7,7 +7,12 @@ import { toActionResult } from '@/server/action-result';
 import { revalidatePath } from 'next/cache';
 
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
-import { updateCompanyTimezone, updateCompanyWhatsapp } from '@/server/data/company';
+import {
+  updateCompanyPublicProfile,
+  updateCompanyTimezone,
+  updateCompanyWhatsapp,
+} from '@/server/data/company';
+import { publicProfileInput } from '@/lib/validations/public-profile';
 import { updateCompanyTimezoneInput } from '@/lib/validations/company';
 
 export async function updateCompanyTimezoneAction(input: unknown) {
@@ -30,5 +35,17 @@ export async function updateCompanyWhatsappAction(input: unknown) {
     const saved = await updateCompanyWhatsapp(company.id, whatsapp || null);
     revalidatePath('/configuracoes');
     return { whatsapp: saved };
+  });
+}
+
+export async function updateCompanyPublicProfileAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = publicProfileInput.parse(input);
+    const { company } = await requireCompanyAdmin();
+
+    await updateCompanyPublicProfile(company.id, parsed);
+    revalidatePath('/configuracoes');
+    revalidatePath(`/agendar/${company.slug}`);
+    return parsed;
   });
 }

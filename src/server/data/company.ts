@@ -53,6 +53,25 @@ export async function updateCompanyTimezone(companyId: string, timezone: string)
   if (result.count === 0) throw new UserError('Empresa não encontrada.');
 }
 
+/** Endereço, Instagram e política de cancelamento exibidos na página pública de agendamento. */
+export async function updateCompanyPublicProfile(
+  companyId: string,
+  data: {
+    zipCode?: string | null;
+    street?: string | null;
+    number?: string | null;
+    complement?: string | null;
+    district?: string | null;
+    city?: string | null;
+    state?: string | null;
+    instagram?: string | null;
+    cancellationPolicy?: string | null;
+  },
+) {
+  const result = await prisma.company.updateMany({ where: { id: companyId }, data });
+  if (result.count === 0) throw new UserError('Empresa não encontrada.');
+}
+
 /** WhatsApp onde os clientes pedem o link da área do cliente; guardado com o DDI (55…). */
 export async function updateCompanyWhatsapp(companyId: string, phone: string | null) {
   let whatsapp: string | null = null;
