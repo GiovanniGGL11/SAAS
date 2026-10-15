@@ -67,6 +67,15 @@ describe('área do cliente', () => {
 
   beforeEach(async () => {
     fixture = await createTestCompany('portal');
+    // Remarcar só oferece horário dentro do expediente cadastrado: todos os dias, 07h–21h.
+    await prisma.professionalAvailability.createMany({
+      data: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+        professionalId: fixture.professional.id,
+        weekday,
+        startTime: '07:00',
+        endTime: '21:00',
+      })),
+    });
   });
 
   afterEach(async () => {

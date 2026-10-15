@@ -12,6 +12,7 @@ import { UserError, idSchema } from '@/server/errors';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { cancelAppointment, updateAppointmentStatus } from '@/server/data/appointments';
 import {
+  countBookableProfessionals,
   createPublicBooking,
   getAppointmentForToken,
   getBookableCompany,
@@ -126,6 +127,12 @@ export async function setOnlineBookingAction(input: unknown) {
   return toActionResult(async () => {
     const { enabled } = z.object({ enabled: z.boolean() }).parse(input);
     const { company } = await requireCompanyAdmin();
+    // Sem expediente definido o link não teria horário confiável para oferecer.
+    if (enabled && (await countBookableProfessionals(company.id)) === 0) {
+      throw new UserError(
+        'Defina o expediente de pelo menos um profissional antes de ligar o agendamento online.',
+      );
+    }
     await setOnlineBookingEnabled(company.clerkOrgId, enabled);
     revalidatePath('/configuracoes');
     return { enabled };

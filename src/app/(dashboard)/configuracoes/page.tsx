@@ -6,15 +6,19 @@ import { OnlineBookingCard } from '@/components/configuracoes/online-booking-car
 import { ClientAreaCard } from '@/components/configuracoes/client-area-card';
 import { RemindersSettingsCard } from '@/components/configuracoes/reminders-card';
 import { isEmailConfigured } from '@/server/email';
-import { isOnlineBookingEnabled } from '@/server/data/public-booking';
+import {
+  isOnlineBookingEnabled,
+  listProfessionalsWithoutSchedule,
+} from '@/server/data/public-booking';
 import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
 
 export default async function ConfiguracoesPage() {
   const { company } = await requireAdminPage();
-  const [bookingEnabled, baseUrl] = await Promise.all([
+  const [bookingEnabled, baseUrl, withoutSchedule] = await Promise.all([
     isOnlineBookingEnabled(company.clerkOrgId),
     appBaseUrl(),
+    listProfessionalsWithoutSchedule(company.id),
   ]);
 
   return (
@@ -26,6 +30,7 @@ export default async function ConfiguracoesPage() {
 
       <OnlineBookingCard
         initialEnabled={bookingEnabled}
+        withoutSchedule={withoutSchedule}
         url={`${baseUrl}/agendar/${company.slug}`}
       />
 

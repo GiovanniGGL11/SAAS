@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 import { normalizePhone } from '@/lib/phone';
 import { addDays, calendarDateToUtc, utcToCalendarDate, type CalendarDate } from '@/lib/time';
 import { UserError } from '@/server/errors';
-import { createAppointment, DEFAULT_DAY_WINDOW } from '@/server/data/appointments';
+import { createAppointment } from '@/server/data/appointments';
 
 /**
  * Agendamento online: a página pública /agendar/[slug] onde o cliente escolhe serviço, profissional
@@ -44,6 +44,23 @@ export async function getBookableCompany(slug: string) {
   return company;
 }
 
+/** Profissionais ativos sem expediente: enquanto isso não for definido, o link público não os oferece. */
+export async function listProfessionalsWithoutSchedule(companyId: string): Promise<string[]> {
+  const rows = await prisma.professional.findMany({
+    where: { companyId, active: true, availabilities: { none: {} } },
+    select: { name: true },
+    orderBy: { name: 'asc' },
+  });
+  return rows.map((p) => p.name);
+}
+
+/** Quantos profissionais já podem receber reservas pelo link (ativos e com expediente). */
+export async function countBookableProfessionals(companyId: string): Promise<number> {
+  return prisma.professional.count({
+    where: { companyId, active: true, availabilities: { some: {} } },
+  });
+}
+
 export async function getBookingCatalog(companyId: string) {
   const [services, professionals] = await Promise.all([
     prisma.service.findMany({
@@ -51,8 +68,9 @@ export async function getBookingCatalog(companyId: string) {
       select: { id: true, name: true, durationMinutes: true, price: true, description: true },
       orderBy: { name: 'asc' },
     }),
+    // Sem expediente cadastrado não há horário a oferecer: o profissional nem aparece no link.
     prisma.professional.findMany({
-      where: { companyId, active: true },
+      where: { companyId, active: true, availabilities: { some: {} } },
       select: { id: true, name: true, color: true },
       orderBy: { name: 'asc' },
     }),
@@ -127,15 +145,14 @@ export async function listAvailableSlots(params: {
   const byTime = new Map<number, PublicSlot>();
 
   for (const professional of professionals) {
-    // Sem expediente cadastrado, vale a janela padrão; com expediente, só os dias de trabalho.
-    const windows = professional.availabilities.length
-      ? professional.availabilities
-          .filter((a) => a.weekday === weekday)
-          .map((a) => ({
-            startMinutes: timeToMinutes(a.startTime),
-            endMinutes: timeToMinutes(a.endTime),
-          }))
-      : [DEFAULT_DAY_WINDOW];
+    // Só vale o expediente cadastrado, nos dias de trabalho. Sem expediente não há janela
+    // "padrão": reservar fora do que a empresa confirmou é o que este link não pode fazer.
+    const windows = professional.availabilities
+      .filter((a) => a.weekday === weekday)
+      .map((a) => ({
+        startMinutes: timeToMinutes(a.startTime),
+        endMinutes: timeToMinutes(a.endTime),
+      }));
     for (const window of windows) {
       for (
         let m = window.startMinutes;
@@ -185,6 +202,19 @@ export async function createPublicBooking(params: {
   const lastDay = addDays(utcToCalendarDate(new Date(), params.timezone), BOOKING_DAYS_AHEAD);
   if (params.startAt.getTime() > calendarDateToUtc(lastDay, 0, params.timezone).getTime()) {
     throw new UserError('Data fora do período de agendamento.');
+  }
+
+  // O pedido vem do navegador: só passa um horário que a própria lista de horários ofereceria
+  // (dentro do expediente cadastrado, livre, com o profissional e o serviço da empresa).
+  const offered = await listAvailableSlots({
+    companyId: params.companyId,
+    timezone: params.timezone,
+    serviceId: params.serviceId,
+    professionalId: params.professionalId,
+    date: utcToCalendarDate(params.startAt, params.timezone),
+  });
+  if (!offered.some((slot) => slot.startAt === params.startAt.toISOString())) {
+    throw new UserError('Esse horário não está mais disponível. Escolha outro.');
   }
 
   const client =

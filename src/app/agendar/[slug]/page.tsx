@@ -37,6 +37,21 @@ export default async function AgendarPage({ params }: { params: Promise<{ slug: 
   }
 
   const catalog = await getBookingCatalog(company.id);
+
+  // Ninguém com expediente confirmado: não há horário a oferecer, então nada de reservar.
+  if (catalog.professionals.length === 0) {
+    return (
+      <main className="font-apple flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <CalendarXIcon className="text-label-secondary size-10" />
+        <h1 className="text-[22px] font-semibold">Horários ainda não liberados</h1>
+        <p className="text-label-secondary max-w-sm text-[15px]">
+          {company.name} está terminando de configurar os horários de atendimento. Volte em breve ou
+          entre em contato diretamente para marcar.
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="font-apple mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 p-4 sm:p-8">
       <header className="flex items-end justify-between gap-3 pt-2">

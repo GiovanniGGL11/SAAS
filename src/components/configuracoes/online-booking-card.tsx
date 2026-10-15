@@ -13,9 +13,12 @@ import { setOnlineBookingAction } from '@/server/actions/public-booking-actions'
 /** Liga o link público onde o cliente marca sozinho, e mostra o link para divulgar. */
 export function OnlineBookingCard({
   initialEnabled,
+  withoutSchedule,
   url,
 }: {
   initialEnabled: boolean;
+  /** Profissionais ativos sem expediente: ficam de fora do link até o horário ser definido. */
+  withoutSchedule: string[];
   url: string;
 }) {
   const [enabled, setEnabled] = React.useState(initialEnabled);
@@ -45,6 +48,17 @@ export function OnlineBookingCard({
           aria-label="Agendamento online"
         />
       </div>
+      {withoutSchedule.length > 0 && (
+        <p className="rounded-xl bg-[#ff9f0a]/12 px-4 py-3 text-[13px] text-[#8a4b00] dark:text-[#ffb340]">
+          <span className="font-semibold">Expediente pendente:</span> {withoutSchedule.join(', ')}{' '}
+          {withoutSchedule.length === 1 ? 'não aparece' : 'não aparecem'} no link público até você
+          definir o horário de atendimento em{' '}
+          <a href="/profissionais" className="font-semibold underline">
+            Profissionais
+          </a>
+          .
+        </p>
+      )}
       {enabled && (
         <div className="bg-background ring-foreground/[0.06] flex flex-wrap items-center gap-2 rounded-xl p-3 ring-1">
           <code className="min-w-0 flex-1 truncate text-[13px]">{url}</code>
