@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { ConfirmationToSend } from '@/components/agenda/send-confirmation-dialog';
+import { ExtraServicesField } from '@/components/agenda/extra-services-field';
 import {
   createAppointmentAction,
   findNextAvailableSlotAction,
@@ -124,6 +125,7 @@ export function CreateAppointmentDrawer({
 
   // Recorrência: 0 = não repete; 1, 2 ou 4 semanas.
   const [repeatEvery, setRepeatEvery] = React.useState<0 | 1 | 2 | 4>(0);
+  const [extraServiceIds, setExtraServiceIds] = React.useState<string[]>([]);
   const [repeatTimes, setRepeatTimes] = React.useState(4);
 
   const mutation = useMutation({
@@ -137,6 +139,7 @@ export function CreateAppointmentDrawer({
           clientId: values.clientId,
           professionalId: values.professionalId,
           serviceId: values.serviceId,
+          extraServiceIds: extraServiceIds.filter(Boolean),
           startAt,
           notes: values.notes,
           repeat: repeatEvery ? { everyWeeks: repeatEvery, times: repeatTimes } : undefined,
@@ -153,6 +156,7 @@ export function CreateAppointmentDrawer({
         toast.warning(`Horário ocupado, não repetido em: ${result.skipped.join(', ')}.`);
       }
       setRepeatEvery(0);
+      setExtraServiceIds([]);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onOpenChange(false);
       form.reset();
@@ -211,16 +215,22 @@ export function CreateAppointmentDrawer({
   const watchedServiceId = form.watch('serviceId');
   const watchedTime = form.watch('time');
   const selectedService = services.find((s) => s.id === watchedServiceId);
+  // Soma de todos os serviços escolhidos (o principal e os adicionais).
+  const chosen = [watchedServiceId, ...extraServiceIds]
+    .map((id) => services.find((s) => s.id === id))
+    .filter((s): s is SerializedService => !!s);
+  const totalDuration = chosen.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const totalPrice = chosen.reduce((sum, s) => sum + s.price, 0);
 
   const estimatedEndTime = React.useMemo(() => {
     if (!selectedService || !watchedTime) return null;
     const [hour, minute] = watchedTime.split(':').map(Number);
     if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
-    const totalMinutes = hour * 60 + minute + selectedService.durationMinutes;
+    const totalMinutes = hour * 60 + minute + totalDuration;
     const endHour = Math.floor(totalMinutes / 60) % 24;
     const endMinute = totalMinutes % 60;
     return toTimeInputValue(endHour * 60 + endMinute);
-  }, [selectedService, watchedTime]);
+  }, [selectedService, watchedTime, totalDuration]);
 
   const clientOptions: ComboboxOption[] = [...clients, ...createdClients].map((c) => ({
     value: c.id,
@@ -345,6 +355,12 @@ export function CreateAppointmentDrawer({
                     />
                   </FormControl>
                   <FormMessage />
+                  <ExtraServicesField
+                    value={extraServiceIds}
+                    onChange={setExtraServiceIds}
+                    options={serviceOptions}
+                    disabled={!field.value}
+                  />
                 </FormItem>
               )}
             />
@@ -393,7 +409,11 @@ export function CreateAppointmentDrawer({
             {estimatedEndTime && (
               <p className="text-muted-foreground -mt-2 text-xs">
                 Termina às <span className="text-foreground font-medium">{estimatedEndTime}</span> (
-                {selectedService!.durationMinutes} min de duração)
+                {totalDuration} min de duração
+                {chosen.length > 1
+                  ? ` · ${chosen.length} serviços · ${formatCurrencyBRL(totalPrice)}`
+                  : ''}
+                )
               </p>
             )}
 

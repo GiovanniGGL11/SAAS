@@ -471,3 +471,35 @@ export async function getRevenueByDayInRange(companyId: string, timezone: string
   }
   return result;
 }
+
+/** Meta mensal de cada profissional e quanto ele já faturou em serviços no mês. */
+export async function getProfessionalGoals(companyId: string, timezone: string) {
+  const professionals = await prisma.professional.findMany({
+    where: { companyId, active: true, monthlyGoal: { gt: 0 } },
+    select: { id: true, monthlyGoal: true },
+  });
+  if (professionals.length === 0) return {};
+  const range = monthRange(currentMonthKey(timezone), timezone);
+  const charged = await prisma.transaction.findMany({
+    where: {
+      companyId,
+      type: 'INCOME',
+      status: 'PAID',
+      category: 'Atendimento',
+      paidAt: { gte: range.startAt, lt: range.endAt },
+      appointment: { professionalId: { in: professionals.map((p) => p.id) } },
+    },
+    select: { amount: true, appointment: { select: { professionalId: true } } },
+  });
+  const revenue = new Map<string, number>();
+  for (const t of charged) {
+    const id = t.appointment!.professionalId;
+    revenue.set(id, (revenue.get(id) ?? 0) + Number(t.amount));
+  }
+  return Object.fromEntries(
+    professionals.map((p) => [
+      p.id,
+      { goal: p.monthlyGoal!, revenue: cents(revenue.get(p.id) ?? 0) },
+    ]),
+  ) as Record<string, { goal: number; revenue: number }>;
+}

@@ -7,6 +7,8 @@ export const serviceInput = z.object({
   durationMinutes: z.coerce.number().int().min(5, 'Duração mínima de 5 minutos').max(600),
   price: z.coerce.number().min(0, 'Preço não pode ser negativo'),
   color: z.string().min(1, 'Selecione uma cor'),
+  /** Comissão própria do serviço (%); vazio = vale a regra do profissional. */
+  commissionPercent: z.coerce.number().min(0).max(100, 'Até 100%').nullable().optional(),
 });
 export type ServiceFormInput = z.infer<typeof serviceInput>;
 

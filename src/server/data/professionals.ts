@@ -31,6 +31,7 @@ export type ProfessionalInput = {
   color: string;
   commissionType?: CommissionType | null;
   commissionValue?: number | null;
+  monthlyGoal?: number | null;
 };
 
 export async function createProfessional(
@@ -46,6 +47,7 @@ export async function createProfessional(
       color: data.color,
       commissionType: data.commissionType ?? null,
       commissionValue: data.commissionValue ?? null,
+      monthlyGoal: data.monthlyGoal || null,
     },
   });
 }
@@ -64,6 +66,7 @@ export async function updateProfessional(
       color: data.color,
       commissionType: data.commissionType ?? null,
       commissionValue: data.commissionValue ?? null,
+      monthlyGoal: data.monthlyGoal || null,
     },
   });
   if (result.count === 0) throw new UserError('Profissional não encontrado.');

@@ -54,6 +54,7 @@ export function ServiceDrawer({
       durationMinutes: service?.durationMinutes ?? 30,
       price: service?.price ?? 0,
       color: service?.color ?? PRESET_COLORS[0],
+      commissionPercent: service?.commissionPercent ?? null,
     },
   });
 
@@ -154,6 +155,31 @@ export function ServiceDrawer({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="commissionPercent"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Comissão deste serviço (%, opcional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      placeholder="Vazio = regra de cada profissional"
+                      {...field}
+                      value={(field.value as number) ?? ''}
+                      onChange={(e) =>
+                        field.onChange(e.target.value === '' ? null : e.target.value)
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

@@ -7,6 +7,7 @@ export const professionalInput = z.object({
   color: z.string().min(1, 'Selecione uma cor'),
   commissionType: z.enum(['FIXED', 'PERCENTAGE']).nullable().optional(),
   commissionValue: z.coerce.number().min(0).nullable().optional(),
+  monthlyGoal: z.coerce.number().min(0).max(9_999_999).nullable().optional(),
 });
 export type ProfessionalFormInput = z.infer<typeof professionalInput>;
 

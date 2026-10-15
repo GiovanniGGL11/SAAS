@@ -7,12 +7,14 @@ import { PageHeader } from '@/components/layout/page';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { FinanceView } from '@/components/financeiro/finance-view';
 import { IncomeStatementView } from '@/components/financeiro/income-statement-view';
+import { CommissionsView } from '@/components/financeiro/commissions-view';
 import { RecurringExpensesView } from '@/components/financeiro/recurring-expenses-view';
 import { FinanceSettingsView } from '@/components/financeiro/finance-settings-view';
 
 const TABS = [
   { value: 'lancamentos', label: 'Lançamentos' },
   { value: 'dre', label: 'DRE' },
+  { value: 'comissoes', label: 'Comissões' },
   { value: 'contas-fixas', label: 'Contas fixas' },
   { value: 'ajustes', label: 'Ajustes' },
 ] as const;
@@ -45,6 +47,7 @@ export function FinanceShell() {
       />
       {tab === 'lancamentos' && <FinanceView />}
       {tab === 'dre' && <IncomeStatementView />}
+      {tab === 'comissoes' && <CommissionsView />}
       {tab === 'contas-fixas' && <RecurringExpensesView />}
       {tab === 'ajustes' && <FinanceSettingsView />}
     </div>

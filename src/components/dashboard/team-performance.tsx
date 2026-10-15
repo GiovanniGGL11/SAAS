@@ -5,7 +5,15 @@ import { formatCurrencyBRL } from '@/lib/serialize';
 import type { ProfessionalPerformance } from '@/server/data/insights';
 
 /** Desempenho de cada profissional no período: faturado, atendimentos, ticket e ocupação. */
-export function TeamPerformance({ team }: { team: ProfessionalPerformance[] }) {
+export function TeamPerformance({
+  team,
+  goals = {},
+}: {
+  team: ProfessionalPerformance[];
+  /** Meta do mês por profissional (quem tem), com o faturado no mês até agora. */
+  goals?: Record<string, { goal: number; revenue: number }>;
+}) {
+  const hasGoals = Object.keys(goals).length > 0;
   return (
     <AppleTile interactive={false} className="flex flex-col gap-4 p-5 md:p-6">
       <div className="flex items-end justify-between gap-2">
@@ -23,14 +31,15 @@ export function TeamPerformance({ team }: { team: ProfessionalPerformance[] }) {
         </p>
       ) : (
         <div className="-mx-1 overflow-x-auto">
-          <table className="w-full min-w-[420px] text-[14px]">
+          <table className="w-full min-w-[520px] text-[14px]">
             <thead>
               <tr className="text-label-secondary text-left text-[12px]">
                 <th className="px-1 pb-2 font-medium">Profissional</th>
                 <th className="px-1 pb-2 text-right font-medium">Faturado</th>
                 <th className="px-1 pb-2 text-right font-medium">Atend.</th>
                 <th className="px-1 pb-2 text-right font-medium">Ticket</th>
-                <th className="w-[30%] px-1 pb-2 pl-4 font-medium">Ocupação</th>
+                <th className="w-[24%] px-1 pb-2 pl-4 font-medium">Ocupação</th>
+                {hasGoals && <th className="w-[22%] px-1 pb-2 pl-4 font-medium">Meta do mês</th>}
               </tr>
             </thead>
             <tbody>
@@ -69,6 +78,15 @@ export function TeamPerformance({ team }: { team: ProfessionalPerformance[] }) {
                       </span>
                     )}
                   </td>
+                  {hasGoals && (
+                    <td className="px-1 py-2.5 pl-4">
+                      {goals[p.id] ? (
+                        <GoalProgress {...goals[p.id]} />
+                      ) : (
+                        <span className="text-label-secondary text-[12px]">Sem meta</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -76,5 +94,26 @@ export function TeamPerformance({ team }: { team: ProfessionalPerformance[] }) {
         </div>
       )}
     </AppleTile>
+  );
+}
+
+function GoalProgress({ goal, revenue }: { goal: number; revenue: number }) {
+  const pct = Math.min(100, Math.round((revenue / goal) * 100));
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="bg-foreground/[0.07] h-1.5 overflow-hidden rounded-full">
+        <span
+          className={
+            pct >= 100
+              ? 'bg-system-green block h-full rounded-full'
+              : 'bg-system-blue block h-full rounded-full'
+          }
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="text-label-secondary text-[11px] tabular-nums">
+        {pct}% de {formatCurrencyBRL(goal)}
+      </span>
+    </span>
   );
 }
