@@ -10,7 +10,10 @@ import {
   PackageIcon,
   PlusIcon,
   TriangleAlertIcon,
+  TruckIcon,
 } from 'lucide-react';
+import { useAuth } from '@clerk/nextjs';
+import { PurchaseDialog, PurchasesHistoryDialog } from '@/components/estoque/purchase-dialog';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -42,6 +45,10 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [purchaseOpen, setPurchaseOpen] = React.useState(false);
+  const [purchasesOpen, setPurchasesOpen] = React.useState(false);
+  // Compra mexe no custo e no financeiro: só admin.
+  const isAdmin = useAuth().orgRole === 'org:admin';
   const [movementDialogOpen, setMovementDialogOpen] = React.useState(false);
   const [editingProduct, setEditingProduct] = React.useState<SerializedProduct | null>(null);
   const [search, setSearch] = React.useState('');
@@ -102,6 +109,17 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
             <Button variant="outline" onClick={() => setHistoryOpen(true)}>
               Histórico
             </Button>
+            {isAdmin && (
+              <>
+                <Button variant="outline" onClick={() => setPurchasesOpen(true)}>
+                  Compras
+                </Button>
+                <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
+                  <TruckIcon className="size-4" />
+                  Entrada de mercadoria
+                </Button>
+              </>
+            )}
             <Button variant="outline" onClick={() => setMovementDialogOpen(true)}>
               <ArrowLeftRightIcon className="size-4" />
               Nova movimentação
@@ -237,6 +255,16 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                         </TableCell>
                         <TableCell className="text-muted-foreground tabular-nums">
                           {formatCurrencyBRL(product.salePrice)}
+                          {product.salePrice > 0 && (
+                            // Margem sobre o custo médio: o que sobra de cada venda.
+                            <div className="text-[11px]">
+                              margem{' '}
+                              {Math.round(
+                                ((product.salePrice - product.costPrice) / product.salePrice) * 100,
+                              )}
+                              %
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Switch
@@ -308,6 +336,8 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
         products={products}
       />
       <StockHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} />
+      <PurchaseDialog open={purchaseOpen} onOpenChange={setPurchaseOpen} products={products} />
+      <PurchasesHistoryDialog open={purchasesOpen} onOpenChange={setPurchasesOpen} />
     </div>
   );
 }

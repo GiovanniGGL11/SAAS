@@ -28,6 +28,7 @@ import { upsertInList } from '@/lib/query-cache';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AvailabilityEditor } from '@/components/profissionais/availability-editor';
+import { AbsencesEditor } from '@/components/profissionais/absences-editor';
 import { ColorPicker, PRESET_COLORS } from '@/components/ui/color-picker';
 import {
   Select,
@@ -255,7 +256,10 @@ export function ProfessionalDrawer({
 
             {/* Expediente tem gravação própria: precisa do profissional já salvo. */}
             {isEdit || justCreatedId ? (
-              <AvailabilityEditor professionalId={professional?.id ?? justCreatedId!} />
+              <>
+                <AvailabilityEditor professionalId={professional?.id ?? justCreatedId!} />
+                <AbsencesEditor professionalId={professional?.id ?? justCreatedId!} />
+              </>
             ) : (
               <p className="text-label-secondary text-xs">
                 Ao salvar, o expediente da semana aparece aqui para você definir.

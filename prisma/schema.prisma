@@ -68,6 +68,7 @@ model Company {
   formPermissions           FormPermission[]
   packageMovements          PackageMovement[]
   sessionRecords            SessionRecord[]
+  stockPurchases            StockPurchase[]
 }
 
 model WebhookEvent {
@@ -132,8 +133,11 @@ model ScheduleBlock {
   startAt        DateTime
   endAt          DateTime
   reason         String?
+  /// Bloqueios repetidos toda semana (curso, almoço fixo) compartilham a série para remover juntos.
+  seriesId       String?
 
   @@index([professionalId, startAt, endAt])
+  @@index([seriesId])
 }
 
 model Service {
@@ -307,6 +311,7 @@ model Product {
 
   movements        StockMovement[]
   appointmentSales AppointmentProduct[]
+  purchaseItems    StockPurchaseItem[]
 
   @@unique([companyId, sku])
   @@index([companyId])
@@ -1177,4 +1182,31 @@ model SessionSignature {
   contentHash       String
   collectedByUserId String
   signedAt          DateTime             @default(now())
+}
+
+/// Entrada de mercadoria (compra do fornecedor): soma no estoque, atualiza o custo médio e lança a
+/// conta (paga ou a pagar).
+model StockPurchase {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  supplier        String?
+  invoiceNumber   String?
+  total           Decimal             @db.Decimal(10, 2)
+  transactionId   String?
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  items           StockPurchaseItem[]
+
+  @@index([companyId, createdAt])
+}
+
+model StockPurchaseItem {
+  id         String        @id @default(cuid())
+  purchaseId String
+  purchase   StockPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id])
+  quantity   Int
+  unitCost   Decimal       @db.Decimal(10, 2)
 }
