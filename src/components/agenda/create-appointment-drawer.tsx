@@ -111,9 +111,11 @@ export function CreateAppointmentDrawer({
     [defaultStartAt, timezone],
   );
 
+  // defaultValues, não values: com values o formulário voltava aos padrões sempre que a agenda
+  // re-renderizava com eles, apagando a data e o horário digitados. Cada abertura remonta (key).
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    values: {
+    defaultValues: {
       clientId: defaultClientId ?? '',
       professionalId: defaultProfessionalId ?? '',
       serviceId: defaultServiceId ?? '',
@@ -214,6 +216,16 @@ export function CreateAppointmentDrawer({
 
   const watchedServiceId = form.watch('serviceId');
   const watchedTime = form.watch('time');
+  const watchedDate = form.watch('date');
+  // Agendar no passado é permitido (registrar um encaixe que já aconteceu), mas nunca sem aviso.
+  const isPast = React.useMemo(() => {
+    const [year, month, day] = (watchedDate ?? '').split('-').map(Number);
+    const [hour, minute] = (watchedTime ?? '').split(':').map(Number);
+    if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute)) return false;
+    return (
+      calendarDateToUtc({ year, month, day }, hour * 60 + minute, timezone).getTime() < Date.now()
+    );
+  }, [watchedDate, watchedTime, timezone]);
   const selectedService = services.find((s) => s.id === watchedServiceId);
   // Soma de todos os serviços escolhidos (o principal e os adicionais).
   const chosen = [watchedServiceId, ...extraServiceIds]
@@ -406,6 +418,13 @@ export function CreateAppointmentDrawer({
               {nextSlotMutation.isPending ? 'Buscando...' : 'Próximo horário livre'}
             </Button>
 
+            {isPast && (
+              <p className="-mt-1 rounded-xl bg-[#ff9f0a]/12 px-3 py-2 text-[13px] text-[#8a4b00] dark:text-[#ffb340]">
+                Esse horário já passou. O agendamento será registrado no passado. Confira a data e o
+                horário antes de criar.
+              </p>
+            )}
+
             {estimatedEndTime && (
               <p className="text-muted-foreground -mt-2 text-xs">
                 Termina às <span className="text-foreground font-medium">{estimatedEndTime}</span> (
@@ -480,7 +499,11 @@ export function CreateAppointmentDrawer({
             onClick={form.handleSubmit((values) => mutation.mutate(values))}
             disabled={mutation.isPending}
           >
-            {mutation.isPending ? 'Criando...' : 'Criar agendamento'}
+            {mutation.isPending
+              ? 'Criando...'
+              : isPast
+                ? 'Registrar no passado'
+                : 'Criar agendamento'}
           </Button>
           {/* "Fechar", não "Cancelar": na agenda, cancelar é cancelar o agendamento. */}
           <DrawerClose asChild>

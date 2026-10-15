@@ -192,13 +192,23 @@ export function AgendaView({
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const closePanel = React.useCallback(() => setPanel(null), []);
-  // Vindo do "Agendar" da página do cliente (/agenda?cliente=…): já abre o formulário com ele.
+  // Vindo do "Agendar" da página do cliente (/agenda?cliente=…): já abre o formulário com ele,
+  // no próximo horário livre do relógio (não "hoje às 09h", que pode já ter passado).
   const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(() => {
     const clientId = searchParams.get('cliente');
-    return clientId
-      ? { startAt: calendarDateToUtc(today, OPENING_MINUTES, timezone), clientId }
-      : null;
+    return clientId ? { startAt: suggestedStartAt(), clientId } : null;
   });
+  // Cada abertura do formulário é um formulário novo: nada do que foi digitado é sobrescrito
+  // depois, e nada da abertura anterior sobra.
+  const [createKey, setCreateKey] = React.useState(0);
+  // O pedido vale uma vez: com ?cliente= na URL, a agenda remontada (depois de cancelar, por
+  // exemplo) reabria o formulário com os valores iniciais por cima do que a pessoa fez.
+  React.useEffect(() => {
+    if (!searchParams.get('cliente')) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('cliente');
+    window.history.replaceState(window.history.state, '', url);
+  }, [searchParams]);
   // Guarda o id, não o objeto: depois de "Confirmar" o painel mostra o status novo, não uma cópia velha.
   const [detailId, setDetailId] = React.useState<string | null>(appointmentParam);
   // Já na agenda, clicar noutro aviso só troca a URL: ajusta o estado durante a renderização.
@@ -446,12 +456,16 @@ export function AgendaView({
       const next = Math.ceil(nowMinutes / SLOT_MINUTES) * SLOT_MINUTES;
       if (next >= OPENING_MINUTES && next < CLOSING_MINUTES)
         return calendarDateToUtc(today, next, timezone);
+      // Depois do fechamento, "hoje às 09h" já passou: sugere amanhã.
+      if (next >= CLOSING_MINUTES)
+        return calendarDateToUtc(addDays(today, 1), OPENING_MINUTES, timezone);
     }
     return calendarDateToUtc(view === 'day' ? anchorDate : today, OPENING_MINUTES, timezone);
   }
 
   function openFullCreate(defaults: QuickCreateDefaults) {
     setPanel(null);
+    setCreateKey((k) => k + 1);
     setCreateDefaults(defaults);
   }
 
@@ -826,6 +840,7 @@ export function AgendaView({
       />
 
       <CreateAppointmentDrawer
+        key={createKey}
         open={createDefaults !== null}
         onOpenChange={(open) => {
           if (!open) setCreateDefaults(null);

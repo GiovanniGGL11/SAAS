@@ -68,6 +68,8 @@ export function QuickCreateCard({
   const [newClientName, setNewClientName] = React.useState('');
   const [newClientPhone, setNewClientPhone] = React.useState('');
   const [reason, setReason] = React.useState('');
+  // O cartão é recriado a cada horário clicado (key), então "já passou" é medido uma vez.
+  const [isPast] = React.useState(() => defaults.startAt.getTime() < Date.now());
 
   const service = services.find((s) => s.id === serviceId);
   const endAt = new Date(
@@ -174,6 +176,12 @@ export function QuickCreateCard({
           <XIcon className="size-4" />
         </Button>
       </div>
+
+      {tab === 'appointment' && isPast && (
+        <p className="rounded-xl bg-[#ff9f0a]/12 px-3 py-2 text-[12px] text-[#8a4b00] dark:text-[#ffb340]">
+          Esse horário já passou: o agendamento fica registrado no passado.
+        </p>
+      )}
 
       <div className="text-label-secondary flex items-start gap-2 text-[13px]">
         <ClockIcon className="mt-0.5 size-4 shrink-0" />
