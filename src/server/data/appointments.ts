@@ -510,7 +510,8 @@ export async function checkoutAppointment(params: CheckoutInput) {
       throw new UserError('Este atendimento já foi concluído e cobrado.');
 
     const price = new PrismaNamespace.Decimal(appointment.priceSnapshot);
-    let discount = new PrismaNamespace.Decimal(params.discount ?? 0);
+    // Desconto nunca passa do serviço: acima disso não vira crédito, e o histórico mostra o real.
+    let discount = PrismaNamespace.Decimal.min(params.discount ?? 0, price);
     const notes: string[] = [];
 
     if (params.couponCode?.trim()) {

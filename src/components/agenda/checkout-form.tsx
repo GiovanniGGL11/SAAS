@@ -48,15 +48,19 @@ export function CheckoutForm({
   // Pagamento dividido: as outras formas com valor; a principal fica com o restante.
   const [split, setSplit] = React.useState<{ method: Method; amount: string }[]>([]);
 
-  const discountValue = parseMoney(discount);
+  const typedDiscount = parseMoney(discount);
+  // Desconto acima do serviço vira de graça, não crédito: limita e avisa (o servidor faz o mesmo).
+  const discountValue = Math.min(typedDiscount, price);
+  const discountCapped = typedDiscount > price;
   const tipValue = parseMoney(tip);
-  const preview = Math.max(0, price - discountValue) + tipValue;
+  const serviceTotal = Math.max(0, price - discountValue);
+  const preview = serviceTotal + tipValue;
   const splitValues = split.map((part) => ({
     paymentMethod: part.method,
     amount: parseMoney(part.amount),
   }));
   const splitTotal = splitValues.reduce((sum, part) => sum + part.amount, 0);
-  const remainder = Math.round((Math.max(0, price - discountValue) - splitTotal) * 100) / 100;
+  const remainder = Math.round((serviceTotal - splitTotal) * 100) / 100;
   const methodLabel = (value: Method) => METHODS.find((m) => m.value === value)!.label;
 
   const mutation = useMutation({
@@ -170,8 +174,13 @@ export function CheckoutForm({
         {split.length > 0 && (
           <span className={cn('text-label-secondary', remainder < 0 && 'text-destructive')}>
             {remainder < 0
-              ? 'As partes passam do total'
-              : `${methodLabel(method)}: ${formatCurrencyBRL(remainder)}${coupon.trim() ? ' (− cupom)' : ''}`}
+              ? 'As partes passam do total do serviço'
+              : // A gorjeta entra inteira na forma principal: mostra a conta para fechar com o total.
+                `${methodLabel(method)}: ${formatCurrencyBRL(remainder)}${
+                  tipValue > 0
+                    ? ` + ${formatCurrencyBRL(tipValue)} de gorjeta = ${formatCurrencyBRL(remainder + tipValue)}`
+                    : ''
+                }${coupon.trim() ? ' (− cupom)' : ''}`}
           </span>
         )}
       </div>
@@ -205,6 +214,18 @@ export function CheckoutForm({
           />
         </label>
       </div>
+
+      {discountCapped && (
+        <p className="text-[12px] text-[#8a4b00] dark:text-[#ffb340]">
+          O desconto foi limitado a {formatCurrencyBRL(price)}, o valor do serviço.
+          {tipValue > 0 && ` Fica só a gorjeta: ${formatCurrencyBRL(tipValue)}.`}
+        </p>
+      )}
+      {split.length > 0 && tipValue > 0 && (
+        <p className="text-label-secondary text-[12px]">
+          A gorjeta é recebida em {methodLabel(method)}, a forma principal.
+        </p>
+      )}
 
       <div className="flex items-center justify-between gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>

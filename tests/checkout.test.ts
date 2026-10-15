@@ -68,6 +68,53 @@ describe('comanda: concluir e cobrar', () => {
     ).toBe(1);
   });
 
+  it('pagamento dividido: a gorjeta entra na forma principal e tudo soma o total cobrado', async () => {
+    // Serviço de R$ 50 − R$ 5 de desconto + R$ 2 de gorjeta = R$ 47; R$ 7 no cartão.
+    const appointment = await newAppointment('2030-05-03T13:00:00Z');
+    await checkoutAppointment({
+      companyId: fixture.company.id,
+      id: appointment.id,
+      paymentMethod: 'PIX',
+      discount: 5,
+      tip: 2,
+      split: [{ paymentMethod: 'CREDIT_CARD', amount: 7 }],
+      updatedByUserId: 'user_test',
+    });
+
+    const transactions = await prisma.transaction.findMany({
+      where: { appointmentId: appointment.id },
+    });
+    const byMethod = (method: string) =>
+      transactions
+        .filter((t) => t.paymentMethod === method)
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+    expect(byMethod('CREDIT_CARD')).toBe(7);
+    // PIX: R$ 38 do serviço + R$ 2 de gorjeta.
+    expect(byMethod('PIX')).toBe(40);
+    expect(transactions.reduce((sum, t) => sum + Number(t.amount), 0)).toBe(47);
+  });
+
+  it('desconto maior que o serviço é limitado ao valor do serviço', async () => {
+    const appointment = await newAppointment('2030-05-04T13:00:00Z');
+    const price = Number(appointment.priceSnapshot);
+    const { total } = await checkoutAppointment({
+      companyId: fixture.company.id,
+      id: appointment.id,
+      paymentMethod: 'PIX',
+      discount: price + 5,
+      tip: 2,
+      updatedByUserId: 'user_test',
+    });
+    expect(total).toBe(0);
+
+    const service = await prisma.transaction.findFirstOrThrow({
+      where: { appointmentId: appointment.id, category: 'Atendimento' },
+    });
+    // O histórico registra o desconto real, não o digitado.
+    expect(service.notes ?? '').toContain(`R$ ${price.toFixed(2).replace('.', ',')}`);
+    expect(service.notes ?? '').not.toContain(`R$ ${(price + 5).toFixed(2).replace('.', ',')}`);
+  });
+
   it('cupom no limite é recusado; cancelar devolve o uso do cupom', async () => {
     const first = await newAppointment('2030-05-02T13:00:00Z');
     const second = await newAppointment('2030-05-02T15:00:00Z');
