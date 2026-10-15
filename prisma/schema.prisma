@@ -17,6 +17,8 @@ model Company {
   whatsapp           String?
   // Lembrete automático por e-mail na véspera do atendimento (precisa de RESEND_API_KEY e CRON_SECRET).
   remindersByEmail   Boolean   @default(false)
+  // Empresa de demonstração (dados fictícios): fica fora do link público e pode ser excluída.
+  isDemo             Boolean   @default(false)
   // Identidade na página pública de agendamento (/agendar/[slug]). A logo vem da organização no Clerk.
   zipCode            String?
   street             String?

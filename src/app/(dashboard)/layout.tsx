@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
+import { DemoBanner } from '@/components/demo/demo-controls';
 import {
   NoActiveOrganizationError,
   UnauthenticatedError,
@@ -10,8 +11,9 @@ import {
 } from '@/server/auth/require-current-company';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  let isDemo = false;
   try {
-    await requireCurrentCompany();
+    isDemo = (await requireCurrentCompany()).company.isDemo;
   } catch (error) {
     if (error instanceof UnauthenticatedError) {
       redirect('/sign-in');
@@ -26,6 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="font-apple flex flex-1">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
+        {isDemo && <DemoBanner />}
         <Topbar />
         <main className="mx-auto w-full max-w-7xl flex-1 p-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:p-8">
           {children}

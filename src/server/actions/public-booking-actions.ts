@@ -127,6 +127,9 @@ export async function setOnlineBookingAction(input: unknown) {
   return toActionResult(async () => {
     const { enabled } = z.object({ enabled: z.boolean() }).parse(input);
     const { company } = await requireCompanyAdmin();
+    if (enabled && company.isDemo) {
+      throw new UserError('O agendamento online não fica disponível na empresa de demonstração.');
+    }
     // Sem expediente definido o link não teria horário confiável para oferecer.
     if (enabled && (await countBookableProfessionals(company.id)) === 0) {
       throw new UserError(

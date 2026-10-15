@@ -15,6 +15,7 @@ import { PublicProfileCard } from '@/components/configuracoes/public-profile-car
 import { GoogleReviewCard } from '@/components/configuracoes/google-review-card';
 import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
+import { OpenDemoCard } from '@/components/demo/demo-controls';
 
 export default async function ConfiguracoesPage() {
   const { company } = await requireAdminPage();
@@ -64,6 +65,8 @@ export default async function ConfiguracoesPage() {
         initialEnabled={company.remindersByEmail}
         emailConfigured={isEmailConfigured() && Boolean(process.env.CRON_SECRET?.trim())}
       />
+
+      {!company.isDemo && <OpenDemoCard />}
 
       <TimezoneCard companyName={company.name} timezone={company.timezone} />
 
