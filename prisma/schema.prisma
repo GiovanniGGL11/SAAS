@@ -27,6 +27,8 @@ model Company {
   state              String?
   instagram          String?
   cancellationPolicy String?
+  // Link "avalie no Google" mostrado a quem dá nota alta depois do atendimento.
+  googleReviewUrl    String?
   deletedAt          DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -53,6 +55,8 @@ model Company {
   packagePlans              PackagePlan[]
   clientPackages            ClientPackage[]
   giftCards                 GiftCard[]
+  reviews                   Review[]
+  campaigns                 Campaign[]
 }
 
 model WebhookEvent {
@@ -91,6 +95,7 @@ model Professional {
   blocks            ScheduleBlock[]
   appointments      Appointment[]
   waitlistEntries   WaitlistEntry[]
+  reviews           Review[]
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -166,6 +171,9 @@ model Client {
   active        Boolean   @default(true)
   // Signed into the personal client-area link; bumping it revokes every link sent before.
   portalVersion Int       @default(1)
+  // Quem indicou este cliente (programa de indicação).
+  referredById  String?
+  referredBy    Client?   @relation("Referrals", fields: [referredById], references: [id])
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -175,6 +183,9 @@ model Client {
   transactions    Transaction[]
   packages        ClientPackage[]
   giftCards       GiftCard[]
+  referrals       Client[]            @relation("Referrals")
+  reviews         Review[]
+  campaignSends   CampaignRecipient[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -227,6 +238,7 @@ model Appointment {
   /// o serviceId/snapshots do próprio agendamento; com vários, eles guardam a soma.
   items          AppointmentItem[]
   credits        AppointmentCredit[]
+  review         Review?
   transactions   Transaction[]
   loyaltyEntries LoyaltyEntry[]
   googleEvents   GoogleCalendarEvent[]
@@ -761,4 +773,50 @@ model AppointmentCredit {
   createdAt       DateTime              @default(now())
 
   @@index([appointmentId])
+}
+
+/// Avaliação do cliente depois do atendimento (link enviado pelo WhatsApp).
+model Review {
+  id             String       @id @default(cuid())
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id])
+  appointmentId  String       @unique
+  appointment    Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id])
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  rating         Int
+  comment        String?
+  createdAt      DateTime     @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([professionalId])
+}
+
+/// Mensagem para um segmento de clientes (sumidos, aniversariantes, VIP...), enviada pelo WhatsApp.
+model Campaign {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  name            String
+  segment         String
+  message         String
+  couponCode      String?
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  recipients      CampaignRecipient[]
+
+  @@index([companyId, createdAt])
+}
+
+model CampaignRecipient {
+  id         String    @id @default(cuid())
+  campaignId String
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     Client    @relation(fields: [clientId], references: [id])
+  sentAt     DateTime?
+
+  @@unique([campaignId, clientId])
 }

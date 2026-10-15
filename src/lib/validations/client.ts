@@ -29,6 +29,7 @@ export const clientInput = z.object({
     .max(2)
     .optional()
     .transform((v) => v?.trim().toUpperCase() || undefined),
+  referredById: z.string().max(64).nullable().optional(),
 });
 export type ClientFormInput = z.infer<typeof clientInput>;
 

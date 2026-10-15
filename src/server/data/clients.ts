@@ -48,7 +48,22 @@ export type ClientInput = {
   district?: string | null;
   city?: string | null;
   state?: string | null;
+  /** Quem indicou (programa de indicação). undefined = não mexe; null = sem indicação. */
+  referredById?: string | null;
 };
+
+/** Indicação só de outro cliente da mesma empresa (e nunca o próprio). */
+async function referralData(companyId: string, data: ClientInput, selfId?: string) {
+  if (data.referredById === undefined) return {};
+  if (!data.referredById) return { referredById: null };
+  if (data.referredById === selfId) throw new UserError('O cliente não pode indicar a si mesmo.');
+  const referrer = await prisma.client.findFirst({
+    where: { id: data.referredById, companyId },
+    select: { id: true },
+  });
+  if (!referrer) throw new UserError('Cliente que indicou não encontrado.');
+  return { referredById: referrer.id };
+}
 
 // Campos de endereço vazios viram null para não guardar string em branco.
 function addressData(data: ClientInput) {
@@ -74,6 +89,7 @@ export async function createClient(companyId: string, data: ClientInput): Promis
       birthDate: data.birthDate ?? null,
       notes: data.notes || null,
       ...addressData(data),
+      ...(await referralData(companyId, data)),
     },
   });
 }
@@ -93,6 +109,7 @@ export async function updateClient(
       birthDate: data.birthDate ?? null,
       notes: data.notes || null,
       ...addressData(data),
+      ...(await referralData(companyId, data, id)),
     },
   });
   if (result.count === 0) throw new UserError('Cliente não encontrado.');

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
@@ -30,7 +30,12 @@ import { unwrapResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { createClientAction, updateClientAction } from '@/server/actions/client-actions';
+import {
+  createClientAction,
+  listClientsAction,
+  updateClientAction,
+} from '@/server/actions/client-actions';
+import { Combobox } from '@/components/ui/combobox';
 import { clientInput } from '@/lib/validations/client';
 import { formatCep, lookupCep, type CepAddress } from '@/lib/address';
 import type { Client } from '@/generated/prisma/client';
@@ -72,7 +77,14 @@ export function ClientDrawer({
       district: client?.district ?? '',
       city: client?.city ?? '',
       state: client?.state ?? '',
+      referredById: client?.referredById ?? null,
     },
+  });
+  // Lista para "Indicado por" (programa de indicação); só carrega com a gaveta aberta.
+  const { data: allClients } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => listClientsAction(),
+    enabled: open,
   });
 
   const [cepStatus, setCepStatus] = React.useState<'idle' | 'loading' | 'notFound' | 'failed'>(
@@ -142,6 +154,7 @@ export function ClientDrawer({
       );
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['client-detail', saved.id] });
+      queryClient.invalidateQueries({ queryKey: ['client-referrals'] });
       onOpenChange(false);
       onSaved?.();
     },
@@ -369,6 +382,32 @@ export function ClientDrawer({
                 />
               </div>
             </div>
+
+            <FormField
+              control={form.control}
+              name="referredById"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Indicado por (opcional)</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={(allClients ?? [])
+                        .filter((c) => c.id !== client?.id && c.active)
+                        .map((c) => ({
+                          value: c.id,
+                          label: c.name,
+                          description: c.phone ?? undefined,
+                        }))}
+                      value={field.value ?? ''}
+                      onChange={(value) => field.onChange(value || null)}
+                      placeholder="Ninguém"
+                      searchPlaceholder="Buscar cliente..."
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

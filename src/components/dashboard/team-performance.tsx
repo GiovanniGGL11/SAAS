@@ -8,16 +8,33 @@ import type { ProfessionalPerformance } from '@/server/data/insights';
 export function TeamPerformance({
   team,
   goals = {},
+  ratings = {},
+  overallRating = null,
 }: {
   team: ProfessionalPerformance[];
+  /** Nota média de cada profissional nas avaliações do período. */
+  ratings?: Record<string, { average: number; count: number }>;
+  overallRating?: { average: number; count: number } | null;
   /** Meta do mês por profissional (quem tem), com o faturado no mês até agora. */
   goals?: Record<string, { goal: number; revenue: number }>;
 }) {
   const hasGoals = Object.keys(goals).length > 0;
+  const hasRatings = Object.keys(ratings).length > 0;
   return (
     <AppleTile interactive={false} className="flex flex-col gap-4 p-5 md:p-6">
       <div className="flex items-end justify-between gap-2">
-        <TileEyebrow>Desempenho da equipe</TileEyebrow>
+        <div className="flex items-baseline gap-3">
+          <TileEyebrow>Desempenho da equipe</TileEyebrow>
+          {overallRating && (
+            <Link href="/campanhas?aba=avaliacoes" className="text-[13px] hover:underline">
+              <span className="text-[#ffcc00]">★</span>{' '}
+              {overallRating.average.toLocaleString('pt-BR')}{' '}
+              <span className="text-label-secondary">
+                ({overallRating.count} {overallRating.count === 1 ? 'avaliação' : 'avaliações'})
+              </span>
+            </Link>
+          )}
+        </div>
         <Link
           href="/financeiro?aba=comissoes"
           className="text-system-blue text-[13px] font-medium hover:underline"
@@ -38,6 +55,7 @@ export function TeamPerformance({
                 <th className="px-1 pb-2 text-right font-medium">Faturado</th>
                 <th className="px-1 pb-2 text-right font-medium">Atend.</th>
                 <th className="px-1 pb-2 text-right font-medium">Ticket</th>
+                {hasRatings && <th className="px-1 pb-2 text-right font-medium">Nota</th>}
                 <th className="w-[24%] px-1 pb-2 pl-4 font-medium">Ocupação</th>
                 {hasGoals && <th className="w-[22%] px-1 pb-2 pl-4 font-medium">Meta do mês</th>}
               </tr>
@@ -61,6 +79,17 @@ export function TeamPerformance({
                   <td className="text-label-secondary px-1 py-2.5 text-right tabular-nums">
                     {p.count ? formatCurrencyBRL(p.avgTicket) : '—'}
                   </td>
+                  {hasRatings && (
+                    <td className="px-1 py-2.5 text-right tabular-nums">
+                      {ratings[p.id] ? (
+                        <span title={`${ratings[p.id].count} avaliações`}>
+                          ★ {ratings[p.id].average.toLocaleString('pt-BR')}
+                        </span>
+                      ) : (
+                        <span className="text-label-secondary">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-1 py-2.5 pl-4">
                     {p.occupancy === null ? (
                       <span className="text-label-secondary text-[12px]">Sem expediente</span>

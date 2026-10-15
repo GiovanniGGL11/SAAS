@@ -44,6 +44,7 @@ import type { SerializedAppointment } from '@/lib/serialize';
 import type { AppointmentStatus, Client } from '@/generated/prisma/client';
 import type { SerializedService } from '@/lib/serialize';
 import { EditAppointmentForm } from '@/components/agenda/edit-appointment-form';
+import { getReviewLinkAction } from '@/server/actions/relationship-actions';
 
 export function AppointmentDetailDrawer({
   appointment,
@@ -166,6 +167,27 @@ export function AppointmentDetailDrawer({
               </div>
             )}
           </div>
+
+          {appointment.status === 'DONE' && appointment.client.phone && (
+            <Button
+              variant="outline"
+              className="self-start"
+              onClick={async () => {
+                // Abre a aba já no clique (depois da espera o navegador bloquearia o pop-up).
+                const tab = window.open('about:blank', '_blank');
+                const result = await getReviewLinkAction(appointment.id);
+                if (!result.ok || !result.data.whatsappUrl) {
+                  tab?.close();
+                  toast.error(result.ok ? 'Cliente sem WhatsApp.' : result.error);
+                  return;
+                }
+                if (tab) tab.location.href = result.data.whatsappUrl;
+                else window.location.href = result.data.whatsappUrl;
+              }}
+            >
+              Pedir avaliação no WhatsApp
+            </Button>
+          )}
 
           {appointment.notes && !editing && (
             <div>

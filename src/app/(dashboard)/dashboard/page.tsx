@@ -20,6 +20,7 @@ import { GoalCard } from '@/components/dashboard/goal-card';
 import { MIN_PEAK_SAMPLE, findPeakHour } from '@/lib/dashboard-rules';
 import { TeamPerformance } from '@/components/dashboard/team-performance';
 import { LapsedClientsCard } from '@/components/dashboard/lapsed-clients-card';
+import { getReviewSummary } from '@/server/data/relationship';
 import { KpiTile } from '@/components/dashboard/kpi-tile';
 import { RevenueChart } from '@/components/dashboard/revenue-chart';
 import { BusiestHoursChart } from '@/components/dashboard/busiest-hours-chart';
@@ -161,14 +162,17 @@ export default async function DashboardPage({
     );
   }
 
-  const [insights, revenueByDay, busiestHours, goal, month, teamGoals] = await Promise.all([
-    getPeriodInsights(company.id, company.timezone, range),
-    getRevenueByDayInRange(company.id, company.timezone, range),
-    getBusiestHours(company.id, company.timezone),
-    getRevenueGoal(company.clerkOrgId),
-    getMonthProgress(company.id, company.timezone),
-    getProfessionalGoals(company.id, company.timezone),
-  ]);
+  const [insights, revenueByDay, busiestHours, goal, month, teamGoals, reviews] = await Promise.all(
+    [
+      getPeriodInsights(company.id, company.timezone, range),
+      getRevenueByDayInRange(company.id, company.timezone, range),
+      getBusiestHours(company.id, company.timezone),
+      getRevenueGoal(company.clerkOrgId),
+      getMonthProgress(company.id, company.timezone),
+      getProfessionalGoals(company.id, company.timezone),
+      getReviewSummary(company.id, range),
+    ],
+  );
   const { current, previous } = insights;
   const compareLabel = COMPARE_LABEL[preset];
   const periodLabel = REPORT_PRESETS.find((p) => p.value === preset)!.label.toLowerCase();
@@ -314,7 +318,14 @@ export default async function DashboardPage({
         />
       </div>
 
-      <TeamPerformance team={insights.team} goals={teamGoals} />
+      <TeamPerformance
+        team={insights.team}
+        goals={teamGoals}
+        ratings={reviews.byProfessional}
+        overallRating={
+          reviews.average === null ? null : { average: reviews.average, count: reviews.count }
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-3">
         <AppleTile interactive={false} className="lg:col-span-2">

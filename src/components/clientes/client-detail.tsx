@@ -25,6 +25,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
 import { ClientLoyalty } from '@/components/clientes/client-loyalty';
 import { ClientCredits } from '@/components/clientes/client-credits';
+import { getClientReferralsAction } from '@/server/actions/relationship-actions';
 import { ClientPortalLinkButton } from '@/components/clientes/client-portal-link';
 import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import {
@@ -69,6 +70,11 @@ export function ClientDetail({
     queryClient.invalidateQueries({ queryKey: detailKey });
     queryClient.invalidateQueries({ queryKey: ['clients'] });
   };
+
+  const { data: referrals } = useQuery({
+    queryKey: ['client-referrals', clientId],
+    queryFn: () => getClientReferralsAction(clientId),
+  });
 
   const toggleVip = useMutation({
     mutationFn: (isVip: boolean) => setClientVipAction({ id: clientId, isVip }).then(unwrapResult),
@@ -133,6 +139,27 @@ export function ClientDetail({
             {client.phone ? formatPhone(client.phone) : '—'}{' '}
             {client.email ? `· ${client.email}` : ''}
           </p>
+          {referrals && (referrals.referredBy || referrals.referrals.length > 0) && (
+            <p className="text-muted-foreground mt-1 text-sm">
+              {referrals.referredBy && (
+                <>
+                  Indicado por{' '}
+                  <Link
+                    href={`/clientes/${referrals.referredBy.id}`}
+                    className="text-system-blue hover:underline"
+                  >
+                    {referrals.referredBy.name}
+                  </Link>
+                </>
+              )}
+              {referrals.referredBy && referrals.referrals.length > 0 && ' · '}
+              {referrals.referrals.length > 0 &&
+                `Indicou ${referrals.referrals.length} ${referrals.referrals.length === 1 ? 'cliente' : 'clientes'}: ${referrals.referrals
+                  .slice(0, 3)
+                  .map((r) => r.name.split(' ')[0])
+                  .join(', ')}${referrals.referrals.length > 3 ? '…' : ''}`}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
           <div className="mr-1 flex items-center gap-2">

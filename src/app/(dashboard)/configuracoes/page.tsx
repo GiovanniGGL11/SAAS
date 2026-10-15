@@ -12,6 +12,7 @@ import {
   listProfessionalsWithoutSchedule,
 } from '@/server/data/public-booking';
 import { PublicProfileCard } from '@/components/configuracoes/public-profile-card';
+import { GoogleReviewCard } from '@/components/configuracoes/google-review-card';
 import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
 
@@ -28,7 +29,7 @@ export default async function ConfiguracoesPage() {
     <div className="flex w-full flex-col gap-8">
       <PageHeader
         title="Configurações"
-        description="Agendamento online, área do cliente, lembretes, fuso horário e equipe."
+        description="Agendamento online, perfil público, avaliações, área do cliente, lembretes, fuso horário e equipe."
       />
 
       <OnlineBookingCard
@@ -51,6 +52,8 @@ export default async function ConfiguracoesPage() {
           cancellationPolicy: company.cancellationPolicy,
         }}
       />
+
+      <GoogleReviewCard initialUrl={company.googleReviewUrl} />
 
       <ClientAreaCard
         initialWhatsapp={company.whatsapp}

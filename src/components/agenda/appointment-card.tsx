@@ -27,6 +27,7 @@ import {
 import { formatTimeInTz } from '@/lib/time';
 import { formatPhone, whatsappLink } from '@/lib/phone';
 import { getConfirmationLinkAction } from '@/server/actions/public-booking-actions';
+import { getReviewLinkAction } from '@/server/actions/relationship-actions';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { AppointmentStatus } from '@/generated/prisma/client';
 
@@ -150,6 +151,17 @@ export function AppointmentCard({
                     // Abre a aba já no clique: depois de esperar o link, o navegador bloquearia.
                     const tab = window.open('about:blank', '_blank');
                     setSendingWhatsapp(true);
+                    // Concluído: a mensagem pede a avaliação; antes disso, a confirmação do horário.
+                    if (appointment.status === 'DONE') {
+                      const review = await getReviewLinkAction(appointment.id)
+                        .then((r) => (r.ok ? r.data : null))
+                        .finally(() => setSendingWhatsapp(false));
+                      const reviewUrl = review?.whatsappUrl;
+                      if (reviewUrl && tab) tab.location.href = reviewUrl;
+                      else if (reviewUrl) window.location.href = reviewUrl;
+                      else tab?.close();
+                      return;
+                    }
                     const confirmation = await getConfirmationLinkAction(appointment.id)
                       .then((r) => (r.ok ? r.data : null))
                       .finally(() => setSendingWhatsapp(false));
@@ -164,7 +176,7 @@ export function AppointmentCard({
                   }}
                   className="text-system-green font-medium hover:underline"
                 >
-                  WhatsApp
+                  {appointment.status === 'DONE' ? 'Pedir avaliação' : 'WhatsApp'}
                 </button>
               )}
             </span>
