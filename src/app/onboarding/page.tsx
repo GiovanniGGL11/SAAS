@@ -14,7 +14,7 @@ export default function OnboardingPage() {
       <OrganizationList
         hidePersonal
         afterSelectOrganizationUrl="/dashboard"
-        afterCreateOrganizationUrl="/dashboard"
+        afterCreateOrganizationUrl="/comecar"
       />
     </div>
   );

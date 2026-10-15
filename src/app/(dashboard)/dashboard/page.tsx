@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import { prisma } from '@/lib/db';
 import { SetupChecklist } from '@/components/dashboard/setup-checklist';
@@ -207,7 +208,28 @@ export default async function DashboardPage({
 
   return (
     <div className="flex w-full flex-col gap-4 md:gap-5">
-      <SetupChecklist steps={setupSteps} />
+      {serviceCount === 0 && professionalCount === 0 ? (
+        // Conta nova e vazia: o assistente monta serviços, equipe, horário e link de uma vez.
+        <Link
+          href="/comecar"
+          className="bg-system-blue flex flex-wrap items-center justify-between gap-3 rounded-[22px] px-6 py-5 text-white shadow-[0_16px_40px_-20px_var(--system-blue)] transition-transform hover:scale-[1.005]"
+        >
+          <span>
+            <span className="block text-[19px] font-semibold">
+              Configure sua agenda em 2 minutos
+            </span>
+            <span className="text-[14px] text-white/85">
+              Serviços sugeridos para o seu tipo de negócio, equipe, horário e link de agendamento
+              online.
+            </span>
+          </span>
+          <span className="rounded-full bg-white px-5 py-2 text-[15px] font-semibold text-[#007aff]">
+            Começar
+          </span>
+        </Link>
+      ) : (
+        <SetupChecklist steps={setupSteps} />
+      )}
       <DashboardHero
         eyebrow={date}
         title={`${greeting}, ${company.name}.`}
