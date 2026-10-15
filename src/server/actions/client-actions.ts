@@ -1,5 +1,7 @@
 'use server';
 
+import { getClientReturnSuggestion, returnMessage } from '@/server/data/returns';
+
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
@@ -127,10 +129,11 @@ export async function getClientDetailAction(rawId: unknown) {
   const id = parseId(rawId);
   const { company } = await requireCurrentCompany();
 
-  const [client, stats, history] = await Promise.all([
+  const [client, stats, history, nextReturn] = await Promise.all([
     getClientById(company.id, id),
     getClientStats(company.id, id),
     listClientAppointmentHistory(company.id, id),
+    getClientReturnSuggestion(company.id, id),
   ]);
 
   if (!client) return null;
@@ -139,6 +142,13 @@ export async function getClientDetailAction(rawId: unknown) {
     client,
     stats,
     history: history.map(serializeAppointment),
+    nextReturn: nextReturn && {
+      serviceName: nextReturn.serviceName,
+      returnAfterDays: nextReturn.returnAfterDays,
+      dueAt: nextReturn.dueAt,
+      daysLate: nextReturn.daysLate,
+      message: returnMessage(nextReturn),
+    },
   };
 }
 

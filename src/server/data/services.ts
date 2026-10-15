@@ -28,6 +28,7 @@ export type ServiceInput = {
   price: number;
   color: string;
   commissionPercent?: number | null;
+  returnAfterDays?: number | null;
 };
 
 export async function createService(companyId: string, data: ServiceInput): Promise<Service> {
@@ -41,6 +42,7 @@ export async function createService(companyId: string, data: ServiceInput): Prom
       price: data.price,
       color: data.color,
       commissionPercent: data.commissionPercent ?? null,
+      returnAfterDays: data.returnAfterDays ?? null,
     },
   });
 }
@@ -60,6 +62,7 @@ export async function updateService(
       price: data.price,
       color: data.color,
       commissionPercent: data.commissionPercent ?? null,
+      returnAfterDays: data.returnAfterDays ?? null,
     },
   });
   if (result.count === 0) throw new UserError('Serviço não encontrado.');

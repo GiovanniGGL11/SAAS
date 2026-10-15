@@ -20,6 +20,8 @@ import { GoalCard } from '@/components/dashboard/goal-card';
 import { MIN_PEAK_SAMPLE, findPeakHour } from '@/lib/dashboard-rules';
 import { TeamPerformance } from '@/components/dashboard/team-performance';
 import { LapsedClientsCard } from '@/components/dashboard/lapsed-clients-card';
+import { ReturnsCard } from '@/components/dashboard/returns-card';
+import { listDueReturns, returnMessage } from '@/server/data/returns';
 import { getReviewSummary } from '@/server/data/relationship';
 import { KpiTile } from '@/components/dashboard/kpi-tile';
 import { RevenueChart } from '@/components/dashboard/revenue-chart';
@@ -129,6 +131,28 @@ export default async function DashboardPage({
   ];
 
   const { greeting, date } = greetingFor(company.timezone, new Date());
+  // Retorno por serviço: tarefa de recepção também, então aparece para o dono e para a equipe.
+  const [dueReturns, returnsConfigured] = await Promise.all([
+    listDueReturns(company.id),
+    prisma.service.count({
+      where: { companyId: company.id, active: true, returnAfterDays: { not: null } },
+    }),
+  ]);
+  const returnsCard = (
+    <ReturnsCard
+      configured={returnsConfigured > 0}
+      total={dueReturns.length}
+      items={dueReturns.slice(0, 5).map((r) => ({
+        clientId: r.clientId,
+        name: r.name,
+        phone: r.phone,
+        serviceName: r.serviceName,
+        daysLate: r.daysLate,
+        message: returnMessage(r),
+      }))}
+    />
+  );
+
   const agendaCard = (
     <TodayAgendaCard
       timezone={company.timezone}
@@ -158,6 +182,7 @@ export default async function DashboardPage({
           <AttentionCard overview={overview} isAdmin={false} />
           {agendaCard}
         </div>
+        {returnsCard}
       </div>
     );
   }
@@ -311,11 +336,14 @@ export default async function DashboardPage({
           </div>
           <RevenueChart data={revenueByDay} />
         </AppleTile>
-        <LapsedClientsCard
-          clients={overview.lapsed.top}
-          total={overview.lapsed.count}
-          withHistory={overview.lapsed.withHistory}
-        />
+        <div className="flex flex-col gap-4 md:gap-5">
+          {returnsCard}
+          <LapsedClientsCard
+            clients={overview.lapsed.top}
+            total={overview.lapsed.count}
+            withHistory={overview.lapsed.withHistory}
+          />
+        </div>
       </div>
 
       <TeamPerformance

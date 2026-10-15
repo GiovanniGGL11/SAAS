@@ -55,6 +55,7 @@ export function ServiceDrawer({
       price: service?.price ?? 0,
       color: service?.color ?? PRESET_COLORS[0],
       commissionPercent: service?.commissionPercent ?? null,
+      returnAfterDays: service?.returnAfterDays ?? null,
     },
   });
 
@@ -155,6 +156,36 @@ export function ServiceDrawer({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="returnAfterDays"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sugerir retorno após (dias, opcional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={365}
+                      step={1}
+                      placeholder="Ex.: 21 · vazio = sem sugestão"
+                      {...field}
+                      value={(field.value as number) ?? ''}
+                      onChange={(e) =>
+                        field.onChange(e.target.value === '' ? null : e.target.value)
+                      }
+                    />
+                  </FormControl>
+                  <p className="text-label-secondary text-[12px]">
+                    Quem fez este serviço aparece em &ldquo;Hora de voltar&rdquo; no painel quando
+                    chegar a data.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

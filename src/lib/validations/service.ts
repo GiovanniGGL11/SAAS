@@ -9,6 +9,14 @@ export const serviceInput = z.object({
   color: z.string().min(1, 'Selecione uma cor'),
   /** Comissão própria do serviço (%); vazio = vale a regra do profissional. */
   commissionPercent: z.coerce.number().min(0).max(100, 'Até 100%').nullable().optional(),
+  /** Em quantos dias sugerir o retorno do cliente; vazio = sem sugestão. */
+  returnAfterDays: z.coerce
+    .number({ message: 'Informe um número de dias' })
+    .int('Use um número inteiro de dias')
+    .min(1, 'O retorno deve ser de pelo menos 1 dia')
+    .max(365, 'Até 365 dias')
+    .nullable()
+    .optional(),
 });
 export type ServiceFormInput = z.infer<typeof serviceInput>;
 

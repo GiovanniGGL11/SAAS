@@ -139,6 +139,8 @@ model Service {
 
   // Comissão própria deste serviço (%), no lugar da regra do profissional. Vazio = regra dele.
   commissionPercent Float?
+  // Retorno sugerido: em quantos dias o cliente costuma refazer este serviço. Vazio = sem sugestão.
+  returnAfterDays   Int?
   appointmentItems  AppointmentItem[]
   packagePlans      PackagePlan[]
   clientPackages    ClientPackage[]

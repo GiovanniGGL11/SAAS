@@ -205,6 +205,10 @@ export function ClientDetail({
 
       <ClientCredits clientId={clientId} />
 
+      {data.nextReturn && (
+        <NextReturn data={data.nextReturn} phone={client.phone} timezone={timezone} />
+      )}
+
       <ClientLoyalty clientId={clientId} clientName={client.name} timezone={timezone} />
 
       {client.cpf || client.birthDate || client.notes || address ? (
@@ -336,6 +340,57 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="bg-tile rounded-[22px] p-5 md:p-6">
       <div className="text-muted-foreground text-xs">{label}</div>
       <div className="text-lg font-semibold">{value}</div>
+    </div>
+  );
+}
+
+/** Retorno por serviço: quando este cliente deveria voltar, com a mensagem pronta. */
+function NextReturn({
+  data,
+  phone,
+  timezone,
+}: {
+  data: NonNullable<ClientDetailData['nextReturn']>;
+  phone: string | null;
+  timezone: string;
+}) {
+  const date = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: timezone,
+    day: '2-digit',
+    month: '2-digit',
+  }).format(new Date(data.dueAt));
+  const late = data.daysLate > 0;
+  const link = whatsappLink(phone, data.message);
+
+  return (
+    <div className="bg-tile flex flex-wrap items-center gap-3 rounded-[22px] p-5 md:p-6">
+      <div className="min-w-0 flex-1">
+        <div className="text-muted-foreground text-xs">Retorno sugerido</div>
+        <div className="text-[15px] font-semibold">
+          {data.serviceName} · {date}
+        </div>
+        <div
+          className={
+            late
+              ? 'text-[13px] text-[#b25f00] dark:text-[#ffb340]'
+              : 'text-label-secondary text-[13px]'
+          }
+        >
+          {late
+            ? `Atrasado ${data.daysLate} ${data.daysLate === 1 ? 'dia' : 'dias'}`
+            : data.daysLate === 0
+              ? 'É hoje'
+              : `Faltam ${-data.daysLate} ${data.daysLate === -1 ? 'dia' : 'dias'}`}{' '}
+          · a cada {data.returnAfterDays} dias
+        </div>
+      </div>
+      {link && (
+        <Button variant="outline" asChild>
+          <a href={link} target="_blank" rel="noreferrer">
+            Chamar no WhatsApp
+          </a>
+        </Button>
+      )}
     </div>
   );
 }
