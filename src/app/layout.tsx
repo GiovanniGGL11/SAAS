@@ -20,6 +20,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Atendafy',
   description: 'Gestão completa para negócios baseados em agendamento.',
+  applicationName: 'Atendafy',
+  // iPhone: "Adicionar à Tela de Início" abre em tela cheia, com o ícone do app.
+  appleWebApp: { capable: true, title: 'Atendafy', statusBarStyle: 'default' },
+  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 
 // viewport-fit=cover lets the mobile tab bar sit above the iPhone home indicator via

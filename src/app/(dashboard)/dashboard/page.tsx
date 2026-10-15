@@ -20,6 +20,7 @@ import { GoalCard } from '@/components/dashboard/goal-card';
 import { MIN_PEAK_SAMPLE, findPeakHour } from '@/lib/dashboard-rules';
 import { TeamPerformance } from '@/components/dashboard/team-performance';
 import { LapsedClientsCard } from '@/components/dashboard/lapsed-clients-card';
+import { UnitsLink } from '@/components/dashboard/units-link';
 import { ReturnsCard } from '@/components/dashboard/returns-card';
 import { listDueReturns, returnMessage } from '@/server/data/returns';
 import { getReviewSummary } from '@/server/data/relationship';
@@ -212,6 +213,7 @@ export default async function DashboardPage({
         title={`${greeting}, ${company.name}.`}
         subtitle="O dia de hoje, o que precisa de atenção e como o negócio está indo."
       />
+      <UnitsLink />
 
       <TodayStrip overview={overview} showMoney />
 

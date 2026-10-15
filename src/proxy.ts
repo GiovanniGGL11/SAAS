@@ -23,6 +23,8 @@ const isProtectedRoute = createRouteMatcher([
   '/estoque/(.*)',
   '/caixa',
   '/caixa/(.*)',
+  '/unidades',
+  '/unidades/(.*)',
   '/financeiro',
   '/financeiro/(.*)',
   '/campanhas',
