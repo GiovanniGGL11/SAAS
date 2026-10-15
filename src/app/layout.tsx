@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { siteUrl } from '@/lib/site-url';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppClerkProvider } from '@/components/clerk-provider';
 import { QueryProvider } from '@/components/query-provider';
@@ -18,8 +19,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Atendafy',
-  description: 'Gestão completa para negócios baseados em agendamento.',
+  metadataBase: new URL(siteUrl()),
+  title: 'Atendafy — agenda, agendamento online e financeiro para salões e clínicas',
+  description:
+    'Seus clientes marcam sozinhos, confirmam pelo WhatsApp e você cobra, fecha o caixa e vê o lucro do mês. Para salões, barbearias e clínicas de estética.',
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    siteName: 'Atendafy',
+    title: 'Atendafy — agenda cheia, caixa no controle',
+    description:
+      'Agendamento online, confirmação pelo WhatsApp, comanda, caixa e financeiro num lugar só.',
+  },
+  twitter: { card: 'summary_large_image' },
   applicationName: 'Atendafy',
   // iPhone: "Adicionar à Tela de Início" abre em tela cheia, com o ícone do app.
   appleWebApp: { capable: true, title: 'Atendafy', statusBarStyle: 'default' },

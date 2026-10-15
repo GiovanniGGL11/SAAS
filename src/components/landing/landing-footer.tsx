@@ -44,6 +44,12 @@ export function LandingFooter() {
           <Link href="/sign-in" className="text-label-secondary hover:text-foreground">
             Entrar
           </Link>
+          <Link href="/termos" className="text-label-secondary hover:text-foreground">
+            Termos de uso
+          </Link>
+          <Link href="/privacidade" className="text-label-secondary hover:text-foreground">
+            Privacidade
+          </Link>
           {whatsapp && (
             <a
               href={whatsapp}
