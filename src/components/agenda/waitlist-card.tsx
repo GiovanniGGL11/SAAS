@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { listClientsAction } from '@/server/actions/client-actions';
 import {
   createWaitlistEntryAction,
+  getWaitlistOpenSlotsAction,
   listWaitlistAction,
   setWaitlistStatusAction,
 } from '@/server/actions/waitlist-actions';
@@ -28,6 +29,7 @@ import type { CalendarDate } from '@/lib/time';
 import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
 
 type Entry = Awaited<ReturnType<typeof listWaitlistAction>>[number];
+type WaitlistSlot = Awaited<ReturnType<typeof getWaitlistOpenSlotsAction>>[string][number];
 
 const WAITLIST_KEY = ['waitlist'];
 
@@ -42,10 +44,14 @@ function formatDay(key: string) {
     .replace('.', '');
 }
 
-/** Mensagem pronta para oferecer a vaga que abriu. */
-function offerMessage(entry: Entry) {
+/** Mensagem pronta para oferecer a vaga; com horários livres, já oferece os horários. */
+function offerMessage(entry: Entry, slots: WaitlistSlot[] = []) {
   const first = entry.client.name.trim().split(/\s+/)[0];
-  return `Olá, ${first}! Abriu uma vaga para ${entry.service.name} em ${formatDay(entry.desiredDate)}. Ainda tem interesse? Se sim, é só responder aqui que eu reservo para você.`;
+  const times = slots.map((s) => s.label);
+  const when = times.length
+    ? `${formatDay(entry.desiredDate)}, ${times.length === 1 ? 'às' : 'nos horários'} ${times.join(', ')}`
+    : formatDay(entry.desiredDate);
+  return `Olá, ${first}! Abriu uma vaga para ${entry.service.name} em ${when}. Ainda tem interesse? Se sim, é só responder aqui que eu reservo para você.`;
 }
 
 /**
@@ -122,6 +128,12 @@ function WaitlistBody({
   onGoToDay: (key: string) => void;
 }) {
   const queryClient = useQueryClient();
+  // Prefixo ['appointments']: toda mudança na agenda já invalida essa chave e recalcula as vagas.
+  const { data: openSlots } = useQuery({
+    queryKey: ['appointments', 'waitlist-open-slots'],
+    queryFn: getWaitlistOpenSlotsAction,
+    enabled: entries.length > 0,
+  });
   const [adding, setAdding] = React.useState(false);
   const [clientId, setClientId] = React.useState('');
   const [serviceId, setServiceId] = React.useState('');
@@ -190,7 +202,8 @@ function WaitlistBody({
 
       <ul className="flex flex-col gap-2">
         {entries.map((entry) => {
-          const link = whatsappLink(entry.client.phone, offerMessage(entry));
+          const slots = openSlots?.[entry.id] ?? [];
+          const link = whatsappLink(entry.client.phone, offerMessage(entry, slots));
           return (
             <li key={entry.id} className="bg-foreground/[0.04] rounded-2xl p-3.5 text-sm">
               <div className="flex items-start justify-between gap-3">
@@ -203,6 +216,28 @@ function WaitlistBody({
                   {entry.notes && (
                     <div className="text-label-secondary mt-0.5 text-[12px] break-words">
                       “{entry.notes}”
+                    </div>
+                  )}
+                  {openSlots && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {slots.length ? (
+                        <>
+                          <span className="text-system-green text-[12px] font-semibold">
+                            Vaga agora:
+                          </span>
+                          {slots.map((s) => (
+                            <span
+                              key={s.startAt}
+                              className="bg-system-green/12 text-system-green rounded-full px-2 py-0.5 text-[12px] font-medium tabular-nums"
+                              title={s.professionalName}
+                            >
+                              {s.label}
+                            </span>
+                          ))}
+                        </>
+                      ) : (
+                        <span className="text-label-secondary text-[12px]">Sem vaga ainda</span>
+                      )}
                     </div>
                   )}
                 </div>

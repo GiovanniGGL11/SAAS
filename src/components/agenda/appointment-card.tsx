@@ -20,6 +20,7 @@ import { CheckoutForm } from '@/components/agenda/checkout-form';
 import { STATUS_COLORS, STATUS_LABELS, quickStatusActions } from '@/components/agenda/status';
 import type { GridAppointment } from '@/components/agenda/calendar-grid';
 import { unwrapResult } from '@/lib/action-result';
+import { useOfferFreedSlot } from '@/components/agenda/waitlist-offer';
 import {
   cancelAppointmentAction,
   updateAppointmentStatusAction,
@@ -66,13 +67,15 @@ export function AppointmentCard({
   const [confirmCancel, setConfirmCancel] = React.useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState('');
+  const offerFreedSlot = useOfferFreedSlot();
   const cancelMutation = useMutation({
     mutationFn: () =>
       cancelAppointmentAction({
         id: appointment.id,
         reason: cancelReason.trim() || undefined,
       }).then(unwrapResult),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      offerFreedSlot(result.waitlistMatches);
       toast.success('Agendamento cancelado.');
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       onClose();

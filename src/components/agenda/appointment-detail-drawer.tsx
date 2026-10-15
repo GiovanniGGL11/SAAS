@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
+import { useOfferFreedSlot } from '@/components/agenda/waitlist-offer';
 
 import {
   Drawer,
@@ -78,12 +79,14 @@ export function AppointmentDetailDrawer({
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
   });
 
+  const offerFreedSlot = useOfferFreedSlot();
   const cancelMutation = useMutation({
     mutationFn: () =>
       cancelAppointmentAction({ id: appointment!.id, reason: cancelReason || undefined }).then(
         unwrapResult,
       ),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      offerFreedSlot(result.waitlistMatches);
       toast.success('Agendamento cancelado.');
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       setShowCancelForm(false);

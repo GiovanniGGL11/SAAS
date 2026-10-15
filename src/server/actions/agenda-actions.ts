@@ -42,6 +42,7 @@ import { serializeAppointment } from '@/lib/serialize';
 import { toActionResult } from '@/server/action-result';
 import { scheduleGoogleSync } from '@/server/google/background';
 import { buildConfirmationMessage } from '@/server/confirmation-message';
+import { findWaitlistMatchesForFreedSlot } from '@/server/data/waitlist';
 
 export async function getAppointmentsForRangeAction(input: unknown) {
   const parsed = appointmentRangeInput.parse(input);
@@ -195,7 +196,13 @@ export async function cancelAppointmentAction(input: unknown) {
 
     scheduleGoogleSync(company.id, [appointment.id]);
     revalidatePath('/agenda');
-    return serializeAppointment(appointment);
+    // A vaga que abriu: quem da lista de espera cabe nela. Falhar aqui não desfaz o cancelamento.
+    const waitlistMatches = await findWaitlistMatchesForFreedSlot(company.id, company.timezone, {
+      professionalId: appointment.professionalId,
+      startAt: appointment.startAt,
+      endAt: appointment.endAt,
+    }).catch(() => []);
+    return { ...serializeAppointment(appointment), waitlistMatches };
   });
 }
 

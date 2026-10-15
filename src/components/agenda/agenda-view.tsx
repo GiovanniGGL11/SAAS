@@ -17,6 +17,7 @@ import {
 import { AgendaToolbar, type AgendaViewMode } from '@/components/agenda/agenda-toolbar';
 import { AgendaSidebar, type ColorMode } from '@/components/agenda/agenda-sidebar';
 import { GoogleCalendarCard } from '@/components/agenda/google-calendar-card';
+import { WaitlistOfferProvider } from '@/components/agenda/waitlist-offer';
 import { MonthView, monthGridRange } from '@/components/agenda/month-view';
 import { AppointmentCard } from '@/components/agenda/appointment-card';
 import { QuickCreateCard, type QuickCreateDefaults } from '@/components/agenda/quick-create-card';
@@ -595,280 +596,282 @@ export function AgendaView({
     (serviceFilter ? 1 : 0) + (statusFilter ? 1 : 0) + (hiddenProfessionalIds.size > 0 ? 1 : 0);
 
   return (
-    <div className="flex gap-6">
-      <div className="hidden lg:block">
-        <AgendaSidebar {...sidebarProps} />
-      </div>
+    <WaitlistOfferProvider>
+      <div className="flex gap-6">
+        <div className="hidden lg:block">
+          <AgendaSidebar {...sidebarProps} />
+        </div>
 
-      {/* Below lg the sidebar column is hidden; the same calendar and filters open as a sheet. */}
-      <Drawer direction="bottom" open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <DrawerContent className="font-apple">
-          <DrawerHeader className="text-left">
-            <DrawerTitle>Calendário e filtros</DrawerTitle>
-          </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-            <AgendaSidebar
-              {...sidebarProps}
-              showCreate={false}
-              showGoogle={false}
-              className="w-full"
-            />
+        {/* Below lg the sidebar column is hidden; the same calendar and filters open as a sheet. */}
+        <Drawer direction="bottom" open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <DrawerContent className="font-apple">
+            <DrawerHeader className="text-left">
+              <DrawerTitle>Calendário e filtros</DrawerTitle>
+            </DrawerHeader>
+            <div className="overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+              <AgendaSidebar
+                {...sidebarProps}
+                showCreate={false}
+                showGoogle={false}
+                className="w-full"
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <AgendaToolbar
+            view={view}
+            onViewChange={(next) => {
+              setPanel(null);
+              setView(next);
+            }}
+            anchorDate={anchorDate}
+            weekStartDate={weekStart}
+            onPrev={() => navigate(-1)}
+            onNext={() => navigate(1)}
+            onToday={() => {
+              setPanel(null);
+              setAnchorDate(today);
+            }}
+            onCreate={() => openFullCreate({ startAt: suggestedStartAt() })}
+            onOpenFilters={() => setFiltersOpen(true)}
+            activeFilterCount={activeFilterCount}
+            onShowShortcuts={() => setShowShortcuts(true)}
+          />
+
+          {/* Phones: the sidebar is a sheet, so the Google sync entry gets its own always-visible pill. */}
+          <div className="lg:hidden">
+            <GoogleCalendarCard variant="chip" professionals={professionals} />
           </div>
-        </DrawerContent>
-      </Drawer>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-4">
-        <AgendaToolbar
-          view={view}
-          onViewChange={(next) => {
-            setPanel(null);
-            setView(next);
-          }}
-          anchorDate={anchorDate}
-          weekStartDate={weekStart}
-          onPrev={() => navigate(-1)}
-          onNext={() => navigate(1)}
-          onToday={() => {
-            setPanel(null);
-            setAnchorDate(today);
-          }}
-          onCreate={() => openFullCreate({ startAt: suggestedStartAt() })}
-          onOpenFilters={() => setFiltersOpen(true)}
-          activeFilterCount={activeFilterCount}
-          onShowShortcuts={() => setShowShortcuts(true)}
+          {/* No celular a coluna esquerda some: os profissionais viram chips para mostrar/esconder. */}
+          {professionals.length > 1 && (
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:hidden">
+              {professionals.map((professional) => {
+                const visible = !hiddenProfessionalIds.has(professional.id);
+                return (
+                  <button
+                    key={professional.id}
+                    type="button"
+                    aria-pressed={visible}
+                    onClick={() => {
+                      const next = new Set(hiddenProfessionalIds);
+                      if (next.has(professional.id)) next.delete(professional.id);
+                      else next.add(professional.id);
+                      setHidden(next);
+                    }}
+                    className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-colors"
+                    style={{
+                      backgroundColor: visible ? professional.color : 'transparent',
+                      color: visible ? 'white' : undefined,
+                      borderColor: professional.color,
+                      boxShadow: `inset 0 0 0 1px ${professional.color}`,
+                    }}
+                  >
+                    {professional.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {appointments.length > 0 && (
+            <div className="hidden sm:block">
+              <AgendaSummary appointments={appointments} />
+            </div>
+          )}
+
+          {query.isLoading ? (
+            <Skeleton className="h-[600px] w-full rounded-[22px]" />
+          ) : view === 'month' ? (
+            <MonthView
+              anchorDate={anchorDate}
+              today={today}
+              appointments={appointments}
+              timezone={timezone}
+              colorFor={colorFor}
+              onDayClick={(date) => {
+                setAnchorDate(date);
+                setView('day');
+              }}
+              onAppointmentClick={openAppointmentCard}
+            />
+          ) : columns.length === 0 ? (
+            <div className="bg-tile flex h-56 items-center justify-center rounded-[22px]">
+              <EmptyState
+                icon={UserRoundIcon}
+                title={
+                  professionals.length
+                    ? 'Nenhum profissional visível'
+                    : 'Nenhum profissional cadastrado'
+                }
+                description={
+                  professionals.length
+                    ? 'Marque ao menos um profissional na coluna da esquerda.'
+                    : 'Cadastre um profissional pra começar a montar a agenda.'
+                }
+                className="py-0"
+              />
+            </div>
+          ) : (
+            <CalendarGrid
+              columns={columns}
+              appointments={appointments}
+              timezone={timezone}
+              startHour={startHour}
+              endHour={endHour}
+              openRangesByColumn={openRangesByColumn}
+              blocksByColumn={blocksByColumn}
+              colorFor={colorFor}
+              colorMode={colorMode}
+              getColumnIdForAppointment={getColumnIdForAppointment}
+              onAppointmentClick={openAppointmentCard}
+              onAppointmentContextMenu={(appointment, point) =>
+                setPanel({ kind: 'appointment-menu', point, appointment })
+              }
+              onAppointmentMove={(id, startAt, targetColumn) =>
+                // Na visão Dia cada coluna é um profissional: soltar em outra coluna troca quem atende.
+                moveMutation.mutate({
+                  id,
+                  startAt,
+                  professionalId: view === 'day' ? targetColumn.id : undefined,
+                })
+              }
+              onAppointmentResize={(appointment, endAt) =>
+                resizeMutation.mutate({ id: appointment.id, endAt })
+              }
+              onSlotClick={(column, startAt, point, endAt) =>
+                setPanel({
+                  kind: 'quick-create',
+                  point,
+                  defaults: {
+                    startAt,
+                    durationMinutes: endAt
+                      ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
+                      : undefined,
+                    professionalId:
+                      view === 'day'
+                        ? column.id
+                        : visibleProfessionals.length === 1
+                          ? visibleProfessionals[0].id
+                          : undefined,
+                  },
+                })
+              }
+              onBlockClick={(block, point) => setPanel({ kind: 'block-menu', point, block })}
+            />
+          )}
+        </div>
+
+        <FloatingPanel
+          position={panel?.kind === 'quick-create' ? panel.point : null}
+          onClose={closePanel}
+          width={360}
+        >
+          {panel?.kind === 'quick-create' && (
+            <QuickCreateCard
+              key={panel.defaults.startAt.toISOString() + (panel.defaults.professionalId ?? '')}
+              defaults={panel.defaults}
+              clients={clients}
+              professionals={professionals}
+              services={services}
+              timezone={timezone}
+              onClose={closePanel}
+              onMoreOptions={openFullCreate}
+              onCreated={setToConfirm}
+            />
+          )}
+        </FloatingPanel>
+
+        <FloatingPanel
+          position={panelAppointment && panel ? panel.point : null}
+          onClose={closePanel}
+          width={380}
+        >
+          {panelAppointment && (
+            <AppointmentCard
+              appointment={panelAppointment}
+              timezone={timezone}
+              color={colorFor(panelAppointment)}
+              onClose={closePanel}
+              startInCheckout={panel?.kind === 'appointment' && panel.checkout}
+              onOpenDetails={() => {
+                setPanel(null);
+                setDetailId(panelAppointment.id);
+              }}
+            />
+          )}
+        </FloatingPanel>
+
+        <FloatingPanel
+          position={showShortcuts ? { x: window.innerWidth / 2 - 160, y: 140 } : null}
+          onClose={() => setShowShortcuts(false)}
+          width={320}
+        >
+          <div className="flex flex-col gap-2 p-5 text-[13px]">
+            <h3 className="text-[15px] font-semibold">Atalhos de teclado</h3>
+            {[
+              ['T', 'Ir para hoje'],
+              ['D · W · M', 'Visão dia, semana ou mês'],
+              ['← → (ou K J)', 'Período anterior / próximo'],
+              ['C', 'Criar agendamento'],
+              ['Esc', 'Fechar cartão'],
+              ['?', 'Mostrar esta lista'],
+            ].map(([keys, label]) => (
+              <div key={keys} className="flex items-center justify-between gap-4">
+                <span className="text-label-secondary">{label}</span>
+                <kbd className="bg-foreground/[0.06] rounded-md px-2 py-0.5 font-mono text-[12px]">
+                  {keys}
+                </kbd>
+              </div>
+            ))}
+          </div>
+        </FloatingPanel>
+
+        <FloatingMenu
+          position={panel?.kind === 'appointment-menu' ? panel.point : null}
+          title={panel?.kind === 'appointment-menu' ? panel.appointment.client.name : undefined}
+          items={appointmentMenuItems}
+          onClose={closePanel}
+        />
+        <FloatingMenu
+          position={panel?.kind === 'block-menu' ? panel.point : null}
+          items={blockMenuItems}
+          onClose={closePanel}
         />
 
-        {/* Phones: the sidebar is a sheet, so the Google sync entry gets its own always-visible pill. */}
-        <div className="lg:hidden">
-          <GoogleCalendarCard variant="chip" professionals={professionals} />
-        </div>
+        <CreateAppointmentDrawer
+          key={createKey}
+          open={createDefaults !== null}
+          onOpenChange={(open) => {
+            if (!open) setCreateDefaults(null);
+          }}
+          defaultStartAt={createDefaults?.startAt ?? rangeStartAt}
+          defaultProfessionalId={createDefaults?.professionalId}
+          defaultClientId={createDefaults?.clientId}
+          defaultServiceId={createDefaults?.serviceId}
+          clients={clients}
+          professionals={professionals}
+          services={services}
+          timezone={timezone}
+          onCreated={setToConfirm}
+        />
 
-        {/* No celular a coluna esquerda some: os profissionais viram chips para mostrar/esconder. */}
-        {professionals.length > 1 && (
-          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:hidden">
-            {professionals.map((professional) => {
-              const visible = !hiddenProfessionalIds.has(professional.id);
-              return (
-                <button
-                  key={professional.id}
-                  type="button"
-                  aria-pressed={visible}
-                  onClick={() => {
-                    const next = new Set(hiddenProfessionalIds);
-                    if (next.has(professional.id)) next.delete(professional.id);
-                    else next.add(professional.id);
-                    setHidden(next);
-                  }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-colors"
-                  style={{
-                    backgroundColor: visible ? professional.color : 'transparent',
-                    color: visible ? 'white' : undefined,
-                    borderColor: professional.color,
-                    boxShadow: `inset 0 0 0 1px ${professional.color}`,
-                  }}
-                >
-                  {professional.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <SendConfirmationDialog confirmation={toConfirm} onClose={() => setToConfirm(null)} />
 
-        {appointments.length > 0 && (
-          <div className="hidden sm:block">
-            <AgendaSummary appointments={appointments} />
-          </div>
-        )}
-
-        {query.isLoading ? (
-          <Skeleton className="h-[600px] w-full rounded-[22px]" />
-        ) : view === 'month' ? (
-          <MonthView
-            anchorDate={anchorDate}
-            today={today}
-            appointments={appointments}
-            timezone={timezone}
-            colorFor={colorFor}
-            onDayClick={(date) => {
-              setAnchorDate(date);
-              setView('day');
-            }}
-            onAppointmentClick={openAppointmentCard}
-          />
-        ) : columns.length === 0 ? (
-          <div className="bg-tile flex h-56 items-center justify-center rounded-[22px]">
-            <EmptyState
-              icon={UserRoundIcon}
-              title={
-                professionals.length
-                  ? 'Nenhum profissional visível'
-                  : 'Nenhum profissional cadastrado'
-              }
-              description={
-                professionals.length
-                  ? 'Marque ao menos um profissional na coluna da esquerda.'
-                  : 'Cadastre um profissional pra começar a montar a agenda.'
-              }
-              className="py-0"
-            />
-          </div>
-        ) : (
-          <CalendarGrid
-            columns={columns}
-            appointments={appointments}
-            timezone={timezone}
-            startHour={startHour}
-            endHour={endHour}
-            openRangesByColumn={openRangesByColumn}
-            blocksByColumn={blocksByColumn}
-            colorFor={colorFor}
-            colorMode={colorMode}
-            getColumnIdForAppointment={getColumnIdForAppointment}
-            onAppointmentClick={openAppointmentCard}
-            onAppointmentContextMenu={(appointment, point) =>
-              setPanel({ kind: 'appointment-menu', point, appointment })
-            }
-            onAppointmentMove={(id, startAt, targetColumn) =>
-              // Na visão Dia cada coluna é um profissional: soltar em outra coluna troca quem atende.
-              moveMutation.mutate({
-                id,
-                startAt,
-                professionalId: view === 'day' ? targetColumn.id : undefined,
-              })
-            }
-            onAppointmentResize={(appointment, endAt) =>
-              resizeMutation.mutate({ id: appointment.id, endAt })
-            }
-            onSlotClick={(column, startAt, point, endAt) =>
-              setPanel({
-                kind: 'quick-create',
-                point,
-                defaults: {
-                  startAt,
-                  durationMinutes: endAt
-                    ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
-                    : undefined,
-                  professionalId:
-                    view === 'day'
-                      ? column.id
-                      : visibleProfessionals.length === 1
-                        ? visibleProfessionals[0].id
-                        : undefined,
-                },
-              })
-            }
-            onBlockClick={(block, point) => setPanel({ kind: 'block-menu', point, block })}
-          />
-        )}
+        <AppointmentDetailDrawer
+          appointment={detailAppointment}
+          open={detailAppointment !== null}
+          onOpenChange={(open) => {
+            if (!open) setDetailId(null);
+          }}
+          timezone={timezone}
+          clients={clients}
+          services={services}
+        />
       </div>
-
-      <FloatingPanel
-        position={panel?.kind === 'quick-create' ? panel.point : null}
-        onClose={closePanel}
-        width={360}
-      >
-        {panel?.kind === 'quick-create' && (
-          <QuickCreateCard
-            key={panel.defaults.startAt.toISOString() + (panel.defaults.professionalId ?? '')}
-            defaults={panel.defaults}
-            clients={clients}
-            professionals={professionals}
-            services={services}
-            timezone={timezone}
-            onClose={closePanel}
-            onMoreOptions={openFullCreate}
-            onCreated={setToConfirm}
-          />
-        )}
-      </FloatingPanel>
-
-      <FloatingPanel
-        position={panelAppointment && panel ? panel.point : null}
-        onClose={closePanel}
-        width={380}
-      >
-        {panelAppointment && (
-          <AppointmentCard
-            appointment={panelAppointment}
-            timezone={timezone}
-            color={colorFor(panelAppointment)}
-            onClose={closePanel}
-            startInCheckout={panel?.kind === 'appointment' && panel.checkout}
-            onOpenDetails={() => {
-              setPanel(null);
-              setDetailId(panelAppointment.id);
-            }}
-          />
-        )}
-      </FloatingPanel>
-
-      <FloatingPanel
-        position={showShortcuts ? { x: window.innerWidth / 2 - 160, y: 140 } : null}
-        onClose={() => setShowShortcuts(false)}
-        width={320}
-      >
-        <div className="flex flex-col gap-2 p-5 text-[13px]">
-          <h3 className="text-[15px] font-semibold">Atalhos de teclado</h3>
-          {[
-            ['T', 'Ir para hoje'],
-            ['D · W · M', 'Visão dia, semana ou mês'],
-            ['← → (ou K J)', 'Período anterior / próximo'],
-            ['C', 'Criar agendamento'],
-            ['Esc', 'Fechar cartão'],
-            ['?', 'Mostrar esta lista'],
-          ].map(([keys, label]) => (
-            <div key={keys} className="flex items-center justify-between gap-4">
-              <span className="text-label-secondary">{label}</span>
-              <kbd className="bg-foreground/[0.06] rounded-md px-2 py-0.5 font-mono text-[12px]">
-                {keys}
-              </kbd>
-            </div>
-          ))}
-        </div>
-      </FloatingPanel>
-
-      <FloatingMenu
-        position={panel?.kind === 'appointment-menu' ? panel.point : null}
-        title={panel?.kind === 'appointment-menu' ? panel.appointment.client.name : undefined}
-        items={appointmentMenuItems}
-        onClose={closePanel}
-      />
-      <FloatingMenu
-        position={panel?.kind === 'block-menu' ? panel.point : null}
-        items={blockMenuItems}
-        onClose={closePanel}
-      />
-
-      <CreateAppointmentDrawer
-        key={createKey}
-        open={createDefaults !== null}
-        onOpenChange={(open) => {
-          if (!open) setCreateDefaults(null);
-        }}
-        defaultStartAt={createDefaults?.startAt ?? rangeStartAt}
-        defaultProfessionalId={createDefaults?.professionalId}
-        defaultClientId={createDefaults?.clientId}
-        defaultServiceId={createDefaults?.serviceId}
-        clients={clients}
-        professionals={professionals}
-        services={services}
-        timezone={timezone}
-        onCreated={setToConfirm}
-      />
-
-      <SendConfirmationDialog confirmation={toConfirm} onClose={() => setToConfirm(null)} />
-
-      <AppointmentDetailDrawer
-        appointment={detailAppointment}
-        open={detailAppointment !== null}
-        onOpenChange={(open) => {
-          if (!open) setDetailId(null);
-        }}
-        timezone={timezone}
-        clients={clients}
-        services={services}
-      />
-    </div>
+    </WaitlistOfferProvider>
   );
 }
 

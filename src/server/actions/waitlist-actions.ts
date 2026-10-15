@@ -6,6 +6,7 @@ import { parseId } from '@/server/errors';
 import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createWaitlistEntry,
+  findOpenSlotsForWaitlist,
   listWaitingEntries,
   setWaitlistEntryStatus,
 } from '@/server/data/waitlist';
@@ -15,6 +16,12 @@ import { setWaitlistStatusInput, waitlistInput } from '@/lib/validations/waitlis
 export async function listWaitlistAction() {
   const { company } = await requireCurrentCompany();
   return listWaitingEntries(company.id, company.timezone);
+}
+
+/** Vagas livres agora para cada pessoa da lista, no dia que ela quer. */
+export async function getWaitlistOpenSlotsAction() {
+  const { company } = await requireCurrentCompany();
+  return findOpenSlotsForWaitlist(company.id, company.timezone);
 }
 
 export async function createWaitlistEntryAction(input: unknown) {
