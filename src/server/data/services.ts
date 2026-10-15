@@ -27,6 +27,7 @@ export type ServiceInput = {
   durationMinutes: number;
   price: number;
   color: string;
+  commissionPercent?: number | null;
 };
 
 export async function createService(companyId: string, data: ServiceInput): Promise<Service> {
@@ -39,6 +40,7 @@ export async function createService(companyId: string, data: ServiceInput): Prom
       durationMinutes: data.durationMinutes,
       price: data.price,
       color: data.color,
+      commissionPercent: data.commissionPercent ?? null,
     },
   });
 }
@@ -57,6 +59,7 @@ export async function updateService(
       durationMinutes: data.durationMinutes,
       price: data.price,
       color: data.color,
+      commissionPercent: data.commissionPercent ?? null,
     },
   });
   if (result.count === 0) throw new UserError('Serviço não encontrado.');

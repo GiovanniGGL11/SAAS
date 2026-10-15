@@ -68,6 +68,7 @@ export function ProfessionalDrawer({
       color: professional?.color ?? PRESET_COLORS[1],
       commissionType: professional?.commissionType ?? null,
       commissionValue: professional?.commissionValue ?? null,
+      monthlyGoal: professional?.monthlyGoal ?? null,
     },
   });
 
@@ -224,6 +225,33 @@ export function ProfessionalDrawer({
                 />
               )}
             </div>
+
+            <FormField
+              control={form.control}
+              name="monthlyGoal"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Meta de faturamento no mês (R$, opcional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={50}
+                      placeholder="Ex: 8000"
+                      {...field}
+                      value={(field.value as number) ?? ''}
+                      onChange={(e) =>
+                        field.onChange(e.target.value === '' ? null : e.target.value)
+                      }
+                    />
+                  </FormControl>
+                  <p className="text-label-secondary text-xs">
+                    Aparece no painel, com o quanto já foi feito no mês.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Expediente tem gravação própria: precisa do profissional já salvo. */}
             {isEdit || justCreatedId ? (

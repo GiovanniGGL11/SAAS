@@ -5,6 +5,7 @@ import { getBusiestHours, percentDelta } from '@/server/data/dashboard';
 import {
   getMonthProgress,
   getPeriodInsights,
+  getProfessionalGoals,
   getRevenueByDayInRange,
   getRevenueGoal,
   getTodayOverview,
@@ -159,12 +160,13 @@ export default async function DashboardPage({
     );
   }
 
-  const [insights, revenueByDay, busiestHours, goal, month] = await Promise.all([
+  const [insights, revenueByDay, busiestHours, goal, month, teamGoals] = await Promise.all([
     getPeriodInsights(company.id, company.timezone, range),
     getRevenueByDayInRange(company.id, company.timezone, range),
     getBusiestHours(company.id, company.timezone),
     getRevenueGoal(company.clerkOrgId),
     getMonthProgress(company.id, company.timezone),
+    getProfessionalGoals(company.id, company.timezone),
   ]);
   const { current, previous } = insights;
   const compareLabel = COMPARE_LABEL[preset];
@@ -311,7 +313,7 @@ export default async function DashboardPage({
         <LapsedClientsCard clients={overview.lapsed.top} total={overview.lapsed.count} />
       </div>
 
-      <TeamPerformance team={insights.team} />
+      <TeamPerformance team={insights.team} goals={teamGoals} />
 
       <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-3">
         <AppleTile interactive={false} className="lg:col-span-2">

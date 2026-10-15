@@ -38,6 +38,8 @@ model Company {
   cashSessions              CashSession[]
   recurringExpenses         RecurringExpense[]
   financeCategories         FinanceCategory[]
+  professionalAdvances      ProfessionalAdvance[]
+  commissionPayouts         CommissionPayout[]
 }
 
 model WebhookEvent {
@@ -67,10 +69,15 @@ model Professional {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  availabilities  ProfessionalAvailability[]
-  blocks          ScheduleBlock[]
-  appointments    Appointment[]
-  waitlistEntries WaitlistEntry[]
+  // Meta de faturamento do mês (serviços cobrados), acompanhada no painel.
+  monthlyGoal Float?
+
+  availabilities    ProfessionalAvailability[]
+  advances          ProfessionalAdvance[]
+  commissionPayouts CommissionPayout[]
+  blocks            ScheduleBlock[]
+  appointments      Appointment[]
+  waitlistEntries   WaitlistEntry[]
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -112,10 +119,12 @@ model Service {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  appointmentItems AppointmentItem[]
-  appointments     Appointment[]
-  loyaltyRewardOf  LoyaltyProgram[]
-  waitlistEntries  WaitlistEntry[]
+  // Comissão própria deste serviço (%), no lugar da regra do profissional. Vazio = regra dele.
+  commissionPercent Float?
+  appointmentItems  AppointmentItem[]
+  appointments      Appointment[]
+  loyaltyRewardOf   LoyaltyProgram[]
+  waitlistEntries   WaitlistEntry[]
 
   @@index([companyId])
 }
@@ -585,4 +594,44 @@ model WaitlistEntry {
   updatedAt       DateTime       @updatedAt
 
   @@index([companyId, status, desiredDate])
+}
+
+/// Vale/adiantamento pago ao profissional; é descontado no próximo fechamento de comissão.
+model ProfessionalAdvance {
+  id              String            @id @default(cuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id])
+  professionalId  String
+  professional    Professional      @relation(fields: [professionalId], references: [id])
+  amount          Decimal           @db.Decimal(10, 2)
+  description     String?
+  transactionId   String?
+  payoutId        String?
+  payout          CommissionPayout? @relation(fields: [payoutId], references: [id])
+  createdByUserId String
+  createdAt       DateTime          @default(now())
+
+  @@index([companyId, professionalId, payoutId])
+}
+
+/// Fechamento de comissão de um profissional num período: bruto − vales = pago.
+model CommissionPayout {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id])
+  professionalId  String
+  professional    Professional          @relation(fields: [professionalId], references: [id])
+  periodStart     DateTime
+  periodEnd       DateTime
+  appointments    Int
+  baseAmount      Decimal               @db.Decimal(10, 2)
+  grossCommission Decimal               @db.Decimal(10, 2)
+  advancesTotal   Decimal               @db.Decimal(10, 2)
+  netAmount       Decimal               @db.Decimal(10, 2)
+  transactionId   String?
+  advances        ProfessionalAdvance[]
+  createdByUserId String
+  createdAt       DateTime              @default(now())
+
+  @@index([companyId, professionalId, periodStart])
 }
