@@ -38,6 +38,7 @@ import {
   quickStatusActions,
 } from '@/components/agenda/status';
 import { AppointmentProductsSection } from '@/components/agenda/appointment-products-section';
+import { AppointmentHistory } from '@/components/agenda/appointment-history';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
 import type { SerializedAppointment } from '@/lib/serialize';
@@ -277,6 +278,8 @@ export function AppointmentDetailDrawer({
               </div>
             </div>
           )}
+
+          <AppointmentHistory appointmentId={appointment.id} timezone={timezone} />
         </div>
 
         <DrawerFooter>

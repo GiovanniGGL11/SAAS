@@ -314,6 +314,8 @@ export async function moveAppointment(params: {
     action: 'moved',
     userId: params.updatedByUserId,
     metadata: {
+      // O horário de antes também: é o que resolve "quem tirou das 10h e pôs às 14h?".
+      fromStartAt: existing.startAt.toISOString(),
       startAt: params.startAt.toISOString(),
       endAt: endAt.toISOString(),
       ...(professionalId !== existing.professionalId

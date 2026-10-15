@@ -11,6 +11,7 @@ import {
   TicketPercent,
   Gift,
   BarChart3,
+  History,
   Settings,
 } from 'lucide-react';
 
@@ -85,6 +86,14 @@ export const navItems: NavItem[] = [
     href: '/relatorios',
     icon: BarChart3,
     color: '#5ac8fa',
+    group: 'Gestão',
+    adminOnly: true,
+  },
+  {
+    label: 'Histórico',
+    href: '/historico',
+    icon: History,
+    color: '#a2845e',
     group: 'Gestão',
     adminOnly: true,
   },

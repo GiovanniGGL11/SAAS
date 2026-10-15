@@ -29,6 +29,8 @@ const isProtectedRoute = createRouteMatcher([
   '/campanhas/(.*)',
   '/fidelidade',
   '/fidelidade/(.*)',
+  '/historico',
+  '/historico/(.*)',
   '/relatorios',
   '/relatorios/(.*)',
   '/configuracoes',
