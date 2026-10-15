@@ -4,6 +4,8 @@ export const createAppointmentInput = z.object({
   clientId: z.string().min(1),
   professionalId: z.string().min(1),
   serviceId: z.string().min(1),
+  /** Outros serviços no mesmo atendimento, em seguida ao primeiro. */
+  extraServiceIds: z.array(z.string().min(1).max(64)).max(5).optional(),
   startAt: z.coerce.date(),
   notes: z.string().max(2000).optional(),
   /** Repetir o mesmo horário: a cada 1, 2 ou 4 semanas, até 12 vezes ao todo. */
@@ -116,6 +118,6 @@ export const checkoutAppointmentInput = z.object({
 export const updateAppointmentDetailsInput = z.object({
   id: z.string().min(1).max(64),
   clientId: z.string().min(1).max(64).optional(),
-  serviceId: z.string().min(1).max(64).optional(),
+  serviceIds: z.array(z.string().min(1).max(64)).min(1).max(6).optional(),
   notes: z.string().max(2000).nullable().optional(),
 });

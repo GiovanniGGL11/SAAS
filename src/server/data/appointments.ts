@@ -50,13 +50,57 @@ export type AppointmentWithRelations = Appointment & {
   client: { id: string; name: string; phone: string | null };
   professional: { id: string; name: string; color: string };
   service: { id: string; name: string; color: string };
+  /** Só quando o atendimento tem mais de um serviço (sem preço: o total está no agendamento). */
+  items: { serviceId: string; nameSnapshot: string; durationMinutes: number }[];
 };
 
 const relationsInclude = {
   client: { select: { id: true, name: true, phone: true } },
   professional: { select: { id: true, name: true, color: true } },
   service: { select: { id: true, name: true, color: true } },
+  items: {
+    select: { serviceId: true, nameSnapshot: true, durationMinutes: true },
+    orderBy: { position: 'asc' },
+  },
 } as const;
+
+/**
+ * Serviços do atendimento, na ordem: um só vira o próprio agendamento; vários viram itens e o
+ * agendamento guarda a soma (nome "Corte + Barba", duração e preço totais). Assim relatórios,
+ * comissão e cobrança que leem o agendamento continuam certos sem saber dos itens.
+ */
+async function resolveServices(
+  db: Prisma.TransactionClient | typeof prisma,
+  companyId: string,
+  serviceIds: string[],
+) {
+  const unique = [...new Set(serviceIds)];
+  const services = await db.service.findMany({ where: { companyId, id: { in: unique } } });
+  if (services.length !== unique.length) throw new ForeignEntityMismatchError('service');
+  const byId = new Map(services.map((s) => [s.id, s]));
+  const ordered = serviceIds.map((id) => byId.get(id)!);
+  const duration = ordered.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const price = ordered.reduce((sum, s) => sum.add(s.price), new PrismaNamespace.Decimal(0));
+  return {
+    main: ordered[0],
+    snapshots: {
+      serviceId: ordered[0].id,
+      serviceNameSnapshot: ordered.map((s) => s.name).join(' + '),
+      durationMinutesSnapshot: duration,
+      priceSnapshot: price,
+    },
+    items:
+      ordered.length > 1
+        ? ordered.map((s, position) => ({
+            serviceId: s.id,
+            position,
+            nameSnapshot: s.name,
+            durationMinutes: s.durationMinutes,
+            priceSnapshot: s.price,
+          }))
+        : [],
+  };
+}
 
 export async function listAppointmentsInRange(
   companyId: string,
@@ -148,24 +192,30 @@ export async function createAppointment(params: {
   clientId: string;
   professionalId: string;
   serviceId: string;
+  /** Outros serviços no mesmo atendimento (corte + barba), feitos em seguida. */
+  extraServiceIds?: string[];
   startAt: Date;
   notes?: string;
   createdByUserId: string;
 }): Promise<Appointment> {
-  const [client, professional, service] = await Promise.all([
+  const [client, professional, resolved] = await Promise.all([
     prisma.client.findFirst({ where: { id: params.clientId, companyId: params.companyId } }),
     prisma.professional.findFirst({
       where: { id: params.professionalId, companyId: params.companyId },
     }),
-    prisma.service.findFirst({ where: { id: params.serviceId, companyId: params.companyId } }),
+    resolveServices(prisma, params.companyId, [
+      params.serviceId,
+      ...(params.extraServiceIds ?? []),
+    ]),
   ]);
   if (!client) throw new ForeignEntityMismatchError('client');
   if (!professional) throw new ForeignEntityMismatchError('professional');
-  if (!service) throw new ForeignEntityMismatchError('service');
 
-  // endAt is always derived from the service's current duration — never
+  // endAt is always derived from the services' current duration — never
   // trusted from the caller — so it can never drift from the snapshot below.
-  const endAt = new Date(params.startAt.getTime() + service.durationMinutes * 60_000);
+  const endAt = new Date(
+    params.startAt.getTime() + resolved.snapshots.durationMinutesSnapshot * 60_000,
+  );
 
   const appointment = await prisma.$transaction(async (tx) => {
     await lockProfessionalSchedule(tx, params.professionalId);
@@ -183,14 +233,12 @@ export async function createAppointment(params: {
         companyId: params.companyId,
         clientId: params.clientId,
         professionalId: params.professionalId,
-        serviceId: params.serviceId,
+        ...resolved.snapshots,
         startAt: params.startAt,
         endAt,
         notes: params.notes,
-        serviceNameSnapshot: service.name,
-        durationMinutesSnapshot: service.durationMinutes,
-        priceSnapshot: service.price,
         createdByUserId: params.createdByUserId,
+        ...(resolved.items.length ? { items: { create: resolved.items } } : {}),
       },
     });
   });
@@ -343,7 +391,8 @@ export async function updateAppointmentDetails(params: {
   companyId: string;
   id: string;
   clientId?: string;
-  serviceId?: string;
+  /** Lista completa de serviços, na ordem (troca o serviço ou adiciona/remove outros). */
+  serviceIds?: string[];
   notes?: string | null;
   updatedByUserId: string;
 }): Promise<Appointment> {
@@ -369,30 +418,39 @@ export async function updateAppointmentDetails(params: {
       data.clientId = client.id;
     }
 
-    if (params.serviceId && params.serviceId !== current.serviceId) {
-      const service = await tx.service.findFirst({
-        where: { id: params.serviceId, companyId: params.companyId },
-      });
-      if (!service) throw new ForeignEntityMismatchError('service');
-      const endAt = new Date(current.startAt.getTime() + service.durationMinutes * 60_000);
-      await lockProfessionalSchedule(tx, current.professionalId);
-      await assertNoConflict(
-        {
-          companyId: params.companyId,
-          professionalId: current.professionalId,
-          startAt: current.startAt,
-          endAt,
-          excludeAppointmentId: current.id,
-        },
-        tx,
-      );
-      Object.assign(data, {
-        serviceId: service.id,
-        endAt,
-        serviceNameSnapshot: service.name,
-        durationMinutesSnapshot: service.durationMinutes,
-        priceSnapshot: service.price,
-      });
+    if (params.serviceIds?.length) {
+      const currentIds = (
+        await tx.appointmentItem.findMany({
+          where: { appointmentId: current.id },
+          orderBy: { position: 'asc' },
+          select: { serviceId: true },
+        })
+      ).map((i) => i.serviceId);
+      const before = currentIds.length ? currentIds : [current.serviceId];
+      if (before.join(',') !== params.serviceIds.join(',')) {
+        const resolved = await resolveServices(tx, params.companyId, params.serviceIds);
+        const endAt = new Date(
+          current.startAt.getTime() + resolved.snapshots.durationMinutesSnapshot * 60_000,
+        );
+        await lockProfessionalSchedule(tx, current.professionalId);
+        await assertNoConflict(
+          {
+            companyId: params.companyId,
+            professionalId: current.professionalId,
+            startAt: current.startAt,
+            endAt,
+            excludeAppointmentId: current.id,
+          },
+          tx,
+        );
+        Object.assign(data, { ...resolved.snapshots, endAt });
+        await tx.appointmentItem.deleteMany({ where: { appointmentId: current.id } });
+        if (resolved.items.length) {
+          await tx.appointmentItem.createMany({
+            data: resolved.items.map((item) => ({ ...item, appointmentId: current.id })),
+          });
+        }
+      }
     }
 
     await tx.appointment.updateMany({
@@ -409,7 +467,7 @@ export async function updateAppointmentDetails(params: {
         metadata: {
           edited: true,
           clientId: params.clientId ?? null,
-          serviceId: params.serviceId ?? null,
+          serviceIds: params.serviceIds ?? null,
         },
       },
       tx,

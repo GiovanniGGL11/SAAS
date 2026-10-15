@@ -98,6 +98,7 @@ export async function createAppointmentAction(input: unknown) {
         clientId: parsed.clientId,
         professionalId: parsed.professionalId,
         serviceId: parsed.serviceId,
+        extraServiceIds: parsed.extraServiceIds,
         startAt,
         notes: parsed.notes,
         createdByUserId: userId,

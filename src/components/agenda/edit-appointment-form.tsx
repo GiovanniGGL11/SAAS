@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox } from '@/components/ui/combobox';
+import { ExtraServicesField } from '@/components/agenda/extra-services-field';
 import { unwrapResult } from '@/lib/action-result';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { updateAppointmentDetailsAction } from '@/server/actions/agenda-actions';
@@ -27,7 +28,13 @@ export function EditAppointmentForm({
 }) {
   const queryClient = useQueryClient();
   const [clientId, setClientId] = React.useState(appointment.clientId);
-  const [serviceId, setServiceId] = React.useState(appointment.serviceId);
+  const initialIds = appointment.items?.length
+    ? appointment.items.map((i) => i.serviceId)
+    : [appointment.serviceId];
+  const [serviceId, setServiceId] = React.useState(initialIds[0]);
+  const [extraServiceIds, setExtraServiceIds] = React.useState(initialIds.slice(1));
+  const serviceIds = [serviceId, ...extraServiceIds.filter(Boolean)];
+  const servicesChanged = serviceIds.join(',') !== initialIds.join(',');
   const [notes, setNotes] = React.useState(appointment.notes ?? '');
 
   const mutation = useMutation({
@@ -35,7 +42,7 @@ export function EditAppointmentForm({
       updateAppointmentDetailsAction({
         id: appointment.id,
         clientId: clientId !== appointment.clientId ? clientId : undefined,
-        serviceId: serviceId !== appointment.serviceId ? serviceId : undefined,
+        serviceIds: servicesChanged ? serviceIds : undefined,
         notes: notes.trim() || null,
       }).then(unwrapResult),
     onSuccess: () => {
@@ -71,9 +78,18 @@ export function EditAppointmentForm({
         placeholder="Serviço"
         searchPlaceholder="Buscar serviço..."
       />
-      {serviceId !== appointment.serviceId && (
+      <ExtraServicesField
+        value={extraServiceIds}
+        onChange={setExtraServiceIds}
+        options={services.map((s) => ({
+          value: s.id,
+          label: s.name,
+          description: `${s.durationMinutes} min · ${formatCurrencyBRL(s.price)}`,
+        }))}
+      />
+      {servicesChanged && (
         <p className="text-label-secondary text-xs">
-          A duração e o preço passam a ser os do novo serviço.
+          A duração e o preço passam a ser a soma dos serviços escolhidos.
         </p>
       )}
       <Textarea
