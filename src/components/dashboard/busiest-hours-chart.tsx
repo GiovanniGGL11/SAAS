@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { motion, useInView, useReducedMotion } from 'motion/react';
 
+import { findPeakHour } from '@/lib/dashboard-rules';
 import type { HourBucket } from '@/server/data/dashboard';
 
 const CHART_HEIGHT = 160;
@@ -22,10 +23,7 @@ export function BusiestHoursChart({ hours }: { hours: HourBucket[] }) {
 
   const visible = visibleHours(hours);
   const maxCount = Math.max(...visible.map((h) => h.count), 1);
-  const peakHour = visible.reduce<HourBucket | null>(
-    (best, h) => (h.count > 0 && (!best || h.count > best.count) ? h : best),
-    null,
-  )?.hour;
+  const peakHour = findPeakHour(hours).peak?.hour;
 
   return (
     <div ref={ref} className="flex items-end gap-1.5 sm:gap-2" style={{ height: CHART_HEIGHT }}>

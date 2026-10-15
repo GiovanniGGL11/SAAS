@@ -16,6 +16,7 @@ import { PeriodPicker } from '@/components/dashboard/period-picker';
 import { TodayStrip } from '@/components/dashboard/today-strip';
 import { AttentionCard } from '@/components/dashboard/attention-card';
 import { GoalCard } from '@/components/dashboard/goal-card';
+import { MIN_PEAK_SAMPLE, findPeakHour } from '@/lib/dashboard-rules';
 import { TeamPerformance } from '@/components/dashboard/team-performance';
 import { LapsedClientsCard } from '@/components/dashboard/lapsed-clients-card';
 import { KpiTile } from '@/components/dashboard/kpi-tile';
@@ -169,12 +170,8 @@ export default async function DashboardPage({
   const { current, previous } = insights;
   const compareLabel = COMPARE_LABEL[preset];
   const periodLabel = REPORT_PRESETS.find((p) => p.value === preset)!.label.toLowerCase();
-  // Same 7h–21h window BusiestHoursChart plots, so the headline matches the highlighted bar.
-  const peak = busiestHours.reduce<(typeof busiestHours)[number] | null>(
-    (best, h) =>
-      h.hour >= 7 && h.hour < 21 && h.count > 0 && (!best || h.count > best.count) ? h : best,
-    null,
-  );
+  // Mesma janela e mesma regra do gráfico; sem agendamentos suficientes não há "pico" a apontar.
+  const { peak, sample: peakSample } = findPeakHour(busiestHours);
 
   return (
     <div className="flex w-full flex-col gap-4 md:gap-5">
@@ -308,7 +305,11 @@ export default async function DashboardPage({
           </div>
           <RevenueChart data={revenueByDay} />
         </AppleTile>
-        <LapsedClientsCard clients={overview.lapsed.top} total={overview.lapsed.count} />
+        <LapsedClientsCard
+          clients={overview.lapsed.top}
+          total={overview.lapsed.count}
+          withHistory={overview.lapsed.withHistory}
+        />
       </div>
 
       <TeamPerformance team={insights.team} />
@@ -319,12 +320,24 @@ export default async function DashboardPage({
             <div>
               <TileEyebrow>Horários mais movimentados</TileEyebrow>
               <div className="mt-1 text-[28px] leading-none font-semibold tracking-[-0.025em]">
-                {peak ? `Pico às ${String(peak.hour).padStart(2, '0')}h` : 'Sem movimento'}
+                {peak ? `Pico às ${String(peak.hour).padStart(2, '0')}h` : 'Sem dados suficientes'}
               </div>
             </div>
             <span className="text-label-secondary text-xs">Últimos 30 dias</span>
           </div>
-          <BusiestHoursChart hours={busiestHours} />
+          {peak ? (
+            <BusiestHoursChart hours={busiestHours} />
+          ) : (
+            <div className="bg-foreground/[0.04] text-label-secondary flex h-40 flex-col items-center justify-center gap-1 rounded-2xl px-6 text-center text-[13px]">
+              <span className="text-foreground text-[14px] font-medium">
+                Ainda não dá para apontar o horário de pico
+              </span>
+              <span>
+                Precisa de pelo menos {MIN_PEAK_SAMPLE} agendamentos nos últimos 30 dias (hoje:{' '}
+                {peakSample}).
+              </span>
+            </div>
+          )}
         </AppleTile>
         {agendaCard}
       </div>

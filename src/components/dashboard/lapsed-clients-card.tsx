@@ -7,7 +7,16 @@ import { whatsappLink } from '@/lib/phone';
 type Lapsed = { id: string; name: string; phone: string | null; daysAway: number };
 
 /** Quem não volta há mais de 60 dias, com a mensagem de reativação pronta no WhatsApp. */
-export function LapsedClientsCard({ clients, total }: { clients: Lapsed[]; total: number }) {
+export function LapsedClientsCard({
+  clients,
+  total,
+  withHistory,
+}: {
+  clients: Lapsed[];
+  total: number;
+  /** Clientes ativos com pelo menos um atendimento concluído: a base para saber quem "sumiu". */
+  withHistory: number;
+}) {
   return (
     <AppleTile interactive={false} className="flex flex-col gap-3 p-5 md:p-6">
       <div className="flex items-end justify-between gap-2">
@@ -21,7 +30,16 @@ export function LapsedClientsCard({ clients, total }: { clients: Lapsed[]; total
           </Link>
         )}
       </div>
-      {clients.length === 0 ? (
+      {withHistory === 0 ? (
+        // Ninguém foi atendido ainda: não dá para dizer que "ninguém sumiu".
+        <div className="flex flex-col gap-1">
+          <p className="text-[14px] font-medium">Sem dados suficientes</p>
+          <p className="text-label-secondary text-[13px]">
+            Quando seus clientes tiverem atendimentos concluídos, quem passar de 60 dias sem voltar
+            aparece aqui.
+          </p>
+        </div>
+      ) : clients.length === 0 ? (
         <p className="text-label-secondary text-[14px]">
           Ninguém sumido há mais de 60 dias. Ótimo sinal.
         </p>

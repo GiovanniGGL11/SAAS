@@ -314,36 +314,49 @@ export async function getTodayOverview(companyId: string, timezone: string) {
   const now = new Date();
   const weekAhead = { startAt: now, endAt: new Date(now.getTime() + 7 * 86_400_000) };
 
-  const [todayRows, tomorrowUnconfirmed, nextWeek, cash, billsDue, lapsed, lowStock, birthdays] =
-    await Promise.all([
-      prisma.appointment.groupBy({
-        by: ['status'],
-        where: { companyId, startAt: { gte: start, lt: end } },
-        _count: { _all: true },
-        _sum: { priceSnapshot: true },
-      }),
-      prisma.appointment.count({
-        where: { companyId, status: 'SCHEDULED', startAt: { gte: end, lt: tomorrowEnd } },
-      }),
-      occupancy(companyId, timezone, weekAhead, ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE']),
-      prisma.cashSession.findFirst({
-        where: { companyId, closedAt: null },
-        select: { openedAt: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { companyId, type: 'EXPENSE', status: 'PENDING', dueDate: { lt: weekAhead.endAt } },
-        _count: { _all: true },
-        _sum: { amount: true },
-      }),
-      listLapsedClients(companyId, 60, 500),
-      listLowStockProducts(companyId, 50),
-      prisma.$queryRaw<{ id: string; name: string; phone: string | null }[]>`
+  const [
+    todayRows,
+    tomorrowUnconfirmed,
+    nextWeek,
+    cash,
+    billsDue,
+    lapsed,
+    withHistory,
+    lowStock,
+    birthdays,
+  ] = await Promise.all([
+    prisma.appointment.groupBy({
+      by: ['status'],
+      where: { companyId, startAt: { gte: start, lt: end } },
+      _count: { _all: true },
+      _sum: { priceSnapshot: true },
+    }),
+    prisma.appointment.count({
+      where: { companyId, status: 'SCHEDULED', startAt: { gte: end, lt: tomorrowEnd } },
+    }),
+    occupancy(companyId, timezone, weekAhead, ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE']),
+    prisma.cashSession.findFirst({
+      where: { companyId, closedAt: null },
+      select: { openedAt: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'EXPENSE', status: 'PENDING', dueDate: { lt: weekAhead.endAt } },
+      _count: { _all: true },
+      _sum: { amount: true },
+    }),
+    listLapsedClients(companyId, 60, 500),
+    // Sem nenhum atendimento concluído não existe "sumido": a ausência é falta de base, não boa notícia.
+    prisma.client.count({
+      where: { companyId, active: true, appointments: { some: { status: 'DONE' } } },
+    }),
+    listLowStockProducts(companyId, 50),
+    prisma.$queryRaw<{ id: string; name: string; phone: string | null }[]>`
         SELECT id, name, phone FROM "Client"
         WHERE "companyId" = ${companyId} AND active = true AND "birthDate" IS NOT NULL
           AND EXTRACT(MONTH FROM "birthDate") = ${today.month}
           AND EXTRACT(DAY FROM "birthDate") = ${today.day}
         ORDER BY name LIMIT 10`,
-    ]);
+  ]);
 
   const byStatus = Object.fromEntries(todayRows.map((r) => [r.status, r])) as Record<
     string,
@@ -366,6 +379,7 @@ export async function getTodayOverview(companyId: string, timezone: string) {
     billsDue: { count: billsDue._count._all, amount: cents(Number(billsDue._sum.amount ?? 0)) },
     lapsed: {
       count: lapsed.length,
+      withHistory,
       top: lapsed.slice(0, 5).map((c) => ({
         ...c,
         daysAway: Math.floor((now.getTime() - c.lastVisitAt.getTime()) / 86_400_000),
