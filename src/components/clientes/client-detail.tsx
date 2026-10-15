@@ -119,7 +119,13 @@ export function ClientDetail({
                 }
               />
             </button>
-            {stats.isInactive && <Badge variant="outline">Inativo</Badge>}
+            {/* Relacionamento, não cadastro: quem nunca veio não é "inativo", e o interruptor ao
+                lado já diz se o cadastro está ativo. */}
+            {stats.lastVisitAt === null ? (
+              <Badge variant="outline">Ainda não atendido</Badge>
+            ) : (
+              stats.isInactive && <Badge variant="outline">Sem visita há mais de 60 dias</Badge>
+            )}
             {!client.active && <Badge variant="outline">Arquivado</Badge>}
           </div>
           <p className="text-muted-foreground text-sm">
@@ -129,7 +135,7 @@ export function ClientDetail({
         </div>
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
           <div className="mr-1 flex items-center gap-2">
-            <span className="text-muted-foreground text-xs">Ativo</span>
+            <span className="text-muted-foreground text-xs">Cadastro ativo</span>
             <Switch
               checked={client.active}
               onCheckedChange={(v: boolean) => toggleActive.mutate(v)}
