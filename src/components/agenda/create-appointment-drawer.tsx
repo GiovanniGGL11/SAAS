@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { PackagePicker } from '@/components/pacotes/package-picker';
 import { Button } from '@/components/ui/button';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { ConfirmationToSend } from '@/components/agenda/send-confirmation-dialog';
@@ -74,6 +75,7 @@ export function CreateAppointmentDrawer({
   defaultProfessionalId,
   defaultClientId,
   defaultServiceId,
+  defaultPackageId,
   clients,
   professionals,
   services,
@@ -89,6 +91,8 @@ export function CreateAppointmentDrawer({
   /** Vêm preenchidos quando a pessoa começou pelo cartão rápido e clicou em "Mais opções". */
   defaultClientId?: string;
   defaultServiceId?: string;
+  /** Vindo de "Agendar sessão" do pacote: o pacote já vem escolhido (escolha explícita). */
+  defaultPackageId?: string;
   clients: Client[];
   professionals: SerializedProfessional[];
   services: SerializedService[];
@@ -129,6 +133,7 @@ export function CreateAppointmentDrawer({
   const [repeatEvery, setRepeatEvery] = React.useState<0 | 1 | 2 | 4>(0);
   const [extraServiceIds, setExtraServiceIds] = React.useState<string[]>([]);
   const [repeatTimes, setRepeatTimes] = React.useState(4);
+  const [packageId, setPackageId] = React.useState<string | null>(defaultPackageId ?? null);
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -144,6 +149,7 @@ export function CreateAppointmentDrawer({
           extraServiceIds: extraServiceIds.filter(Boolean),
           startAt,
           notes: values.notes,
+          clientPackageId: packageId,
           repeat: repeatEvery ? { everyWeeks: repeatEvery, times: repeatTimes } : undefined,
         }),
       );
@@ -156,6 +162,11 @@ export function CreateAppointmentDrawer({
       );
       if (result.skipped.length) {
         toast.warning(`Horário ocupado, não repetido em: ${result.skipped.join(', ')}.`);
+      }
+      if (result.withoutPackage > 0) {
+        toast.warning(
+          `${result.withoutPackage} repetição(ões) ficaram como atendimento avulso: o pacote não tem mais sessões livres.`,
+        );
       }
       setRepeatEvery(0);
       setExtraServiceIds([]);
@@ -225,6 +236,13 @@ export function CreateAppointmentDrawer({
     return (
       calendarDateToUtc({ year, month, day }, hour * 60 + minute, timezone).getTime() < Date.now()
     );
+  }, [watchedDate, watchedTime, timezone]);
+  const watchedClientId = form.watch('clientId');
+  const startAtPreview = React.useMemo(() => {
+    const [year, month, day] = (watchedDate ?? '').split('-').map(Number);
+    const [hour, minute] = (watchedTime ?? '').split(':').map(Number);
+    if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute)) return null;
+    return calendarDateToUtc({ year, month, day }, hour * 60 + minute, timezone);
   }, [watchedDate, watchedTime, timezone]);
   const selectedService = services.find((s) => s.id === watchedServiceId);
   // Soma de todos os serviços escolhidos (o principal e os adicionais).
@@ -375,6 +393,14 @@ export function CreateAppointmentDrawer({
                   />
                 </FormItem>
               )}
+            />
+
+            <PackagePicker
+              clientId={watchedClientId}
+              serviceIds={[watchedServiceId, ...extraServiceIds].filter(Boolean)}
+              at={startAtPreview}
+              value={packageId}
+              onChange={setPackageId}
             />
 
             <div className="grid grid-cols-2 gap-3">

@@ -781,7 +781,8 @@ export async function checkoutAppointment(params: CheckoutInput) {
       tx,
     );
     return { appointment: done, total: Number(toCharge) };
-  });
+    // A comanda faz muitas consultas seguidas (cupom, pacote, vale, caixa): folga acima dos 5 s.
+  }, { maxWait: 10_000, timeout: 20_000 });
 }
 
 export async function cancelAppointment(params: {

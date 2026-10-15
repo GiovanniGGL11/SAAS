@@ -37,6 +37,18 @@ import { STATUS_LABELS } from '@/components/agenda/status';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
 import { formatAddress, mapsSearchLink } from '@/lib/address';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { ClientFormsTab } from '@/components/fichas/client-forms-tab';
+import { ClientPackagesTab } from '@/components/pacotes/client-packages-tab';
+import { ClientSessionsTab } from '@/components/pacotes/client-sessions-tab';
+
+const TABS = [
+  { value: 'resumo', label: 'Resumo' },
+  { value: 'fichas', label: 'Fichas e formulários' },
+  { value: 'pacotes', label: 'Pacotes e tratamentos' },
+  { value: 'sessoes', label: 'Histórico das sessões' },
+] as const;
+type Tab = (typeof TABS)[number]['value'];
 
 type ClientDetailData = NonNullable<Awaited<ReturnType<typeof getClientDetailAction>>>;
 
@@ -44,12 +56,25 @@ export function ClientDetail({
   clientId,
   initialData,
   timezone,
+  initialTab,
 }: {
   clientId: string;
   initialData: ClientDetailData;
   timezone: string;
+  initialTab?: string;
 }) {
   const queryClient = useQueryClient();
+  const [tab, setTab] = React.useState<Tab>(
+    TABS.some((t) => t.value === initialTab) ? (initialTab as Tab) : 'resumo',
+  );
+  function changeTab(next: Tab) {
+    setTab(next);
+    // A aba fica no endereço: voltar ou recarregar mantém onde a pessoa estava.
+    const url = new URL(window.location.href);
+    if (next === 'resumo') url.searchParams.delete('aba');
+    else url.searchParams.set('aba', next);
+    window.history.replaceState(null, '', url);
+  }
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   const { data } = useQuery({
@@ -187,148 +212,165 @@ export function ClientDetail({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Total gasto" value={formatCurrencyBRL(stats.totalSpent)} />
-        <StatCard label="Ticket médio" value={formatCurrencyBRL(stats.averageTicket)} />
-        <StatCard label="Atendimentos" value={String(stats.appointmentCount)} />
-        <StatCard
-          label="Última visita"
-          value={
-            stats.lastVisitAt
-              ? new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
-                  new Date(stats.lastVisitAt),
-                )
-              : '—'
-          }
-        />
-      </div>
+      <SegmentedControl
+        className="self-start"
+        value={tab}
+        onValueChange={changeTab}
+        options={TABS.map((t) => ({ value: t.value, label: t.label }))}
+      />
 
-      <ClientCredits clientId={clientId} />
-
-      {data.nextReturn && (
-        <NextReturn data={data.nextReturn} phone={client.phone} timezone={timezone} />
+      {tab === 'fichas' && (
+        <ClientFormsTab clientId={clientId} clientName={client.name} timezone={timezone} />
       )}
+      {tab === 'pacotes' && <ClientPackagesTab clientId={clientId} timezone={timezone} />}
+      {tab === 'sessoes' && <ClientSessionsTab clientId={clientId} timezone={timezone} />}
 
-      <ClientLoyalty clientId={clientId} clientName={client.name} timezone={timezone} />
+      {tab === 'resumo' && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Total gasto" value={formatCurrencyBRL(stats.totalSpent)} />
+            <StatCard label="Ticket médio" value={formatCurrencyBRL(stats.averageTicket)} />
+            <StatCard label="Atendimentos" value={String(stats.appointmentCount)} />
+            <StatCard
+              label="Última visita"
+              value={
+                stats.lastVisitAt
+                  ? new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
+                      new Date(stats.lastVisitAt),
+                    )
+                  : '—'
+              }
+            />
+          </div>
 
-      {client.cpf || client.birthDate || client.notes || address ? (
-        <div className="bg-tile grid grid-cols-2 gap-4 rounded-[22px] p-5 text-sm sm:grid-cols-3 md:p-6">
-          {client.cpf && (
-            <div>
-              <div className="text-muted-foreground text-xs">CPF</div>
-              <div>{client.cpf}</div>
-            </div>
+          <ClientCredits clientId={clientId} />
+
+          {data.nextReturn && (
+            <NextReturn data={data.nextReturn} phone={client.phone} timezone={timezone} />
           )}
-          {client.birthDate && (
-            <div>
-              <div className="text-muted-foreground text-xs">Nascimento</div>
-              <div>
-                {/* A data de nascimento é gravada como meia-noite UTC; no fuso de São Paulo ela
+
+          <ClientLoyalty clientId={clientId} clientName={client.name} timezone={timezone} />
+
+          {client.cpf || client.birthDate || client.notes || address ? (
+            <div className="bg-tile grid grid-cols-2 gap-4 rounded-[22px] p-5 text-sm sm:grid-cols-3 md:p-6">
+              {client.cpf && (
+                <div>
+                  <div className="text-muted-foreground text-xs">CPF</div>
+                  <div>{client.cpf}</div>
+                </div>
+              )}
+              {client.birthDate && (
+                <div>
+                  <div className="text-muted-foreground text-xs">Nascimento</div>
+                  <div>
+                    {/* A data de nascimento é gravada como meia-noite UTC; no fuso de São Paulo ela
                     aparecia um dia antes. */}
-                {new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(
-                  new Date(client.birthDate),
-                )}
-              </div>
-            </div>
-          )}
-          {address && (
-            <div className="col-span-2 sm:col-span-3">
-              <div className="text-muted-foreground text-xs">Endereço</div>
-              <div className="break-words">{address}</div>
-              {mapsLink && (
-                <a
-                  href={mapsLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-system-blue mt-1 inline-flex items-center gap-1 text-[13px] hover:underline"
-                >
-                  <MapPinIcon className="size-3.5" />
-                  Abrir no mapa
-                </a>
+                    {new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(
+                      new Date(client.birthDate),
+                    )}
+                  </div>
+                </div>
+              )}
+              {address && (
+                <div className="col-span-2 sm:col-span-3">
+                  <div className="text-muted-foreground text-xs">Endereço</div>
+                  <div className="break-words">{address}</div>
+                  {mapsLink && (
+                    <a
+                      href={mapsLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-system-blue mt-1 inline-flex items-center gap-1 text-[13px] hover:underline"
+                    >
+                      <MapPinIcon className="size-3.5" />
+                      Abrir no mapa
+                    </a>
+                  )}
+                </div>
+              )}
+              {client.notes && (
+                <div className="col-span-2 sm:col-span-3">
+                  <div className="text-muted-foreground text-xs">Observações</div>
+                  <div>{client.notes}</div>
+                </div>
               )}
             </div>
-          )}
-          {client.notes && (
-            <div className="col-span-2 sm:col-span-3">
-              <div className="text-muted-foreground text-xs">Observações</div>
-              <div>{client.notes}</div>
-            </div>
-          )}
-        </div>
-      ) : null}
+          ) : null}
 
-      <div>
-        <h2 className="mb-2 text-sm font-medium">Histórico de agendamentos</h2>
-        <div className="bg-tile overflow-hidden rounded-[22px]">
-          {history.length > 0 && (
-            <MobileList>
-              {history.map((appointment) => (
-                <MobileListItem
-                  key={appointment.id}
-                  title={<span className="truncate">{appointment.serviceNameSnapshot}</span>}
-                  subtitle={`${new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
-                    appointment.startAt,
-                  )} ${formatTimeInTz(appointment.startAt, timezone)} · ${appointment.professional.name}`}
-                  trailing={
-                    <div className="text-right">
-                      <div className="text-[15px] tabular-nums">
-                        {formatCurrencyBRL(appointment.priceSnapshot)}
-                      </div>
-                      <div className="text-label-secondary text-[12px]">
-                        {STATUS_LABELS[appointment.status]}
-                      </div>
-                    </div>
-                  }
-                />
-              ))}
-            </MobileList>
-          )}
-          <Table className={history.length > 0 ? 'hidden md:table' : undefined}>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Serviço</TableHead>
-                <TableHead>Profissional</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {history.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5}>
-                    <EmptyState
-                      icon={CalendarDaysIcon}
-                      title="Nenhum agendamento ainda"
-                      description="O histórico de atendimentos desse cliente aparece aqui."
+          <div>
+            <h2 className="mb-2 text-sm font-medium">Histórico de agendamentos</h2>
+            <div className="bg-tile overflow-hidden rounded-[22px]">
+              {history.length > 0 && (
+                <MobileList>
+                  {history.map((appointment) => (
+                    <MobileListItem
+                      key={appointment.id}
+                      title={<span className="truncate">{appointment.serviceNameSnapshot}</span>}
+                      subtitle={`${new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
+                        appointment.startAt,
+                      )} ${formatTimeInTz(appointment.startAt, timezone)} · ${appointment.professional.name}`}
+                      trailing={
+                        <div className="text-right">
+                          <div className="text-[15px] tabular-nums">
+                            {formatCurrencyBRL(appointment.priceSnapshot)}
+                          </div>
+                          <div className="text-label-secondary text-[12px]">
+                            {STATUS_LABELS[appointment.status]}
+                          </div>
+                        </div>
+                      }
                     />
-                  </TableCell>
-                </TableRow>
+                  ))}
+                </MobileList>
               )}
-              {history.map((appointment) => (
-                <TableRow key={appointment.id}>
-                  <TableCell className="text-muted-foreground">
-                    {new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
-                      appointment.startAt,
-                    )}{' '}
-                    {formatTimeInTz(appointment.startAt, timezone)}
-                  </TableCell>
-                  <TableCell>{appointment.serviceNameSnapshot}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {appointment.professional.name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatCurrencyBRL(appointment.priceSnapshot)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+              <Table className={history.length > 0 ? 'hidden md:table' : undefined}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Serviço</TableHead>
+                    <TableHead>Profissional</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <EmptyState
+                          icon={CalendarDaysIcon}
+                          title="Nenhum agendamento ainda"
+                          description="O histórico de atendimentos desse cliente aparece aqui."
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {history.map((appointment) => (
+                    <TableRow key={appointment.id}>
+                      <TableCell className="text-muted-foreground">
+                        {new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(
+                          appointment.startAt,
+                        )}{' '}
+                        {formatTimeInTz(appointment.startAt, timezone)}
+                      </TableCell>
+                      <TableCell>{appointment.serviceNameSnapshot}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {appointment.professional.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{STATUS_LABELS[appointment.status]}</Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatCurrencyBRL(appointment.priceSnapshot)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </>
+      )}
 
       <ClientDrawer open={drawerOpen} onOpenChange={setDrawerOpen} client={client} />
     </div>

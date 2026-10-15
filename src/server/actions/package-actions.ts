@@ -5,7 +5,12 @@ import { revalidatePath } from 'next/cache';
 
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
-import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
+import { prisma } from '@/lib/db';
+import {
+  isCompanyAdmin,
+  requireCompanyAdmin,
+  requireCurrentCompany,
+} from '@/server/auth/require-current-company';
 import { requireFormAccess } from '@/server/auth/form-access';
 import {
   adjustPackage,
@@ -193,4 +198,46 @@ export async function listClientSessionsAction(input: unknown) {
   const parsed = z.object({ clientId: id, packageId: id.nullable().optional() }).parse(input);
   const { company, access } = await requireFormAccess();
   return listClientSessions(company.id, access, parsed.clientId, { packageId: parsed.packageId });
+}
+
+/** O que o cadastro de pacote precisa: serviços, profissionais, modelos de ficha e planos. */
+export async function getPackageFormOptionsAction() {
+  const session = await requireCurrentCompany();
+  const companyId = session.company.id;
+  const [services, professionals, templates, plans] = await Promise.all([
+    prisma.service.findMany({
+      where: { companyId, active: true },
+      select: { id: true, name: true, price: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.professional.findMany({
+      where: { companyId, active: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.formTemplate.findMany({
+      where: { companyId, status: 'ACTIVE' },
+      select: { id: true, name: true, type: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.packagePlan.findMany({
+      where: { companyId, active: true, recurring: false },
+      select: {
+        id: true,
+        name: true,
+        serviceId: true,
+        sessions: true,
+        price: true,
+        validityDays: true,
+      },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
+  return {
+    isAdmin: isCompanyAdmin(session),
+    services: services.map((s) => ({ ...s, price: Number(s.price) })),
+    professionals,
+    templates,
+    plans: plans.map((p) => ({ ...p, price: Number(p.price) })),
+  };
 }

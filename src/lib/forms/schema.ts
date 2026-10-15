@@ -118,8 +118,10 @@ export const formSchemaValidator = z
         if (seen.has(question.id)) {
           ctx.addIssue({ code: 'custom', message: 'Pergunta repetida.', path });
         }
-        if ((question.type === 'single_choice' || question.type === 'multi_choice') &&
-          (question.options?.length ?? 0) < 2) {
+        if (
+          (question.type === 'single_choice' || question.type === 'multi_choice') &&
+          (question.options?.length ?? 0) < 2
+        ) {
           ctx.addIssue({
             code: 'custom',
             message: `"${question.title}" precisa de pelo menos duas opções.`,
@@ -164,7 +166,11 @@ export function allQuestions(schema: FormSchema): Question[] {
 
 /** A pergunta aparece? Sem condição, sim; com condição, só se a resposta bater (e a pergunta da
  * condição também estiver visível — uma condição sobre pergunta oculta esconde em cascata). */
-export function isQuestionVisible(schema: FormSchema, question: Question, answers: Answers): boolean {
+export function isQuestionVisible(
+  schema: FormSchema,
+  question: Question,
+  answers: Answers,
+): boolean {
   if (!question.showIf) return true;
   const target = allQuestions(schema).find((q) => q.id === question.showIf!.questionId);
   if (!target || !isQuestionVisible(schema, target, answers)) return false;

@@ -42,9 +42,16 @@ export function FormRenderer({
         const visible = section.questions.filter((q) => isQuestionVisible(schema, q, answers));
         if (visible.length === 0) return null;
         return (
-          <section key={section.id} className="flex flex-col gap-4" aria-labelledby={`${idPrefix}-${section.id}`}>
+          <section
+            key={section.id}
+            className="flex flex-col gap-4"
+            aria-labelledby={`${idPrefix}-${section.id}`}
+          >
             <div>
-              <h3 id={`${idPrefix}-${section.id}`} className="text-[16px] font-semibold tracking-[-0.01em]">
+              <h3
+                id={`${idPrefix}-${section.id}`}
+                className="text-[16px] font-semibold tracking-[-0.01em]"
+              >
                 {section.title}
               </h3>
               {section.description && (
@@ -93,9 +100,9 @@ function QuestionField({
   idPrefix: string;
 }) {
   const id = `${idPrefix}-${question.id}`;
-  const describedBy = [question.help ? `${id}-help` : null, error ? `${id}-error` : null]
-    .filter(Boolean)
-    .join(' ') || undefined;
+  const describedBy =
+    [question.help ? `${id}-help` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') ||
+    undefined;
   const label = (
     <>
       {question.title}
@@ -116,7 +123,9 @@ function QuestionField({
     return (
       <div className="flex flex-col gap-0.5">
         <div className="text-label-secondary text-[13px]">{question.title}</div>
-        <div className="text-[15px] break-words whitespace-pre-wrap">{answerText(question, value)}</div>
+        <div className="text-[15px] break-words whitespace-pre-wrap">
+          {answerText(question, value)}
+        </div>
       </div>
     );
   }
@@ -183,7 +192,9 @@ function QuestionField({
                   key={option.id}
                   className={cn(
                     'flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-[15px] ring-1 transition-colors md:min-h-9',
-                    checked ? 'bg-system-blue/10 ring-system-blue/40' : 'ring-foreground/10 hover:bg-foreground/[0.03]',
+                    checked
+                      ? 'bg-system-blue/10 ring-system-blue/40'
+                      : 'ring-foreground/10 hover:bg-foreground/[0.03]',
                   )}
                 >
                   <input
@@ -219,7 +230,9 @@ function QuestionField({
                   className={cn(
                     'flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-[15px] ring-1 transition-colors md:min-h-9',
                     inline && 'min-w-24',
-                    checked ? 'bg-system-blue/10 ring-system-blue/40' : 'ring-foreground/10 hover:bg-foreground/[0.03]',
+                    checked
+                      ? 'bg-system-blue/10 ring-system-blue/40'
+                      : 'ring-foreground/10 hover:bg-foreground/[0.03]',
                   )}
                 >
                   <input
@@ -251,7 +264,10 @@ function QuestionField({
   const Wrapper = isGroup ? 'fieldset' : 'div';
   return (
     <Wrapper
-      className={cn('flex min-w-0 flex-col gap-1.5', copied && 'rounded-xl bg-amber-500/[0.07] p-2 ring-1 ring-amber-500/30')}
+      className={cn(
+        'flex min-w-0 flex-col gap-1.5',
+        copied && 'rounded-xl bg-amber-500/[0.07] p-2 ring-1 ring-amber-500/30',
+      )}
       aria-describedby={isGroup ? describedBy : undefined}
       aria-invalid={isGroup && error ? true : undefined}
     >

@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 
 import { UserError } from '@/server/errors';
-import { UnauthenticatedError, NoActiveOrganizationError } from '@/server/auth/require-current-company';
+import {
+  UnauthenticatedError,
+  NoActiveOrganizationError,
+} from '@/server/auth/require-current-company';
 
 /** Download autenticado: nada de cache, nada de indexação, sempre como anexo. */
 export function pdfResponse(bytes: Uint8Array, filename: string) {
   const safe = filename
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Za-z0-9 ._-]/g, '')
     .replace(/\s+/g, '-')
     .slice(0, 80);

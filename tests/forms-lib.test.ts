@@ -20,7 +20,12 @@ const schema: FormSchema = {
       title: 'Geral',
       audience: 'any',
       questions: [
-        { id: 'nome_social', type: 'short_text', title: 'Como prefere ser chamado?', required: true },
+        {
+          id: 'nome_social',
+          type: 'short_text',
+          title: 'Como prefere ser chamado?',
+          required: true,
+        },
         { id: 'alergia', type: 'yes_no', title: 'Tem alergia?', required: true },
         {
           id: 'alergia_quais',
@@ -103,15 +108,25 @@ describe('estrutura do modelo', () => {
     reordered.sections[1].questions = schema.sections[0].questions.slice();
     expect(formSchemaValidator.safeParse(reordered).success).toBe(true);
     const answers = { nome_social: 'Ana Teste', alergia: 'no' };
-    expect(validateAnswers(reordered, answers, { mode: 'submit', audience: 'client' }).answers).toEqual(answers);
+    expect(
+      validateAnswers(reordered, answers, { mode: 'submit', audience: 'client' }).answers,
+    ).toEqual(answers);
   });
 });
 
 describe('respostas', () => {
   it('obrigatórias só no envio; rascunho salva incompleto', () => {
-    const draft = validateAnswers(schema, { nome_social: 'Ana' }, { mode: 'draft', audience: 'staff' });
+    const draft = validateAnswers(
+      schema,
+      { nome_social: 'Ana' },
+      { mode: 'draft', audience: 'staff' },
+    );
     expect(draft.errors).toEqual({});
-    const submit = validateAnswers(schema, { nome_social: 'Ana' }, { mode: 'submit', audience: 'staff' });
+    const submit = validateAnswers(
+      schema,
+      { nome_social: 'Ana' },
+      { mode: 'submit', audience: 'staff' },
+    );
     expect(Object.keys(submit.errors).sort()).toEqual(['alergia', 'obs']);
   });
 
@@ -128,7 +143,14 @@ describe('respostas', () => {
       },
       { mode: 'draft', audience: 'client' },
     );
-    expect(Object.keys(errors).sort()).toEqual(['alergia', 'altura', 'cor', 'dias', 'nasc', 'nome_social']);
+    expect(Object.keys(errors).sort()).toEqual([
+      'alergia',
+      'altura',
+      'cor',
+      'dias',
+      'nasc',
+      'nome_social',
+    ]);
     const ok = validateAnswers(
       schema,
       { cor: 'azul', dias: ['seg'], nasc: '2026-02-28', altura: '1,75' },
@@ -139,17 +161,26 @@ describe('respostas', () => {
   });
 
   it('pergunta oculta pela condição não bloqueia o envio e a resposta antiga é descartada', () => {
-    const answers = { nome_social: 'Ana', alergia: 'no', alergia_quais: 'resposta antiga', obs: 'ok' };
+    const answers = {
+      nome_social: 'Ana',
+      alergia: 'no',
+      alergia_quais: 'resposta antiga',
+      obs: 'ok',
+    };
     const question = schema.sections[0].questions[2];
     expect(isQuestionVisible(schema, question, answers)).toBe(false);
     const result = validateAnswers(schema, answers, { mode: 'submit', audience: 'staff' });
     expect(result.errors).toEqual({});
     expect(result.answers).not.toHaveProperty('alergia_quais');
 
-    const shown = validateAnswers(schema, { ...answers, alergia: 'yes', alergia_quais: '' }, {
-      mode: 'submit',
-      audience: 'staff',
-    });
+    const shown = validateAnswers(
+      schema,
+      { ...answers, alergia: 'yes', alergia_quais: '' },
+      {
+        mode: 'submit',
+        audience: 'staff',
+      },
+    );
     expect(shown.errors).toHaveProperty('alergia_quais');
   });
 
@@ -196,19 +227,30 @@ describe('regras de renovação e exigência', () => {
     const rule = { renewal: 'AFTER_DAYS' as const, renewalDays: 7 };
     expect(currentEntryFor([entry({})], rule, { appointmentId: 'x', at: base })).toBeNull();
     expect(
-      currentEntryFor([entry({ status: 'REQUESTED', submittedAt: null })], rule, { appointmentId: 'x', at: base }),
+      currentEntryFor([entry({ status: 'REQUESTED', submittedAt: null })], rule, {
+        appointmentId: 'x',
+        at: base,
+      }),
     ).not.toBeNull();
     expect(
-      currentEntryFor([entry({})], { renewal: 'AFTER_DAYS', renewalDays: 30 }, { appointmentId: 'x', at: base }),
+      currentEntryFor(
+        [entry({})],
+        { renewal: 'AFTER_DAYS', renewalDays: 30 },
+        { appointmentId: 'x', at: base },
+      ),
     ).not.toBeNull();
   });
 
   it('uma vez: qualquer ficha serve', () => {
     expect(
-      currentEntryFor([entry({ appointmentId: null })], { renewal: 'ONCE', renewalDays: null }, {
-        appointmentId: 'z',
-        at: base,
-      }),
+      currentEntryFor(
+        [entry({ appointmentId: null })],
+        { renewal: 'ONCE', renewalDays: null },
+        {
+          appointmentId: 'z',
+          at: base,
+        },
+      ),
     ).not.toBeNull();
   });
 
@@ -221,16 +263,23 @@ describe('regras de renovação e exigência', () => {
   });
 
   it('chave de idempotência só por atendimento quando a regra é por atendimento', () => {
-    expect(requestKeyFor({ templateId: 't', clientId: 'c', renewal: 'EACH_VISIT', appointmentId: 'a' })).toBe(
-      'appt:a:t',
-    );
-    expect(requestKeyFor({ templateId: 't', clientId: 'c', renewal: 'ONCE', appointmentId: 'a' })).toBeNull();
+    expect(
+      requestKeyFor({ templateId: 't', clientId: 'c', renewal: 'EACH_VISIT', appointmentId: 'a' }),
+    ).toBe('appt:a:t');
+    expect(
+      requestKeyFor({ templateId: 't', clientId: 'c', renewal: 'ONCE', appointmentId: 'a' }),
+    ).toBeNull();
   });
 });
 
 describe('permissões', () => {
   it('administrador sem concessão vê status e gerencia modelos, mas não lê respostas', () => {
-    const admin = resolveFormAccess({ userId: 'u', isAdmin: true, grant: null, professionalId: null });
+    const admin = resolveFormAccess({
+      userId: 'u',
+      isAdmin: true,
+      grant: null,
+      professionalId: null,
+    });
     expect(admin.canManage).toBe(true);
     expect(admin.canAudit).toBe(true);
     expect(admin.canRead).toBe(false);
@@ -238,9 +287,16 @@ describe('permissões', () => {
   });
 
   it('recepção: pede fichas e acompanha, sem ler', () => {
-    const reception = resolveFormAccess({ userId: 'u', isAdmin: false, grant: null, professionalId: null });
+    const reception = resolveFormAccess({
+      userId: 'u',
+      isAdmin: false,
+      grant: null,
+      professionalId: null,
+    });
     expect(reception.canRequest).toBe(true);
-    expect(reception.canRead || reception.canFill || reception.canReview || reception.canExport).toBe(false);
+    expect(
+      reception.canRead || reception.canFill || reception.canReview || reception.canExport,
+    ).toBe(false);
   });
 
   it('preencher, revisar e exportar dependem de poder ler', () => {
@@ -255,10 +311,29 @@ describe('permissões', () => {
 
   it('escopo "só os meus" usa o profissional ligado', () => {
     const scope = { scope: 'OWN' as const, professionalId: 'p1' };
-    expect(entryInScope(scope, { appointmentProfessionalId: 'p1', packageProfessionalId: null, sessionProfessionalId: null })).toBe(true);
-    expect(entryInScope(scope, { appointmentProfessionalId: 'p2', packageProfessionalId: null, sessionProfessionalId: null })).toBe(false);
     expect(
-      entryInScope({ scope: 'OWN', professionalId: null }, { appointmentProfessionalId: null, packageProfessionalId: null, sessionProfessionalId: null }),
+      entryInScope(scope, {
+        appointmentProfessionalId: 'p1',
+        packageProfessionalId: null,
+        sessionProfessionalId: null,
+      }),
+    ).toBe(true);
+    expect(
+      entryInScope(scope, {
+        appointmentProfessionalId: 'p2',
+        packageProfessionalId: null,
+        sessionProfessionalId: null,
+      }),
+    ).toBe(false);
+    expect(
+      entryInScope(
+        { scope: 'OWN', professionalId: null },
+        {
+          appointmentProfessionalId: null,
+          packageProfessionalId: null,
+          sessionProfessionalId: null,
+        },
+      ),
     ).toBe(false);
   });
 });

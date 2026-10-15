@@ -37,7 +37,12 @@ const professionalAccess = resolveFormAccess({
   grant: { ...NO_GRANT, canRead: true, canFill: true, canExport: true },
   professionalId: null,
 });
-const reception = resolveFormAccess({ userId: 'user_rec', isAdmin: false, grant: null, professionalId: null });
+const reception = resolveFormAccess({
+  userId: 'user_rec',
+  isAdmin: false,
+  grant: null,
+  professionalId: null,
+});
 
 describe('pacotes de sessões e registro por sessão', () => {
   let f: Awaited<ReturnType<typeof createTestCompany>>;
@@ -113,7 +118,12 @@ describe('pacotes de sessões e registro por sessão', () => {
       expect((await detailOf(pkg.id)).done).toBe(i);
       await finish(appointment.id, pkg.id);
       const content = { procedure: `Procedimento fictício da sessão ${i + 1}` };
-      await saveSessionRecord({ companyId: f.company.id, access: professionalAccess, appointmentId: appointment.id, content });
+      await saveSessionRecord({
+        companyId: f.company.id,
+        access: professionalAccess,
+        appointmentId: appointment.id,
+        content,
+      });
       await signSessionRecord({
         companyId: f.company.id,
         access: professionalAccess,
@@ -124,22 +134,39 @@ describe('pacotes de sessões e registro por sessão', () => {
         image: FAKE_SIGNATURE,
         strokes: 3,
       });
-      await finalizeSessionRecord({ companyId: f.company.id, access: professionalAccess, appointmentId: appointment.id });
+      await finalizeSessionRecord({
+        companyId: f.company.id,
+        access: professionalAccess,
+        appointmentId: appointment.id,
+      });
     }
 
     const detail = await detailOf(pkg.id);
     expect(detail).toMatchObject({ done: 2, remaining: 6, progress: '2 de 8' });
-    expect(detail.movements.filter((m) => m.kind === 'CONSUME').map((m) => m.sessionNumber)).toEqual([1, 2]);
-    expect(detail.movements.every((m) => m.kind !== 'CONSUME' || m.record?.signature === 'signed')).toBe(true);
+    expect(
+      detail.movements.filter((m) => m.kind === 'CONSUME').map((m) => m.sessionNumber),
+    ).toEqual([1, 2]);
+    expect(
+      detail.movements.every((m) => m.kind !== 'CONSUME' || m.record?.signature === 'signed'),
+    ).toBe(true);
 
-    const sessions = await listClientSessions(f.company.id, professionalAccess, f.client.id, { packageId: pkg.id });
+    const sessions = await listClientSessions(f.company.id, professionalAccess, f.client.id, {
+      packageId: pkg.id,
+    });
     expect(sessions.map((s) => s.package?.sessionNumber).sort()).toEqual([1, 2]);
-    const signatures = await prisma.sessionSignature.findMany({ where: { companyId: f.company.id } });
+    const signatures = await prisma.sessionSignature.findMany({
+      where: { companyId: f.company.id },
+    });
     expect(new Set(signatures.map((s) => s.recordId)).size).toBe(signatures.length);
   });
 
   it('2: três sessões pagas na contratação não geram cobranças novas a cada sessão', async () => {
-    const pkg = await newPackage({ name: 'Clareamento (teste)', sessionsTotal: 3, price: 900, requireSignature: false });
+    const pkg = await newPackage({
+      name: 'Clareamento (teste)',
+      sessionsTotal: 3,
+      price: 900,
+      requireSignature: false,
+    });
     for (let i = 0; i < 3; i++) {
       const appointment = await book(pkg.id);
       await finish(appointment.id, pkg.id);
@@ -162,7 +189,13 @@ describe('pacotes de sessões e registro por sessão', () => {
     });
     expect(sessionCharges.reduce((sum, t) => sum + Number(t.amount), 0)).toBe(0);
     await expect(
-      receivePackagePayment({ companyId: f.company.id, clientPackageId: pkg.id, amount: 10, method: 'PIX', userId: 'u' }),
+      receivePackagePayment({
+        companyId: f.company.id,
+        clientPackageId: pkg.id,
+        amount: 10,
+        method: 'PIX',
+        userId: 'u',
+      }),
     ).rejects.toThrow(/já está pago/);
     // Sem saldo: aviso e recusa.
     expect(detail.alerts).toContain('exhausted');
@@ -174,7 +207,12 @@ describe('pacotes de sessões e registro por sessão', () => {
     const canceled = await book(pkg.id);
     await cancelAppointment({ companyId: f.company.id, id: canceled.id, canceledByUserId: 'u' });
     const noShow = await book(pkg.id);
-    await updateAppointmentStatus({ companyId: f.company.id, id: noShow.id, status: 'NO_SHOW', updatedByUserId: 'u' });
+    await updateAppointmentStatus({
+      companyId: f.company.id,
+      id: noShow.id,
+      status: 'NO_SHOW',
+      updatedByUserId: 'u',
+    });
     expect((await detailOf(pkg.id)).done).toBe(0);
 
     const once = await book(pkg.id);
@@ -190,10 +228,17 @@ describe('pacotes de sessões e registro por sessão', () => {
     const detail = await detailOf(pkg.id);
     expect(detail.done).toBe(2);
     expect(detail.movements.filter((m) => m.kind === 'CONSUME')).toHaveLength(2);
-    expect((await prisma.clientPackage.findUniqueOrThrow({ where: { id: pkg.id } })).sessionsUsed).toBe(2);
+    expect(
+      (await prisma.clientPackage.findUniqueOrThrow({ where: { id: pkg.id } })).sessionsUsed,
+    ).toBe(2);
 
     // Desfazer a conclusão devolve a sessão, e o livro registra o estorno.
-    await updateAppointmentStatus({ companyId: f.company.id, id: once.id, status: 'SCHEDULED', updatedByUserId: 'u' });
+    await updateAppointmentStatus({
+      companyId: f.company.id,
+      id: once.id,
+      status: 'SCHEDULED',
+      updatedByUserId: 'u',
+    });
     const after = await detailOf(pkg.id);
     expect(after.done).toBe(1);
     expect(after.movements.map((m) => m.kind)).toEqual(['CONSUME', 'CONSUME', 'RESTORE']);
@@ -212,7 +257,11 @@ describe('pacotes de sessões e registro por sessão', () => {
     });
     // Assinatura exigida: não finaliza sem ela; vazia é recusada.
     await expect(
-      finalizeSessionRecord({ companyId: f.company.id, access: professionalAccess, appointmentId: appointment.id }),
+      finalizeSessionRecord({
+        companyId: f.company.id,
+        access: professionalAccess,
+        appointmentId: appointment.id,
+      }),
     ).rejects.toThrow(/assinatura/);
     await expect(
       signSessionRecord({
@@ -240,7 +289,11 @@ describe('pacotes de sessões e registro por sessão', () => {
       image: FAKE_SIGNATURE,
       strokes: 2,
     });
-    await finalizeSessionRecord({ companyId: f.company.id, access: professionalAccess, appointmentId: appointment.id });
+    await finalizeSessionRecord({
+      companyId: f.company.id,
+      access: professionalAccess,
+      appointmentId: appointment.id,
+    });
 
     await expect(
       saveSessionRecord({
@@ -258,7 +311,11 @@ describe('pacotes de sessões e registro por sessão', () => {
       amendmentReason: 'Correção de digitação',
     });
     const amended = await getSessionRecord(f.company.id, professionalAccess, appointment.id);
-    expect(amended.record).toMatchObject({ status: 'AMENDED', currentVersion: 2, signature: 'pending' });
+    expect(amended.record).toMatchObject({
+      status: 'AMENDED',
+      currentVersion: 2,
+      signature: 'pending',
+    });
     const original = amended.record!.versions.find((v) => v.version === 1)!;
     expect(original.content?.procedure).toBe('Conteúdo original fictício');
     expect(original.signature?.signerName).toBe('Cliente Teste');
@@ -304,17 +361,30 @@ describe('pacotes de sessões e registro por sessão', () => {
     expect(asReception.canSeeContent).toBe(false);
     expect(asReception.record!.versions[0].content).toBeNull();
     expect(JSON.stringify(asReception)).not.toContain('Texto sensível');
-    await expect(getSessionRecordForExport(f.company.id, reception, appointment.id)).rejects.toThrow(/permissão/);
     await expect(
-      saveSessionRecord({ companyId: f.company.id, access: reception, appointmentId: appointment.id, content: { procedure: 'x' } }),
+      getSessionRecordForExport(f.company.id, reception, appointment.id),
     ).rejects.toThrow(/permissão/);
-    await expect(getSessionRecord(other.company.id, professionalAccess, appointment.id)).rejects.toThrow(/não encontrado/);
+    await expect(
+      saveSessionRecord({
+        companyId: f.company.id,
+        access: reception,
+        appointmentId: appointment.id,
+        content: { procedure: 'x' },
+      }),
+    ).rejects.toThrow(/permissão/);
+    await expect(
+      getSessionRecord(other.company.id, professionalAccess, appointment.id),
+    ).rejects.toThrow(/não encontrado/);
     expect(await getClientPackagesDetail(other.company.id, f.client.id)).toEqual([]);
   });
 
   it('11: saldo inicial não cria atendimentos, assinaturas nem lançamentos do passado', async () => {
-    const appointmentsBefore = await prisma.appointment.count({ where: { companyId: f.company.id } });
-    const signaturesBefore = await prisma.sessionSignature.count({ where: { companyId: f.company.id } });
+    const appointmentsBefore = await prisma.appointment.count({
+      where: { companyId: f.company.id },
+    });
+    const signaturesBefore = await prisma.sessionSignature.count({
+      where: { companyId: f.company.id },
+    });
     const pkg = await newPackage({
       name: 'Pacote anterior ao sistema',
       sessionsTotal: 10,
@@ -326,15 +396,31 @@ describe('pacotes de sessões e registro por sessão', () => {
     expect(detail).toMatchObject({ done: 4, remaining: 6 });
     expect(detail.financial).toMatchObject({ paid: 600, pending: 400, status: 'PARTIAL' });
     expect(detail.movements.map((m) => m.kind)).toEqual(['OPENING_DONE']);
-    expect(await prisma.appointment.count({ where: { companyId: f.company.id } })).toBe(appointmentsBefore);
-    expect(await prisma.sessionSignature.count({ where: { companyId: f.company.id } })).toBe(signaturesBefore);
+    expect(await prisma.appointment.count({ where: { companyId: f.company.id } })).toBe(
+      appointmentsBefore,
+    );
+    expect(await prisma.sessionSignature.count({ where: { companyId: f.company.id } })).toBe(
+      signaturesBefore,
+    );
     const linked = await prisma.transaction.findMany({ where: { clientPackageId: pkg.id } });
     expect(linked.map((t) => [t.status, Number(t.amount)])).toEqual([['PENDING', 400]]);
 
     // Correção manual fica no livro, com motivo, sem passar do total.
-    await adjustPackage({ companyId: f.company.id, clientPackageId: pkg.id, delta: 1, reason: 'Sessão feita fora do sistema', userId: 'u' });
+    await adjustPackage({
+      companyId: f.company.id,
+      clientPackageId: pkg.id,
+      delta: 1,
+      reason: 'Sessão feita fora do sistema',
+      userId: 'u',
+    });
     await expect(
-      adjustPackage({ companyId: f.company.id, clientPackageId: pkg.id, delta: 20, reason: 'erro', userId: 'u' }),
+      adjustPackage({
+        companyId: f.company.id,
+        clientPackageId: pkg.id,
+        delta: 20,
+        reason: 'erro',
+        userId: 'u',
+      }),
     ).rejects.toThrow(/acima do total/);
     expect((await detailOf(pkg.id)).done).toBe(5);
   });
@@ -351,15 +437,31 @@ describe('pacotes de sessões e registro por sessão', () => {
         requirement: 'NONE',
         schema: {
           sections: [
-            { id: 's', title: 'Sessão', audience: 'staff', questions: [{ id: 'q', type: 'long_text', title: 'Evolução', required: false }] },
+            {
+              id: 's',
+              title: 'Sessão',
+              audience: 'staff',
+              questions: [{ id: 'q', type: 'long_text', title: 'Evolução', required: false }],
+            },
           ],
         },
         serviceIds: [],
       },
       'user_admin',
     );
-    const pkg = await newPackage({ sessionsTotal: 2, price: 200, sessionFormTemplateId: tpl.id, requireSignature: false });
-    const loose = await requestEntry({ companyId: f.company.id, userId: 'u', clientId: f.client.id, templateId: tpl.id, source: 'manual' });
+    const pkg = await newPackage({
+      sessionsTotal: 2,
+      price: 200,
+      sessionFormTemplateId: tpl.id,
+      requireSignature: false,
+    });
+    const loose = await requestEntry({
+      companyId: f.company.id,
+      userId: 'u',
+      clientId: f.client.id,
+      templateId: tpl.id,
+      source: 'manual',
+    });
     const withPackage = await requestEntry({
       companyId: f.company.id,
       userId: 'u',
@@ -372,7 +474,14 @@ describe('pacotes de sessões e registro por sessão', () => {
     expect(loose.entry.clientPackageId).toBeNull();
     expect(withPackage.entry.clientPackageId).toBe(pkg.id);
     await expect(
-      requestEntry({ companyId: f.company.id, userId: 'u', clientId: f.client.id, templateId: tpl.id, clientPackageId: 'outro', source: 'manual' }),
+      requestEntry({
+        companyId: f.company.id,
+        userId: 'u',
+        clientId: f.client.id,
+        templateId: tpl.id,
+        clientPackageId: 'outro',
+        source: 'manual',
+      }),
     ).rejects.toThrow(/Pacote não encontrado/);
   });
 });

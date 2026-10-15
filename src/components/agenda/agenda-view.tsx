@@ -197,7 +197,14 @@ export function AgendaView({
   // no próximo horário livre do relógio (não "hoje às 09h", que pode já ter passado).
   const [createDefaults, setCreateDefaults] = React.useState<QuickCreateDefaults | null>(() => {
     const clientId = searchParams.get('cliente');
-    return clientId ? { startAt: suggestedStartAt(), clientId } : null;
+    return clientId
+      ? {
+          startAt: suggestedStartAt(),
+          clientId,
+          serviceId: searchParams.get('servico') ?? undefined,
+          packageId: searchParams.get('pacote') ?? undefined,
+        }
+      : null;
   });
   // Cada abertura do formulário é um formulário novo: nada do que foi digitado é sobrescrito
   // depois, e nada da abertura anterior sobra.
@@ -208,6 +215,8 @@ export function AgendaView({
     if (!searchParams.get('cliente')) return;
     const url = new URL(window.location.href);
     url.searchParams.delete('cliente');
+    url.searchParams.delete('servico');
+    url.searchParams.delete('pacote');
     window.history.replaceState(window.history.state, '', url);
   }, [searchParams]);
   // Guarda o id, não o objeto: depois de "Confirmar" o painel mostra o status novo, não uma cópia velha.
@@ -851,6 +860,7 @@ export function AgendaView({
           defaultProfessionalId={createDefaults?.professionalId}
           defaultClientId={createDefaults?.clientId}
           defaultServiceId={createDefaults?.serviceId}
+          defaultPackageId={createDefaults?.packageId}
           clients={clients}
           professionals={professionals}
           services={services}

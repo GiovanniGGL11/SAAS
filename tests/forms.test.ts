@@ -61,11 +61,28 @@ const reader = (userId: string) =>
   resolveFormAccess({
     userId,
     isAdmin: false,
-    grant: { ...NO_GRANT, canRead: true, canFill: true, canReview: true, canExport: true, canAudit: true },
+    grant: {
+      ...NO_GRANT,
+      canRead: true,
+      canFill: true,
+      canReview: true,
+      canExport: true,
+      canAudit: true,
+    },
     professionalId: null,
   });
-const reception = resolveFormAccess({ userId: 'user_recepcao', isAdmin: false, grant: null, professionalId: null });
-const adminNoGrant = resolveFormAccess({ userId: 'user_admin', isAdmin: true, grant: null, professionalId: null });
+const reception = resolveFormAccess({
+  userId: 'user_recepcao',
+  isAdmin: false,
+  grant: null,
+  professionalId: null,
+});
+const adminNoGrant = resolveFormAccess({
+  userId: 'user_admin',
+  isAdmin: true,
+  grant: null,
+  professionalId: null,
+});
 
 describe('fichas e formulários', () => {
   let a: Awaited<ReturnType<typeof createTestCompany>>;
@@ -89,7 +106,13 @@ describe('fichas e formulários', () => {
     b = await createTestCompany('forms_b');
     secondServiceId = (
       await prisma.service.create({
-        data: { companyId: a.company.id, name: 'Serviço 2', durationMinutes: 30, price: 40, color: '#000000' },
+        data: {
+          companyId: a.company.id,
+          name: 'Serviço 2',
+          durationMinutes: 30,
+          price: 40,
+          color: '#000000',
+        },
       })
     ).id;
   });
@@ -110,11 +133,21 @@ describe('fichas e formulários', () => {
       source: 'manual',
     });
 
-    const renamed = await saveTemplate(a.company.id, created.id, templateInput({ name: 'Avaliação renomeada' }), 'user_admin');
+    const renamed = await saveTemplate(
+      a.company.id,
+      created.id,
+      templateInput({ name: 'Avaliação renomeada' }),
+      'user_admin',
+    );
     expect(renamed).toMatchObject({ version: 1, newVersion: false });
 
     const changedSchema = structuredClone(schema);
-    changedSchema.sections[0].questions.push({ id: 'q_novo', type: 'number', title: 'Número', required: false });
+    changedSchema.sections[0].questions.push({
+      id: 'q_novo',
+      type: 'number',
+      title: 'Número',
+      required: false,
+    });
     const edited = await saveTemplate(
       a.company.id,
       created.id,
@@ -127,7 +160,9 @@ describe('fichas e formulários', () => {
     expect(detail.version.number).toBe(1);
     expect(detail.version.isCurrent).toBe(false);
     expect(detail.version.schema.sections[0].questions.map((q) => q.id)).not.toContain('q_novo');
-    expect((await getTemplate(a.company.id, created.id, 1)).schema.sections[0].questions).toHaveLength(3);
+    expect(
+      (await getTemplate(a.company.id, created.id, 1)).schema.sections[0].questions,
+    ).toHaveLength(3);
 
     const copy = await duplicateTemplate(a.company.id, created.id, 'user_admin');
     const copied = await getTemplate(a.company.id, copy.id);
@@ -136,7 +171,13 @@ describe('fichas e formulários', () => {
 
     await setTemplateArchived(a.company.id, created.id, true, 'user_admin');
     await expect(
-      requestEntry({ companyId: a.company.id, userId: 'u', clientId: a.client.id, templateId: created.id, source: 'manual' }),
+      requestEntry({
+        companyId: a.company.id,
+        userId: 'u',
+        clientId: a.client.id,
+        templateId: created.id,
+        source: 'manual',
+      }),
     ).rejects.toThrow(/arquivado/);
     // As fichas do modelo arquivado continuam lá.
     expect((await getEntryDetail(a.company.id, staff, entry.entry.id)).id).toBe(entry.entry.id);
@@ -150,7 +191,12 @@ describe('fichas e formulários', () => {
   });
 
   it('5/6/8: rascunho, envio com revisão, correção com motivo, pedido de atualização com conferência', async () => {
-    const tpl = await saveTemplate(a.company.id, null, templateInput({ name: 'Fluxo' }), 'user_admin');
+    const tpl = await saveTemplate(
+      a.company.id,
+      null,
+      templateInput({ name: 'Fluxo' }),
+      'user_admin',
+    );
     const { entry } = await requestEntry({
       companyId: a.company.id,
       userId: 'user_admin',
@@ -163,7 +209,9 @@ describe('fichas e formulários', () => {
     let detail = await getEntryDetail(a.company.id, staff, entry.id);
     expect(detail).toMatchObject({ status: 'DRAFT', answers: { q_nome: 'Teste' } });
 
-    await expect(submitEntry(a.company.id, staff, entry.id, { q_nome: 'Teste' })).rejects.toThrow(/obrigat/);
+    await expect(submitEntry(a.company.id, staff, entry.id, { q_nome: 'Teste' })).rejects.toThrow(
+      /obrigat/,
+    );
     await submitEntry(a.company.id, staff, entry.id, {
       q_nome: 'Teste',
       q_sim: 'no',
@@ -176,15 +224,30 @@ describe('fichas e formulários', () => {
 
     await reviewEntry(a.company.id, staff, entry.id, 'Observação interna fictícia');
     detail = await getEntryDetail(a.company.id, staff, entry.id);
-    expect(detail).toMatchObject({ status: 'REVIEWED', reviewNotes: 'Observação interna fictícia' });
+    expect(detail).toMatchObject({
+      status: 'REVIEWED',
+      reviewNotes: 'Observação interna fictícia',
+    });
 
     // Correção: precisa de motivo, cria revisão nova e guarda a anterior.
     await expect(
       submitEntry(a.company.id, staff, entry.id, { q_nome: 'Outro', q_sim: 'no' }),
     ).rejects.toThrow(/motivo/);
-    await submitEntry(a.company.id, staff, entry.id, { q_nome: 'Outro', q_sim: 'no' }, { reason: 'Digitação errada' });
-    const revisions = await prisma.formEntryRevision.findMany({ where: { entryId: entry.id }, orderBy: { revision: 'asc' } });
-    expect(revisions.map((r) => (r.answers as Record<string, unknown>).q_nome)).toEqual(['Teste', 'Outro']);
+    await submitEntry(
+      a.company.id,
+      staff,
+      entry.id,
+      { q_nome: 'Outro', q_sim: 'no' },
+      { reason: 'Digitação errada' },
+    );
+    const revisions = await prisma.formEntryRevision.findMany({
+      where: { entryId: entry.id },
+      orderBy: { revision: 'asc' },
+    });
+    expect(revisions.map((r) => (r.answers as Record<string, unknown>).q_nome)).toEqual([
+      'Teste',
+      'Outro',
+    ]);
     expect((await getEntryDetail(a.company.id, staff, entry.id)).status).toBe('SUBMITTED');
 
     // Atualização: ficha nova com as respostas copiadas, que precisam ser conferidas.
@@ -193,16 +256,28 @@ describe('fichas e formulários', () => {
     const again = await requestEntryUpdate(a.company.id, staff, entry.id);
     expect(again.entry.id).toBe(update.entry.id);
     const updated = await getEntryDetail(a.company.id, staff, update.entry.id);
-    expect(updated).toMatchObject({ status: 'DRAFT', needsCheck: true, answers: { q_nome: 'Outro' } });
+    expect(updated).toMatchObject({
+      status: 'DRAFT',
+      needsCheck: true,
+      answers: { q_nome: 'Outro' },
+    });
     await expect(
       submitEntry(a.company.id, staff, update.entry.id, { q_nome: 'Outro', q_sim: 'no' }),
     ).rejects.toThrow(/Confira/);
-    await submitEntry(a.company.id, staff, update.entry.id, { q_nome: 'Outro', q_sim: 'no' }, { confirmCopied: true });
+    await submitEntry(
+      a.company.id,
+      staff,
+      update.entry.id,
+      { q_nome: 'Outro', q_sim: 'no' },
+      { confirmCopied: true },
+    );
     // A anterior não foi tocada.
     expect((await getEntryDetail(a.company.id, staff, entry.id)).revision).toBe(2);
 
     // O histórico registra quem fez, sem o conteúdo das respostas.
-    const logs = await prisma.auditLog.findMany({ where: { companyId: a.company.id, entityType: 'FormEntry' } });
+    const logs = await prisma.auditLog.findMany({
+      where: { companyId: a.company.id, entityType: 'FormEntry' },
+    });
     const dump = JSON.stringify(logs.map((l) => l.metadata));
     expect(dump).not.toContain('Observação interna fictícia');
     expect(dump).not.toContain('nota da equipe');
@@ -230,13 +305,23 @@ describe('fichas e formulários', () => {
       startAt: new Date('2031-03-03T13:00:00Z'),
       createdByUserId: 'user_admin',
     });
-    let items = await getAppointmentForms(a.company.id, appointment.id, { ensure: false, userId: 'u' });
+    let items = await getAppointmentForms(a.company.id, appointment.id, {
+      ensure: false,
+      userId: 'u',
+    });
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ templateId: tpl.id, entry: null, met: false });
 
     await expect(
-      updateAppointmentStatus({ companyId: a.company.id, id: appointment.id, status: 'IN_PROGRESS', updatedByUserId: 'u' }),
-    ).rejects.toThrow(/Antes de iniciar o atendimento: a ficha "Exigida" precisa ser preenchida e enviada/);
+      updateAppointmentStatus({
+        companyId: a.company.id,
+        id: appointment.id,
+        status: 'IN_PROGRESS',
+        updatedByUserId: 'u',
+      }),
+    ).rejects.toThrow(
+      /Antes de iniciar o atendimento: a ficha "Exigida" precisa ser preenchida e enviada/,
+    );
 
     // Pedir várias vezes (recarregar, dois cliques ao mesmo tempo) cria uma ficha só.
     await Promise.all([
@@ -258,7 +343,12 @@ describe('fichas e formulários', () => {
   });
 
   it('10/11: link do cliente — expira, é revogado, aceita um envio só e não mostra a parte interna', async () => {
-    const tpl = await saveTemplate(a.company.id, null, templateInput({ name: 'Pelo link' }), 'user_admin');
+    const tpl = await saveTemplate(
+      a.company.id,
+      null,
+      templateInput({ name: 'Pelo link' }),
+      'user_admin',
+    );
     const { entry } = await requestEntry({
       companyId: a.company.id,
       userId: 'u',
@@ -291,7 +381,12 @@ describe('fichas e formulários', () => {
     const fourth = await createEntryLink(a.company.id, reception, entry.id);
     const invalid = await submitPublicForm(fourth.token, { q_nome: '' });
     expect(invalid.ok).toBe(false);
-    const answers = { q_nome: 'Teste', q_sim: 'yes', q_qual: 'Relato fictício', q_interno: 'tentativa' };
+    const answers = {
+      q_nome: 'Teste',
+      q_sim: 'yes',
+      q_qual: 'Relato fictício',
+      q_interno: 'tentativa',
+    };
     const results = await Promise.allSettled([
       submitPublicForm(fourth.token, answers),
       submitPublicForm(fourth.token, answers),
@@ -302,11 +397,18 @@ describe('fichas e formulários', () => {
     const sent = await getEntryDetail(a.company.id, staff, entry.id);
     expect(sent).toMatchObject({ status: 'SUBMITTED', filledBy: 'CLIENT' });
     expect(sent.answers).not.toHaveProperty('q_interno');
-    await expect(createEntryLink(a.company.id, reception, entry.id)).rejects.toThrow(/já foi enviada/);
+    await expect(createEntryLink(a.company.id, reception, entry.id)).rejects.toThrow(
+      /já foi enviada/,
+    );
   });
 
   it('12/13/14: outra empresa não acessa; sem permissão não lê nem exporta; recepção vê só status', async () => {
-    const tpl = await saveTemplate(a.company.id, null, templateInput({ name: 'Isolada' }), 'user_admin');
+    const tpl = await saveTemplate(
+      a.company.id,
+      null,
+      templateInput({ name: 'Isolada' }),
+      'user_admin',
+    );
     const { entry } = await requestEntry({
       companyId: a.company.id,
       userId: 'u',
@@ -316,11 +418,23 @@ describe('fichas e formulários', () => {
     });
     await submitEntry(a.company.id, staff, entry.id, { q_nome: 'Teste', q_sim: 'no' });
 
-    await expect(getEntryDetail(b.company.id, staff, entry.id)).rejects.toThrow('Ficha não encontrada.');
-    await expect(createEntryLink(b.company.id, staff, entry.id)).rejects.toThrow('Ficha não encontrada.');
-    await expect(saveTemplate(b.company.id, tpl.id, templateInput(), 'user_b')).rejects.toThrow(/não encontrado/);
+    await expect(getEntryDetail(b.company.id, staff, entry.id)).rejects.toThrow(
+      'Ficha não encontrada.',
+    );
+    await expect(createEntryLink(b.company.id, staff, entry.id)).rejects.toThrow(
+      'Ficha não encontrada.',
+    );
+    await expect(saveTemplate(b.company.id, tpl.id, templateInput(), 'user_b')).rejects.toThrow(
+      /não encontrado/,
+    );
     await expect(
-      requestEntry({ companyId: b.company.id, userId: 'u', clientId: a.client.id, templateId: tpl.id, source: 'manual' }),
+      requestEntry({
+        companyId: b.company.id,
+        userId: 'u',
+        clientId: a.client.id,
+        templateId: tpl.id,
+        source: 'manual',
+      }),
     ).rejects.toThrow(/não encontrado/);
 
     for (const access of [reception, adminNoGrant]) {

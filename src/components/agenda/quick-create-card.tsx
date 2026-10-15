@@ -30,6 +30,8 @@ export type QuickCreateDefaults = {
   professionalId?: string;
   clientId?: string;
   serviceId?: string;
+  /** "Agendar sessão" do pacote. */
+  packageId?: string;
 };
 
 /**

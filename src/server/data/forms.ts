@@ -42,6 +42,9 @@ import { entryInScope, requireAccess, type FormAccess } from '@/server/data/form
 */
 
 type Db = Prisma.TransactionClient | typeof prisma;
+/** Transações deste módulo fazem várias consultas seguidas: folga acima dos 5 s padrão. */
+const TX = { maxWait: 10_000, timeout: 20_000 };
+const txRun = <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => prisma.$transaction(fn, TX);
 
 /** Autor dos registros feitos pelo cliente no link (aparece como "Cliente (link da ficha)"). */
 export const FORM_LINK_ACTOR = 'client-form-link';
@@ -116,7 +119,7 @@ export async function saveTemplate(
     throw new UserError('Informe depois de quantos dias a ficha deve ser pedida de novo.');
   }
   const fields = versionFields(input, schema);
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const serviceIds = await assertServices(tx, companyId, input.serviceIds);
     if (!id) {
       const template = await tx.formTemplate.create({
@@ -535,7 +538,11 @@ export async function getEntryRevision(
   };
 }
 
-async function lockClientTemplate(db: Prisma.TransactionClient, clientId: string, templateId: string) {
+async function lockClientTemplate(
+  db: Prisma.TransactionClient,
+  clientId: string,
+  templateId: string,
+) {
   await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'form:' + clientId + ':' + templateId}))`;
 }
 
@@ -623,7 +630,7 @@ async function requestEntryTx(tx: Prisma.TransactionClient, params: RequestParam
     });
     if (current) {
       return {
-        entry: (await tx.formEntry.findUniqueOrThrow({ where: { id: current.id } })),
+        entry: await tx.formEntry.findUniqueOrThrow({ where: { id: current.id } }),
         created: false,
       };
     }
@@ -659,12 +666,12 @@ async function requestEntryTx(tx: Prisma.TransactionClient, params: RequestParam
 export async function requestEntry(params: RequestParams, access?: FormAccess) {
   if (access) requireAccess(access, 'canRequest', 'pedir fichas');
   try {
-    return await prisma.$transaction((tx) => requestEntryTx(tx, params));
+    return await txRun((tx) => requestEntryTx(tx, params));
   } catch (error) {
     // Duas telas pedindo ao mesmo tempo com a mesma chave: a outra já criou — a nova tentativa
     // encontra a dela.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return prisma.$transaction((tx) => requestEntryTx(tx, params));
+      return txRun((tx) => requestEntryTx(tx, params));
     }
     throw error;
   }
@@ -746,10 +753,12 @@ export async function submitEntry(
   });
   if (Object.keys(errors).length) throw new UserError(describeErrors(errors));
 
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const locked = await lockEntry(tx, companyId, entryId);
     if (locked.status !== entry.status) {
-      throw new UserError('A ficha mudou enquanto você editava. Abra de novo para ver a versão atual.');
+      throw new UserError(
+        'A ficha mudou enquanto você editava. Abra de novo para ver a versão atual.',
+      );
     }
     const revision = locked.revision + 1;
     await tx.formEntryRevision.create({
@@ -837,11 +846,7 @@ export async function reviewEntry(
  * (só as perguntas que ainda existem). Elas aparecem marcadas e precisam ser conferidas antes
  * do envio — nunca viram resposta atual sem alguém olhar.
  */
-export async function requestEntryUpdate(
-  companyId: string,
-  access: FormAccess,
-  entryId: string,
-) {
+export async function requestEntryUpdate(companyId: string, access: FormAccess, entryId: string) {
   requireAccess(access, 'canRequest', 'pedir fichas');
   const previous = await loadEntry(prisma, companyId, entryId);
   if (previous.status !== 'SUBMITTED' && previous.status !== 'REVIEWED') {
@@ -850,7 +855,7 @@ export async function requestEntryUpdate(
   if (previous.template.status === 'ARCHIVED') {
     throw new UserError('Este modelo está arquivado: não dá para pedir fichas novas com ele.');
   }
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     await lockClientTemplate(tx, previous.clientId, previous.templateId);
     const open = await tx.formEntry.findFirst({
       where: { companyId, copiedFromEntryId: previous.id, status: { in: ['REQUESTED', 'DRAFT'] } },
@@ -923,7 +928,7 @@ export async function createEntryLink(
   }
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + days * 86_400_000);
-  await prisma.$transaction(async (tx) => {
+  await txRun(async (tx) => {
     await tx.formAccessToken.updateMany({
       where: { entryId, revokedAt: null, usedAt: null },
       data: { revokedAt: new Date() },
@@ -1016,7 +1021,9 @@ function clientVisibleAnswers(schema: FormSchema, answers: Answers): Answers {
 
 function staffOnlyAnswers(schema: FormSchema, answers: Answers): Answers {
   const ids = new Set(
-    schema.sections.filter((s) => s.audience === 'staff').flatMap((s) => s.questions.map((q) => q.id)),
+    schema.sections
+      .filter((s) => s.audience === 'staff')
+      .flatMap((s) => s.questions.map((q) => q.id)),
   );
   return Object.fromEntries(Object.entries(answers).filter(([id]) => ids.has(id)));
 }
@@ -1075,7 +1082,7 @@ export async function submitPublicForm(token: string, raw: Answers) {
     return { ok: false as const, errors, message: describeErrors(errors) };
   }
   const merged = { ...staffOnlyAnswers(schema, answersOf(entry.answers)), ...answers };
-  await prisma.$transaction(async (tx) => {
+  await txRun(async (tx) => {
     const claimed = await tx.formAccessToken.updateMany({
       where: {
         id: resolved.row.id,
@@ -1161,7 +1168,12 @@ type RequiredTemplate = {
   templateId: string;
   templateName: string;
   type: FormType;
-  version: { requirement: FormRequirement; fillableBy: FormFiller; renewal: FormRenewal; renewalDays: number | null };
+  version: {
+    requirement: FormRequirement;
+    fillableBy: FormFiller;
+    renewal: FormRenewal;
+    renewalDays: number | null;
+  };
   source: AppointmentFormItem['source'];
   requestKey: string | null;
 };
@@ -1184,7 +1196,10 @@ async function requiredTemplates(
     where: { companyId, serviceId: { in: serviceIds }, template: { status: 'ACTIVE' } },
     select: { templateId: true },
   });
-  const wanted = new Map<string, { source: RequiredTemplate['source']; requestKey: string | null }>();
+  const wanted = new Map<
+    string,
+    { source: RequiredTemplate['source']; requestKey: string | null }
+  >();
   for (const link of links) wanted.set(link.templateId, { source: 'service', requestKey: null });
   if (appointment.clientPackageId) {
     const pkg = await db.clientPackage.findFirst({
@@ -1224,7 +1239,13 @@ async function requiredTemplates(
 async function evaluateAppointmentForms(
   db: Db,
   companyId: string,
-  appointment: { id: string; clientId: string; serviceId: string; startAt: Date; clientPackageId: string | null },
+  appointment: {
+    id: string;
+    clientId: string;
+    serviceId: string;
+    startAt: Date;
+    clientPackageId: string | null;
+  },
 ): Promise<AppointmentFormItem[]> {
   const required = await requiredTemplates(db, companyId, appointment);
   if (required.length === 0) return [];
@@ -1248,7 +1269,10 @@ async function evaluateAppointmentForms(
     const mine = entries.filter((e) => e.templateId === r.templateId);
     const current = r.requestKey
       ? (mine.find((e) => e.requestKey === r.requestKey) ?? null)
-      : currentEntryFor(mine, r.version, { appointmentId: appointment.id, at: appointment.startAt });
+      : currentEntryFor(mine, r.version, {
+          appointmentId: appointment.id,
+          at: appointment.startAt,
+        });
     return {
       templateId: r.templateId,
       templateName: r.templateName,
@@ -1267,7 +1291,14 @@ async function evaluateAppointmentForms(
 async function findAppointment(db: Db, companyId: string, appointmentId: string) {
   const appointment = await db.appointment.findFirst({
     where: { id: appointmentId, companyId },
-    select: { id: true, clientId: true, serviceId: true, startAt: true, clientPackageId: true, status: true },
+    select: {
+      id: true,
+      clientId: true,
+      serviceId: true,
+      startAt: true,
+      clientPackageId: true,
+      status: true,
+    },
   });
   if (!appointment) throw new UserError('Agendamento não encontrado.');
   return appointment;
@@ -1320,7 +1351,8 @@ export async function assertAppointmentFormsReady(
   const pending = items.filter((i) => !i.met);
   if (pending.length === 0) return;
   const parts = pending.map(
-    (i) => `a ficha "${i.templateName}" ${missingRequirementText(i.requirement, i.entry?.status ?? null)}`,
+    (i) =>
+      `a ficha "${i.templateName}" ${missingRequirementText(i.requirement, i.entry?.status ?? null)}`,
   );
   throw new UserError(`Antes de iniciar o atendimento: ${parts.join('; ')}.`);
 }

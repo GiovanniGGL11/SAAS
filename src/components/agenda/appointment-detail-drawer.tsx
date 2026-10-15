@@ -47,6 +47,7 @@ import type { AppointmentStatus, Client } from '@/generated/prisma/client';
 import type { SerializedService } from '@/lib/serialize';
 import { EditAppointmentForm } from '@/components/agenda/edit-appointment-form';
 import { getReviewLinkAction } from '@/server/actions/relationship-actions';
+import { AppointmentForms } from '@/components/fichas/appointment-forms';
 
 export function AppointmentDetailDrawer({
   appointment,
@@ -76,7 +77,9 @@ export function AppointmentDetailDrawer({
       toast.success('Status atualizado.');
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
-    onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
+    // Ficha exigida pendente: a mensagem diz qual e o caminho está logo abaixo, em "Fichas".
+    onError: (error: Error) =>
+      toast.error(error.message || 'Não foi possível atualizar o status.', { duration: 9000 }),
   });
 
   const offerFreedSlot = useOfferFreedSlot();
@@ -122,6 +125,7 @@ export function AppointmentDetailDrawer({
             <CheckoutForm
               appointmentId={appointment.id}
               price={appointment.priceSnapshot}
+              plannedPackageId={appointment.clientPackageId}
               onDone={() => setShowCheckout(false)}
               onCancel={() => setShowCheckout(false)}
             />
@@ -171,6 +175,20 @@ export function AppointmentDetailDrawer({
               </div>
             )}
           </div>
+
+          {appointment.clientPackageId && (
+            <p className="bg-system-blue/[0.06] text-system-blue rounded-xl px-3 py-2 text-[13px]">
+              Sessão de pacote: conclua pela comanda (“Concluir sessão”) para dar baixa no pacote.
+            </p>
+          )}
+
+          <AppointmentForms
+            appointmentId={appointment.id}
+            clientId={appointment.client.id}
+            clientName={appointment.client.name}
+            canceled={isCanceled}
+            timezone={timezone}
+          />
 
           {appointment.status === 'DONE' && appointment.client.phone && (
             <Button

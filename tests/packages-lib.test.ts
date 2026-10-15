@@ -25,7 +25,12 @@ describe('pacote: progresso e financeiro (regras puras)', () => {
   });
 
   it('saldo inicial conta como feito, sem criar sessões', () => {
-    expect(sessionsDone([{ kind: 'OPENING_DONE', quantity: 3 }, { kind: 'CONSUME', quantity: 1 }])).toBe(4);
+    expect(
+      sessionsDone([
+        { kind: 'OPENING_DONE', quantity: 3 },
+        { kind: 'CONSUME', quantity: 1 },
+      ]),
+    ).toBe(4);
   });
 
   it('situação financeira separada da execução', () => {
@@ -43,23 +48,45 @@ describe('pacote: progresso e financeiro (regras puras)', () => {
 
   it('avisos: vencido, sem saldo, vencendo', () => {
     const now = new Date('2030-01-10T00:00:00Z');
-    expect(packageAlerts({ done: 8, total: 8, validUntil: null, recurring: false, now })).toEqual(['exhausted']);
+    expect(packageAlerts({ done: 8, total: 8, validUntil: null, recurring: false, now })).toEqual([
+      'exhausted',
+    ]);
     expect(
-      packageAlerts({ done: 1, total: 8, validUntil: new Date('2030-01-01T00:00:00Z'), recurring: false, now }),
+      packageAlerts({
+        done: 1,
+        total: 8,
+        validUntil: new Date('2030-01-01T00:00:00Z'),
+        recurring: false,
+        now,
+      }),
     ).toEqual(['expired']);
     expect(
-      packageAlerts({ done: 1, total: 8, validUntil: new Date('2030-01-15T00:00:00Z'), recurring: false, now }),
+      packageAlerts({
+        done: 1,
+        total: 8,
+        validUntil: new Date('2030-01-15T00:00:00Z'),
+        recurring: false,
+        now,
+      }),
     ).toEqual(['expiring']);
   });
 
   it('pacote compatível com o agendamento', () => {
-    const pkg = { serviceId: 's1', status: 'ACTIVE', done: 2, total: 8, validUntil: null, recurring: false };
+    const pkg = {
+      serviceId: 's1',
+      status: 'ACTIVE',
+      done: 2,
+      total: 8,
+      validUntil: null,
+      recurring: false,
+    };
     const at = new Date('2030-01-10T00:00:00Z');
     expect(packageFitsAppointment(pkg, ['s1', 's2'], at).ok).toBe(true);
     expect(packageFitsAppointment(pkg, ['s2'], at).ok).toBe(false);
     expect(packageFitsAppointment({ ...pkg, done: 8 }, ['s1'], at).ok).toBe(false);
     expect(
-      packageFitsAppointment({ ...pkg, validUntil: new Date('2030-01-01T00:00:00Z') }, ['s1'], at).ok,
+      packageFitsAppointment({ ...pkg, validUntil: new Date('2030-01-01T00:00:00Z') }, ['s1'], at)
+        .ok,
     ).toBe(false);
   });
 });
@@ -104,7 +131,9 @@ describe('PDF', () => {
       packageName: null,
       schema,
       // Emoji não existe na fonte do PDF: vira "?" em vez de quebrar a exportação.
-      answers: Object.fromEntries(schema.sections[0].questions.map((q) => [q.id, `${longText} 🙂`])),
+      answers: Object.fromEntries(
+        schema.sections[0].questions.map((q) => [q.id, `${longText} 🙂`]),
+      ),
     });
     const pdf = await PDFDocument.load(bytes);
     expect(pdf.getPageCount()).toBeGreaterThan(2);

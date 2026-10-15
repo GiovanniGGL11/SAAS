@@ -12,6 +12,7 @@ import {
   packageFinancial,
   packageFitsAppointment,
   progressLabel,
+  SIGNATURE_STATEMENT,
   sessionsDone,
 } from '@/lib/packages';
 
@@ -24,6 +25,9 @@ import {
 */
 
 type Db = Prisma.TransactionClient | typeof prisma;
+/** Transações deste módulo fazem várias consultas seguidas: folga acima dos 5 s padrão. */
+const TX = { maxWait: 10_000, timeout: 20_000 };
+const txRun = <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => prisma.$transaction(fn, TX);
 const D = (v: Prisma.Decimal | number | string) => new Prisma.Decimal(v);
 
 export class PackageUnavailableError extends UserError {
@@ -104,7 +108,7 @@ export async function createClientPackage(input: CreatePackageInput) {
     }
   }
 
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const client = await tx.client.findFirst({
       where: { id: input.clientId, companyId: input.companyId },
       select: { id: true, name: true },
@@ -122,7 +126,9 @@ export async function createClientPackage(input: CreatePackageInput) {
       });
       if (!plan) throw new UserError('Plano não encontrado.');
       if (plan.recurring) {
-        throw new UserError('Assinaturas são vendidas pela tela de vendas (Pacotes e assinaturas).');
+        throw new UserError(
+          'Assinaturas são vendidas pela tela de vendas (Pacotes e assinaturas).',
+        );
       }
     }
     if (input.responsibleProfessionalId) {
@@ -230,7 +236,7 @@ export async function receivePackagePayment(params: {
   method: PaymentMethod;
   userId: string;
 }) {
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'pkgpay:' + params.clientPackageId}))`;
     const pkg = await tx.clientPackage.findFirst({
       where: { id: params.clientPackageId, companyId: params.companyId },
@@ -293,9 +299,10 @@ export async function extendPackage(params: {
   reason: string;
   userId: string;
 }) {
-  if (params.sessions < 1 || params.sessions > 100) throw new UserError('Informe de 1 a 100 sessões.');
+  if (params.sessions < 1 || params.sessions > 100)
+    throw new UserError('Informe de 1 a 100 sessões.');
   if (!params.reason.trim()) throw new UserError('Informe o motivo.');
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const pkg = await tx.clientPackage.findFirst({
       where: { id: params.clientPackageId, companyId: params.companyId, status: 'ACTIVE' },
     });
@@ -324,7 +331,11 @@ export async function extendPackage(params: {
         entityId: pkg.id,
         action: 'updated',
         userId: params.userId,
-        metadata: { name: pkg.nameSnapshot, extended: params.sessions, extraPrice: params.extraPrice },
+        metadata: {
+          name: pkg.nameSnapshot,
+          extended: params.sessions,
+          extraPrice: params.extraPrice,
+        },
       },
       tx,
     );
@@ -346,7 +357,7 @@ export async function adjustPackage(params: {
     throw new UserError('Informe quantas sessões somar ou tirar.');
   }
   if (params.reason.trim().length < 3) throw new UserError('Informe o motivo da correção.');
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const pkg = await tx.clientPackage.findFirst({
       where: { id: params.clientPackageId, companyId: params.companyId },
     });
@@ -355,9 +366,7 @@ export async function adjustPackage(params: {
       where: {
         id: pkg.id,
         sessionsUsed:
-          params.delta > 0
-            ? { lte: pkg.sessionsTotal - params.delta }
-            : { gte: -params.delta },
+          params.delta > 0 ? { lte: pkg.sessionsTotal - params.delta } : { gte: -params.delta },
       },
       data: { sessionsUsed: { increment: params.delta } },
     });
@@ -458,9 +467,7 @@ export async function getClientPackagesDetail(companyId: string, clientId: strin
   const now = new Date();
   return packages.map((p) => {
     const sum = (status: 'PAID' | 'PENDING') =>
-      Number(
-        sums.find((s) => s.clientPackageId === p.id && s.status === status)?._sum.amount ?? 0,
-      );
+      Number(sums.find((s) => s.clientPackageId === p.id && s.status === status)?._sum.amount ?? 0);
     const done = sessionsDone(p.movements);
     const financial = packageFinancial({
       price: p.recurring ? sum('PAID') + sum('PENDING') : Number(p.price),
@@ -491,10 +498,21 @@ export async function getClientPackagesDetail(companyId: string, clientId: strin
         : null,
       financial,
       openingPaidAmount: p.openingPaidAmount === null ? null : Number(p.openingPaidAmount),
-      alerts: p.status === 'ACTIVE'
-        ? packageAlerts({ done, total: p.sessionsTotal, validUntil: p.periodEnd, recurring: p.recurring, now })
-        : [],
-      planned: p.plannedAppointments.map((a) => ({ id: a.id, startAt: a.startAt, status: a.status })),
+      alerts:
+        p.status === 'ACTIVE'
+          ? packageAlerts({
+              done,
+              total: p.sessionsTotal,
+              validUntil: p.periodEnd,
+              recurring: p.recurring,
+              now,
+            })
+          : [],
+      planned: p.plannedAppointments.map((a) => ({
+        id: a.id,
+        startAt: a.startAt,
+        status: a.status,
+      })),
       movements: p.movements.map((m) => {
         const appointment = m.appointmentId ? appointmentById.get(m.appointmentId) : undefined;
         const record = appointment?.sessionRecord ?? null;
@@ -538,13 +556,17 @@ export async function listCompatiblePackages(
       service: { select: { name: true } },
       _count: {
         select: {
-          plannedAppointments: { where: { status: { in: ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'] } } },
+          plannedAppointments: {
+            where: { status: { in: ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'] } },
+          },
         },
       },
     },
     orderBy: { createdAt: 'asc' },
   });
-  return packages.map((p) => {
+  const financials = await Promise.all(packages.map((p) => packageFinancialFor(prisma, p)));
+  return packages.map((p, index) => {
+    const planned = p._count.plannedAppointments;
     const fit = packageFitsAppointment(
       {
         serviceId: p.serviceId,
@@ -557,16 +579,24 @@ export async function listCompatiblePackages(
       serviceIds,
       at,
     );
+    const allPlanned = fit.ok && !p.recurring && p.sessionsUsed + planned >= p.sessionsTotal;
     return {
       id: p.id,
       name: p.nameSnapshot,
       serviceName: p.service.name,
+      done: p.sessionsUsed,
+      total: p.sessionsTotal,
       progress: progressLabel(p.sessionsUsed, p.sessionsTotal),
       remaining: p.sessionsTotal - p.sessionsUsed,
-      planned: p._count.plannedAppointments,
+      planned,
       validUntil: p.periodEnd,
-      ok: fit.ok,
-      reason: fit.ok ? null : fit.reason,
+      financialStatus: financials[index].status,
+      ok: fit.ok && !allPlanned,
+      reason: !fit.ok
+        ? fit.reason
+        : allPlanned
+          ? 'Todas as sessões restantes já estão agendadas.'
+          : null,
     };
   });
 }
@@ -602,7 +632,8 @@ export async function assertPackageForAppointment(
     params.serviceIds,
     params.startAt,
   );
-  if (!fit.ok) throw new PackageUnavailableError(`Não dá para usar este pacote: ${fit.reason.toLowerCase()}`);
+  if (!fit.ok)
+    throw new PackageUnavailableError(`Não dá para usar este pacote: ${fit.reason.toLowerCase()}`);
   if (!pkg.recurring) {
     const planned = await db.appointment.count({
       where: {
@@ -628,10 +659,6 @@ export type SessionContent = {
   orientations?: string | null;
   nextReturn?: string | null;
 };
-
-export const SIGNATURE_STATEMENT =
-  'Confirmo que recebi o atendimento descrito acima nesta data. Assinatura desenhada no ' +
-  'aparelho do estabelecimento — registro interno, não é assinatura digital certificada.';
 
 /** O que o cliente confirma: o conteúdo visível (sem as observações internas). */
 export function sessionContentHash(content: SessionContent): string {
@@ -685,7 +712,11 @@ function assertRecordScope(access: FormAccess, professionalId: string) {
  * Registro do atendimento. Status (rascunho/finalizado/assinatura) é de toda a equipe; o
  * conteúdo, só de quem pode ler fichas.
  */
-export async function getSessionRecord(companyId: string, access: FormAccess, appointmentId: string) {
+export async function getSessionRecord(
+  companyId: string,
+  access: FormAccess,
+  appointmentId: string,
+) {
   const appointment = await loadAppointmentForRecord(prisma, companyId, appointmentId);
   const record = await prisma.sessionRecord.findUnique({
     where: { appointmentId },
@@ -696,7 +727,9 @@ export async function getSessionRecord(companyId: string, access: FormAccess, ap
     },
   });
   const packageId =
-    record?.clientPackageId ?? appointment.credits[0]?.clientPackageId ?? appointment.clientPackageId;
+    record?.clientPackageId ??
+    appointment.credits[0]?.clientPackageId ??
+    appointment.clientPackageId;
   const pkg = packageId
     ? await prisma.clientPackage.findFirst({
         where: { id: packageId, companyId },
@@ -711,7 +744,8 @@ export async function getSessionRecord(companyId: string, access: FormAccess, ap
       })
     : null;
   const canSeeContent =
-    access.canRead && (access.scope === 'ALL' || access.professionalId === appointment.professionalId);
+    access.canRead &&
+    (access.scope === 'ALL' || access.professionalId === appointment.professionalId);
   const base = {
     appointment: {
       id: appointment.id,
@@ -797,7 +831,7 @@ export async function saveSessionRecord(params: {
   requireAccess(access, 'canFill', 'registrar atendimentos');
   const procedure = params.content.procedure.trim();
   if (!procedure) throw new UserError('Descreva o que foi feito na sessão.');
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const appointment = await loadAppointmentForRecord(tx, params.companyId, params.appointmentId);
     assertRecordScope(access, appointment.professionalId);
     if (appointment.status === 'CANCELED' || appointment.status === 'NO_SHOW') {
@@ -833,7 +867,12 @@ export async function saveSessionRecord(params: {
           currentVersion: 1,
           createdByUserId: access.userId,
           versions: {
-            create: { companyId: params.companyId, version: 1, ...fields, createdByUserId: access.userId },
+            create: {
+              companyId: params.companyId,
+              version: 1,
+              ...fields,
+              createdByUserId: access.userId,
+            },
           },
         },
       });
@@ -856,7 +895,9 @@ export async function saveSessionRecord(params: {
         where: { recordId: record.id, version: { version: record.currentVersion } },
       });
       if (signed > 0) {
-        throw new UserError('Esta versão já foi assinada. Finalize o registro e use um adendo para mudar.');
+        throw new UserError(
+          'Esta versão já foi assinada. Finalize o registro e use um adendo para mudar.',
+        );
       }
       await tx.sessionRecordVersion.update({
         where: { recordId_version: { recordId: record.id, version: record.currentVersion } },
@@ -918,7 +959,7 @@ export async function finalizeSessionRecord(params: {
   appointmentId: string;
 }) {
   requireAccess(params.access, 'canFill', 'registrar atendimentos');
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const record = await tx.sessionRecord.findFirst({
       where: { appointmentId: params.appointmentId, companyId: params.companyId },
       include: { signatures: { include: { version: { select: { version: true } } } } },
@@ -927,7 +968,9 @@ export async function finalizeSessionRecord(params: {
     assertRecordScope(params.access, record.professionalId);
     if (record.status !== 'DRAFT') throw new UserError('Este registro já foi finalizado.');
     if (signatureState(record) === 'pending') {
-      throw new UserError('Este pacote exige a assinatura do cliente antes de finalizar o registro.');
+      throw new UserError(
+        'Este pacote exige a assinatura do cliente antes de finalizar o registro.',
+      );
     }
     const result = await tx.sessionRecord.updateMany({
       where: { id: record.id, status: 'DRAFT' },
@@ -967,27 +1010,34 @@ export async function signSessionRecord(params: {
   requireAccess(params.access, 'canFill', 'coletar assinaturas');
   const signerName = params.signerName.trim();
   if (signerName.length < 2) throw new UserError('Informe o nome de quem assina.');
-  if (!params.image.startsWith('data:image/png;base64,') || params.image.length > MAX_SIGNATURE_BYTES) {
+  if (
+    !params.image.startsWith('data:image/png;base64,') ||
+    params.image.length > MAX_SIGNATURE_BYTES
+  ) {
     throw new UserError('Assinatura inválida. Limpe e assine de novo.');
   }
   // Traço vazio (ou um toque só): não é assinatura.
   if (params.strokes < 1 || params.image.length < 1500) {
     throw new UserError('A assinatura está vazia. Peça para o cliente assinar no quadro.');
   }
-  return prisma.$transaction(async (tx) => {
+  return txRun(async (tx) => {
     const record = await tx.sessionRecord.findFirst({
       where: { appointmentId: params.appointmentId, companyId: params.companyId },
     });
     if (!record) throw new UserError('Escreva o registro da sessão antes de pedir a assinatura.');
     assertRecordScope(params.access, record.professionalId);
     if (record.currentVersion !== params.version) {
-      throw new UserError('O registro mudou enquanto o cliente assinava. Mostre a versão nova e assine de novo.');
+      throw new UserError(
+        'O registro mudou enquanto o cliente assinava. Mostre a versão nova e assine de novo.',
+      );
     }
     const version = await tx.sessionRecordVersion.findUniqueOrThrow({
       where: { recordId_version: { recordId: record.id, version: params.version } },
     });
     if (version.contentHash !== params.contentHash) {
-      throw new UserError('O registro mudou enquanto o cliente assinava. Mostre a versão nova e assine de novo.');
+      throw new UserError(
+        'O registro mudou enquanto o cliente assinava. Mostre a versão nova e assine de novo.',
+      );
     }
     try {
       await tx.sessionSignature.create({
@@ -1042,7 +1092,10 @@ export async function listClientSessions(
       professional: { select: { name: true } },
       packageMovements: {
         where: { kind: 'CONSUME' },
-        select: { sessionNumber: true, clientPackage: { select: { id: true, nameSnapshot: true, sessionsTotal: true } } },
+        select: {
+          sessionNumber: true,
+          clientPackage: { select: { id: true, nameSnapshot: true, sessionsTotal: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 1,
       },
@@ -1115,7 +1168,11 @@ export async function getSessionRecordForExport(
     userId: access.userId,
     metadata: { format: 'pdf' },
   });
-  return { ...data, companyName: company?.name ?? '', timezone: company?.timezone ?? 'America/Sao_Paulo' };
+  return {
+    ...data,
+    companyName: company?.name ?? '',
+    timezone: company?.timezone ?? 'America/Sao_Paulo',
+  };
 }
 
 /**

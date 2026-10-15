@@ -65,9 +65,9 @@ const templateInput = z.object({
   serviceIds: z.array(id).max(100),
 });
 
-async function withNames<T extends { filledByUserId: string | null; reviewedByUserId: string | null }>(
-  rows: T[],
-) {
+async function withNames<
+  T extends { filledByUserId: string | null; reviewedByUserId: string | null },
+>(rows: T[]) {
   const names = await actorNames(
     rows.flatMap((r) => [r.filledByUserId, r.reviewedByUserId]).filter((v): v is string => !!v),
   );
@@ -175,7 +175,10 @@ export async function getEntryDetailAction(rawId: unknown) {
       select: { filledByUserId: true, reviewedByUserId: true },
     });
     const [named] = await withNames([
-      { filledByUserId: entry?.filledByUserId ?? null, reviewedByUserId: entry?.reviewedByUserId ?? null },
+      {
+        filledByUserId: entry?.filledByUserId ?? null,
+        reviewedByUserId: entry?.reviewedByUserId ?? null,
+      },
     ]);
     return { ...detail, filledByName: named.filledByName, reviewedByName: named.reviewedByName };
   });

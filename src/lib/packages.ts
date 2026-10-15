@@ -70,7 +70,14 @@ export const PACKAGE_ALERT_LABEL: Record<PackageAlert, string> = {
 
 /** O pacote serve para este atendimento? Mesmo serviço, ativo, dentro da validade, com saldo. */
 export function packageFitsAppointment(
-  pkg: { serviceId: string; status: string; done: number; total: number; validUntil: Date | null; recurring: boolean },
+  pkg: {
+    serviceId: string;
+    status: string;
+    done: number;
+    total: number;
+    validUntil: Date | null;
+    recurring: boolean;
+  },
   serviceIds: string[],
   at: Date,
 ): { ok: true } | { ok: false; reason: string } {
@@ -82,3 +89,8 @@ export function packageFitsAppointment(
   if (pkg.done >= pkg.total) return { ok: false, reason: 'Sem sessões restantes.' };
   return { ok: true };
 }
+
+/** O que o cliente declara ao assinar — o mesmo texto na tela, no banco e no PDF. */
+export const SIGNATURE_STATEMENT =
+  'Confirmo que recebi o atendimento descrito acima nesta data. Assinatura desenhada no ' +
+  'aparelho do estabelecimento — registro interno, não é assinatura digital certificada.';
