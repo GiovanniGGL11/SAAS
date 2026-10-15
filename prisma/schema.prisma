@@ -35,6 +35,14 @@ model Company {
   formsPrivacyNotice String?
   // Link "avalie no Google" mostrado a quem dá nota alta depois do atendimento.
   googleReviewUrl    String?
+  // WhatsApp automático (Z-API): credenciais da instância, guardadas cifradas.
+  zapiInstanceId     String?
+  zapiToken          String?
+  zapiClientToken    String?
+  waAutoConfirm      Boolean   @default(false)
+  waAutoReminder     Boolean   @default(false)
+  waAutoReview       Boolean   @default(false)
+  waAutoBirthday     Boolean   @default(false)
   deletedAt          DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -69,6 +77,7 @@ model Company {
   packageMovements          PackageMovement[]
   sessionRecords            SessionRecord[]
   stockPurchases            StockPurchase[]
+  whatsappMessages          WhatsappMessage[]
 }
 
 model WebhookEvent {
@@ -1209,4 +1218,31 @@ model StockPurchaseItem {
   product    Product       @relation(fields: [productId], references: [id])
   quantity   Int
   unitCost   Decimal       @db.Decimal(10, 2)
+}
+
+enum WhatsappMessageStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// Mensagem automática enviada pela Z-API. dedupeKey impede mandar a mesma duas vezes
+/// (ex.: "reminder:<agendamento>", "birthday:<cliente>:2026").
+model WhatsappMessage {
+  id            String                @id @default(cuid())
+  companyId     String
+  company       Company               @relation(fields: [companyId], references: [id])
+  kind          String
+  dedupeKey     String
+  phone         String
+  text          String
+  status        WhatsappMessageStatus @default(PENDING)
+  error         String?
+  providerId    String?
+  clientId      String?
+  appointmentId String?
+  createdAt     DateTime              @default(now())
+
+  @@unique([companyId, dedupeKey])
+  @@index([companyId, createdAt])
 }

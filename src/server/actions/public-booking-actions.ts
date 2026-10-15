@@ -10,6 +10,7 @@ import { toActionResult } from '@/server/action-result';
 import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { rateLimit } from '@/server/rate-limit';
 import { scheduleGoogleSync } from '@/server/google/background';
+import { scheduleConfirmation } from '@/server/whatsapp/automation';
 import { UserError, idSchema } from '@/server/errors';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { cancelAppointment, updateAppointmentStatus } from '@/server/data/appointments';
@@ -138,6 +139,7 @@ export async function createPublicBookingAction(input: unknown) {
       throw error;
     }
     scheduleGoogleSync(company.id, [appointment.id]);
+    scheduleConfirmation(company.id, appointment.id);
     revalidatePath('/agenda');
 
     const professional = await prisma.professional.findFirst({

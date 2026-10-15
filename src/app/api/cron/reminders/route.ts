@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 
 import { sendEmailReminders } from '@/server/data/reminders';
 import { isEmailConfigured, sendEmail } from '@/server/email';
+import { runDailyWhatsapp } from '@/server/whatsapp/automation';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ function authorized(request: Request): boolean {
 }
 
 /**
- * Lembretes da véspera por e-mail. A Vercel chama esta rota todo dia (vercel.json) mandando
+ * Lembretes da véspera (e-mail e WhatsApp automático) e parabéns de aniversário. A Vercel chama esta rota todo dia (vercel.json) mandando
  * `Authorization: Bearer $CRON_SECRET`; sem o segredo configurado a rota fica fechada.
  */
 export async function GET(request: Request) {
@@ -26,16 +27,13 @@ export async function GET(request: Request) {
   if (!authorized(request)) {
     return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
   }
-  if (!isEmailConfigured()) {
-    return NextResponse.json(
-      { error: 'RESEND_API_KEY / RESEND_FROM não configurados.' },
-      { status: 503 },
-    );
-  }
-
   const baseUrl = (
     process.env.NEXT_PUBLIC_APP_URL ?? `https://${new URL(request.url).host}`
   ).replace(/\/$/, '');
-  const result = await sendEmailReminders(sendEmail, baseUrl);
-  return NextResponse.json(result);
+  // WhatsApp automático (Z-API) não depende do e-mail: roda sempre que alguma empresa ligou.
+  const whatsapp = await runDailyWhatsapp(baseUrl);
+  const email = isEmailConfigured()
+    ? await sendEmailReminders(sendEmail, baseUrl)
+    : { skipped: 'RESEND_API_KEY / RESEND_FROM não configurados.' };
+  return NextResponse.json({ email, whatsapp });
 }

@@ -27,6 +27,7 @@ import {
   markCampaignSentAction,
   previewSegmentAction,
 } from '@/server/actions/relationship-actions';
+import { sendCampaignAutomaticallyAction } from '@/server/actions/whatsapp-actions';
 
 const SEGMENT_OPTIONS = [
   {
@@ -255,6 +256,21 @@ function CampaignDialog({ id, onClose }: { id: string; onClose: () => void }) {
     },
   });
   const sent = data?.recipients.filter((r) => r.sentAt).length ?? 0;
+  const auto = useMutation({
+    mutationFn: () => sendCampaignAutomaticallyAction(id).then(unwrapResult),
+    onSuccess: ({ queued }) => {
+      toast.success(
+        `Enviando ${queued} mensagens pelo WhatsApp automático, uma a cada ~2 segundos.`,
+      );
+      // Atualiza a lista enquanto as mensagens saem.
+      const timer = setInterval(
+        () => queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
+        4000,
+      );
+      setTimeout(() => clearInterval(timer), Math.min(queued, 60) * 2000 + 8000);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   return (
     <Dialog open onOpenChange={(open: boolean) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
@@ -303,6 +319,11 @@ function CampaignDialog({ id, onClose }: { id: string; onClose: () => void }) {
           <Button variant="ghost" onClick={onClose}>
             Fechar
           </Button>
+          {data && sent < data.recipients.length && (
+            <Button variant="outline" disabled={auto.isPending} onClick={() => auto.mutate()}>
+              Enviar todos automaticamente
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

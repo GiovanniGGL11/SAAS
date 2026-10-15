@@ -41,6 +41,7 @@ import {
 import { serializeAppointment } from '@/lib/serialize';
 import { toActionResult } from '@/server/action-result';
 import { scheduleGoogleSync } from '@/server/google/background';
+import { scheduleConfirmation, scheduleReviewRequest } from '@/server/whatsapp/automation';
 import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { findWaitlistMatchesForFreedSlot } from '@/server/data/waitlist';
 import { PackageUnavailableError } from '@/server/data/package-sessions';
@@ -148,6 +149,8 @@ export async function createAppointmentAction(input: unknown) {
     }
 
     scheduleGoogleSync(company.id, createdIds);
+    // WhatsApp automático (se ligado): confirmação do primeiro horário marcado.
+    scheduleConfirmation(company.id, appointment.id);
     revalidatePath('/agenda');
 
     // Mensagem de WhatsApp para o cliente confirmar. O agendamento já existe: se montar a
@@ -300,6 +303,7 @@ export async function checkoutAppointmentAction(input: unknown) {
       updatedByUserId: userId,
     });
     scheduleGoogleSync(company.id, [result.appointment.id]);
+    scheduleReviewRequest(company.id, result.appointment.id);
     revalidatePath('/agenda');
     revalidatePath('/financeiro');
     return { total: result.total };
