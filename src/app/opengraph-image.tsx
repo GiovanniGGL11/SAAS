@@ -61,8 +61,8 @@ export default async function OpengraphImage() {
         Caixa no controle.
       </div>
       <div style={{ marginTop: 36, fontSize: 32, color: '#515154' }}>
-        Agendamento online, WhatsApp, comanda, caixa e financeiro para salões, barbearias e
-        clínicas.
+        Agendamento online, WhatsApp, comanda, caixa e financeiro para qualquer negócio de hora
+        marcada.
       </div>
     </div>,
     size,

@@ -20,9 +20,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: 'Atendafy — agenda, agendamento online e financeiro para salões e clínicas',
+  title: 'Atendafy — agenda, agendamento online e financeiro para negócios de hora marcada',
   description:
-    'Seus clientes marcam sozinhos, confirmam pelo WhatsApp e você cobra, fecha o caixa e vê o lucro do mês. Para salões, barbearias e clínicas de estética.',
+    'Seus clientes marcam sozinhos, confirmam pelo WhatsApp e você cobra, fecha o caixa e vê o lucro do mês. Para salões, barbearias, clínicas, consultórios, estúdios, pet shops, aulas e todo negócio que atende com hora marcada.',
   openGraph: {
     type: 'website',
     locale: 'pt_BR',

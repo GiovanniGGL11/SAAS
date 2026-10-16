@@ -33,7 +33,7 @@ const QUESTIONS = [
   },
 ];
 
-/** Perguntas que todo dono de salão faz antes de trocar de sistema. */
+/** Perguntas que todo dono de negócio faz antes de trocar de sistema. */
 export function Faq() {
   return (
     <section id="duvidas" className="scroll-mt-20 px-5 pb-24 md:pb-32">

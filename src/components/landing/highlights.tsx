@@ -58,7 +58,7 @@ const HIGHLIGHTS: Highlight[] = [
   },
   {
     eyebrow: 'Painel de gestão',
-    title: 'Os números que os melhores salões acompanham.',
+    title: 'Os números que os melhores negócios acompanham.',
     bullets: [
       'Ocupação da equipe, clientes que voltaram, faltas e ticket médio, comparados ao período anterior',
       'Meta do mês com projeção: você sabe hoje se vai bater',
