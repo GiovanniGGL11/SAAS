@@ -8,44 +8,51 @@ datasource db {
 }
 
 model Company {
-  id                 String    @id @default(cuid())
-  clerkOrgId         String    @unique
-  name               String
-  slug               String    @unique
-  timezone           String    @default("America/Sao_Paulo")
+  id                  String             @id @default(cuid())
+  clerkOrgId          String             @unique
+  name                String
+  slug                String             @unique
+  timezone            String             @default("America/Sao_Paulo")
   // Where clients without a link ask for one ("Pedir acesso"); digits only, with country code.
-  whatsapp           String?
+  whatsapp            String?
   // Lembrete automático por e-mail na véspera do atendimento (precisa de RESEND_API_KEY e CRON_SECRET).
-  remindersByEmail   Boolean   @default(false)
+  remindersByEmail    Boolean            @default(false)
   // Empresa de demonstração (dados fictícios): fica fora do link público e pode ser excluída.
-  isDemo             Boolean   @default(false)
+  isDemo              Boolean            @default(false)
   // Link público: de quantos em quantos minutos oferecer horários (15, 30, 60). 0 = pela duração do serviço.
-  bookingSlotStep    Int       @default(15)
+  bookingSlotStep     Int                @default(15)
   // Identidade na página pública de agendamento (/agendar/[slug]). A logo vem da organização no Clerk.
-  zipCode            String?
-  street             String?
-  number             String?
-  complement         String?
-  district           String?
-  city               String?
-  state              String?
-  instagram          String?
-  cancellationPolicy String?
+  zipCode             String?
+  street              String?
+  number              String?
+  complement          String?
+  district            String?
+  city                String?
+  state               String?
+  instagram           String?
+  cancellationPolicy  String?
   // Aviso de privacidade escrito pela empresa, mostrado no link de preenchimento das fichas.
-  formsPrivacyNotice String?
+  formsPrivacyNotice  String?
   // Link "avalie no Google" mostrado a quem dá nota alta depois do atendimento.
-  googleReviewUrl    String?
+  googleReviewUrl     String?
   // WhatsApp automático (Z-API): credenciais da instância, guardadas cifradas.
-  zapiInstanceId     String?
-  zapiToken          String?
-  zapiClientToken    String?
-  waAutoConfirm      Boolean   @default(false)
-  waAutoReminder     Boolean   @default(false)
-  waAutoReview       Boolean   @default(false)
-  waAutoBirthday     Boolean   @default(false)
-  deletedAt          DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  zapiInstanceId      String?
+  zapiToken           String?
+  zapiClientToken     String?
+  waAutoConfirm       Boolean            @default(false)
+  waAutoReminder      Boolean            @default(false)
+  waAutoReview        Boolean            @default(false)
+  waAutoBirthday      Boolean            @default(false)
+  // Assinatura do Atendafy (cobrança pela Asaas da plataforma).
+  subscriptionStatus  SubscriptionStatus @default(TRIAL)
+  trialEndsAt         DateTime?
+  plan                String?
+  currentPeriodEnd    DateTime?
+  asaasCustomerId     String?
+  asaasSubscriptionId String?            @unique
+  deletedAt           DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   professionals             Professional[]
   services                  Service[]
@@ -1218,6 +1225,13 @@ model StockPurchaseItem {
   product    Product       @relation(fields: [productId], references: [id])
   quantity   Int
   unitCost   Decimal       @db.Decimal(10, 2)
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }
 
 enum WhatsappMessageStatus {

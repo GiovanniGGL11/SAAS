@@ -14,6 +14,7 @@ import {
   BarChart3,
   History,
   Settings,
+  CreditCard,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -110,6 +111,14 @@ export const navItems: NavItem[] = [
     href: '/configuracoes',
     icon: Settings,
     color: '#8e8e93',
+    group: 'Gestão',
+    adminOnly: true,
+  },
+  {
+    label: 'Assinatura',
+    href: '/assinatura',
+    icon: CreditCard,
+    color: '#34c759',
     group: 'Gestão',
     adminOnly: true,
   },

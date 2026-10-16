@@ -28,7 +28,13 @@ export async function upsertCompanyFromClerkOrg(org: ClerkOrgInput): Promise<Com
   return prisma.company.upsert({
     where: { clerkOrgId: org.id },
     update: { name: org.name, slug, deletedAt: null },
-    create: { clerkOrgId: org.id, name: org.name, slug },
+    // Conta nova: 14 dias de teste grátis do Atendafy.
+    create: {
+      clerkOrgId: org.id,
+      name: org.name,
+      slug,
+      trialEndsAt: new Date(Date.now() + 14 * 86_400_000),
+    },
   });
 }
 
