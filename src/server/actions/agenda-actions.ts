@@ -45,10 +45,15 @@ import { scheduleConfirmation, scheduleReviewRequest } from '@/server/whatsapp/a
 import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { findWaitlistMatchesForFreedSlot } from '@/server/data/waitlist';
 import { PackageUnavailableError } from '@/server/data/package-sessions';
+import { releaseExpiredDeposits } from '@/server/billing/deposit';
 
 export async function getAppointmentsForRangeAction(input: unknown) {
   const parsed = appointmentRangeInput.parse(input);
   const { company } = await requireCurrentCompany();
+  // Sinal PIX vencido libera o horário antes de mostrar a agenda (rápido quando não há nenhum).
+  if (company.depositPercent > 0) {
+    await releaseExpiredDeposits(company.id).catch((error) => console.error('[sinal]', error));
+  }
 
   const appointments = await listAppointmentsInRange(
     company.id,

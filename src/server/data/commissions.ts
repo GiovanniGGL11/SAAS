@@ -44,7 +44,8 @@ export async function computeCommissions(
       priceSnapshot: true,
       items: { select: { serviceId: true, priceSnapshot: true } },
       transactions: {
-        where: { category: 'Atendimento', status: 'PAID' },
+        // O sinal pago pelo link também é pagamento do serviço.
+        where: { category: { in: ['Atendimento', 'Sinal'] }, status: 'PAID' },
         select: { amount: true },
       },
       // Sessão de pacote e vale-presente: o cliente já pagou antes, mas o serviço foi feito agora.

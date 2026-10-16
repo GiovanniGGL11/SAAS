@@ -11,6 +11,14 @@ import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { rateLimit } from '@/server/rate-limit';
 import { scheduleGoogleSync } from '@/server/google/background';
 import { scheduleConfirmation } from '@/server/whatsapp/automation';
+import {
+  asUserError,
+  createDeposit,
+  getDepositConfig,
+  refreshDeposit,
+  releaseExpiredDeposits,
+  type DepositCharge,
+} from '@/server/billing/deposit';
 import { UserError, idSchema } from '@/server/errors';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { cancelAppointment, updateAppointmentStatus } from '@/server/data/appointments';
@@ -53,6 +61,8 @@ export async function getPublicAvailabilityAction(input: unknown) {
     await rateLimit('slots', 120, 60_000);
     const company = await getBookableCompany(parsed.slug);
     if (!company) throw new UserError('Agendamento online indisponível.');
+    // Horários presos por sinal PIX vencido voltam a aparecer.
+    await releaseExpiredDeposits(company.id).catch((error) => console.error('[sinal]', error));
 
     const today = utcToCalendarDate(new Date(), company.timezone);
     const fromTime = calendarDateToUtc(parsed.from, 0, company.timezone).getTime();
@@ -92,6 +102,8 @@ export type PublicBookingResult =
       professionalName: string;
       durationMinutes: number;
       price: number;
+      /** Sinal por PIX a pagar para confirmar (quando o salão exige). */
+      deposit?: DepositCharge;
     }
   | { kind: 'conflict'; message: string };
 
@@ -119,11 +131,20 @@ export async function createPublicBookingAction(input: unknown) {
           }),
         // Campo escondido: gente não preenche, robô preenche.
         website: z.string().max(0).optional(),
+        cpf: z
+          .string()
+          .max(20)
+          .optional()
+          .transform((v) => v?.replace(/\D/g, '') || undefined),
       })
       .parse(input);
     await rateLimit('booking', 5, 10 * 60_000);
     const company = await getBookableCompany(parsed.slug);
     if (!company) throw new UserError('Agendamento online indisponível.');
+    const depositConfig = await getDepositConfig(company.id);
+    if (depositConfig && parsed.cpf?.length !== 11) {
+      throw new UserError('Informe seu CPF (11 dígitos) para gerar o PIX do sinal.');
+    }
 
     let appointment;
     try {
@@ -138,8 +159,33 @@ export async function createPublicBookingAction(input: unknown) {
         return { kind: 'conflict', message: error.message };
       throw error;
     }
+    // Sinal por PIX: sem o PIX gerado, a reserva não vale (o horário é liberado na hora).
+    let deposit: DepositCharge | null = null;
+    if (depositConfig) {
+      try {
+        deposit = await createDeposit({
+          companyId: company.id,
+          timezone: company.timezone,
+          appointmentId: appointment.id,
+          clientId: appointment.clientId,
+          name: parsed.name,
+          phone: parsed.phone,
+          cpf: parsed.cpf!,
+          config: depositConfig,
+        });
+      } catch (error) {
+        await cancelAppointment({
+          companyId: company.id,
+          id: appointment.id,
+          canceledByUserId: 'online-booking',
+          reason: 'Falha ao gerar o PIX do sinal',
+        });
+        asUserError(error);
+      }
+    }
     scheduleGoogleSync(company.id, [appointment.id]);
-    scheduleConfirmation(company.id, appointment.id);
+    // Com sinal, a confirmação pelo WhatsApp sai quando o PIX for pago.
+    if (!deposit) scheduleConfirmation(company.id, appointment.id);
     revalidatePath('/agenda');
 
     const professional = await prisma.professional.findFirst({
@@ -155,6 +201,7 @@ export async function createPublicBookingAction(input: unknown) {
       professionalName: professional?.name ?? '',
       durationMinutes: appointment.durationMinutesSnapshot,
       price: Number(appointment.priceSnapshot),
+      ...(deposit ? { deposit } : {}),
     };
   });
 }
@@ -242,5 +289,17 @@ export async function setBookingSlotStepAction(input: unknown) {
     await prisma.company.update({ where: { id: company.id }, data: { bookingSlotStep: step } });
     revalidatePath('/configuracoes');
     return { step };
+  });
+}
+
+/** Tela do cliente: o sinal já foi pago? (consulta a Asaas e confirma o horário se sim). */
+export async function getDepositStatusAction(input: unknown) {
+  return toActionResult(async () => {
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(input);
+    await rateLimit('deposit-status', 60, 60_000);
+    const appointment = await getAppointmentForToken(token);
+    if (!appointment) throw new UserError('Link inválido.');
+    const status = await refreshDeposit(appointment.companyId, appointment.id);
+    return { status };
   });
 }

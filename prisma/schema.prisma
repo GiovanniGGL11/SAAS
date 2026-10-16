@@ -50,6 +50,10 @@ model Company {
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?
   asaasSubscriptionId String?            @unique
+  // Sinal por PIX no agendamento online: conta Asaas do próprio salão (chave cifrada).
+  asaasApiKey         String?
+  depositPercent      Int                @default(0)
+  depositHoldMinutes  Int                @default(30)
   deletedAt           DateTime?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -264,6 +268,11 @@ model Appointment {
   updatedByUserId    String?
   // Quando o lembrete da véspera foi enviado (e-mail automático ou WhatsApp pela equipe).
   reminderSentAt     DateTime?
+  // Sinal por PIX do agendamento online (o horário fica reservado até depositExpiresAt).
+  depositAmount      Decimal?       @db.Decimal(10, 2)
+  depositStatus      DepositStatus?
+  depositPaymentId   String?        @unique
+  depositExpiresAt   DateTime?
   canceledAt         DateTime?
   canceledByUserId   String?
   cancellationReason String?
@@ -1225,6 +1234,12 @@ model StockPurchaseItem {
   product    Product       @relation(fields: [productId], references: [id])
   quantity   Int
   unitCost   Decimal       @db.Decimal(10, 2)
+}
+
+enum DepositStatus {
+  PENDING
+  PAID
+  EXPIRED
 }
 
 enum SubscriptionStatus {

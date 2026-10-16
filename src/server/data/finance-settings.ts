@@ -50,6 +50,7 @@ export const SYSTEM_CATEGORIES = [
   'Pacotes',
   'Assinaturas',
   'Vale-presente',
+  'Sinal',
   'Comissões',
 ];
 
@@ -61,6 +62,7 @@ const DEFAULT_CATEGORIES: Record<TransactionType, string[]> = {
     'Pacotes',
     'Assinaturas',
     'Vale-presente',
+    'Sinal',
     'Outras receitas',
   ],
   EXPENSE: [

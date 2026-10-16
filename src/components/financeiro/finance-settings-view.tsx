@@ -25,6 +25,7 @@ const SYSTEM_CATEGORIES = [
   'Pacotes',
   'Assinaturas',
   'Vale-presente',
+  'Sinal',
   'Comissões',
 ];
 

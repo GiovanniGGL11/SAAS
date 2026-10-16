@@ -8,6 +8,7 @@ import { formatTimeInTz, utcToCalendarDate } from '@/lib/time';
 import { formatDuration, longDate } from '@/lib/booking';
 import { Button } from '@/components/ui/button';
 import type { PublicBookingResult } from '@/server/actions/public-booking-actions';
+import { DepositPayment } from '@/components/booking/deposit-payment';
 
 type Booked = Extract<PublicBookingResult, { kind: 'booked' }>;
 
@@ -55,12 +56,20 @@ export function BookingSuccess({
             tabIndex={-1}
             className="text-[24px] font-semibold tracking-[-0.01em] outline-none"
           >
-            Horário reservado
+            {booking.deposit ? 'Falta só o sinal' : 'Horário reservado'}
           </h1>
           <p className="text-label-secondary text-[15px]">
             Seu horário já está na agenda de {company.name}.
           </p>
         </div>
+
+        {booking.deposit && (
+          <DepositPayment
+            token={booking.token}
+            deposit={booking.deposit}
+            timezone={company.timezone}
+          />
+        )}
 
         <div className="bg-system-blue/[0.06] rounded-xl p-4 text-center">
           <p className="text-[17px] font-semibold first-letter:uppercase">{longDate(day)}</p>

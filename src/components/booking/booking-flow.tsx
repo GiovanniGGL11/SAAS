@@ -53,6 +53,8 @@ export type BookingCompany = {
   address: string | null;
   mapUrl: string | null;
   cancellationPolicy: string | null;
+  /** % do serviço cobrado como sinal por PIX para confirmar (0 = sem sinal). */
+  depositPercent: number;
 };
 type Booked = Extract<PublicBookingResult, { kind: 'booked' }>;
 /** O horário escolhido guarda o próprio dia: navegar por outra semana não o perde. */
@@ -108,6 +110,12 @@ export function BookingFlow({
   const [name, setName] = React.useState('');
   const [phone, setPhone] = React.useState('');
   const [website, setWebsite] = React.useState('');
+  // Sinal por PIX: a Asaas exige CPF para gerar o PIX.
+  const needsDeposit = company.depositPercent > 0;
+  const [cpf, setCpf] = React.useState('');
+  const cpfDigits = cpf.replace(/\D/g, '');
+  const cpfError = needsDeposit && cpfDigits.length !== 11 ? 'Informe os 11 dígitos do CPF.' : null;
+  const cpfRef = React.useRef<HTMLInputElement>(null);
   const [touched, setTouched] = React.useState({ name: false, phone: false });
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [policyOpen, setPolicyOpen] = React.useState(false);
@@ -202,6 +210,7 @@ export function BookingFlow({
         name,
         phone,
         website,
+        cpf: needsDeposit ? cpfDigits : undefined,
       }).then(unwrapResult),
     onSuccess: (result) => {
       if (result.kind === 'conflict') {
@@ -237,6 +246,7 @@ export function BookingFlow({
     setSubmitError(null);
     if (nameError) return nameRef.current?.focus();
     if (phoneError) return phoneRef.current?.focus();
+    if (cpfError) return cpfRef.current?.focus();
     booking.mutate();
   }
 
@@ -577,6 +587,35 @@ export function BookingFlow({
                     className={fieldClass}
                   />
                 </Field>
+                {needsDeposit && (
+                  <Field
+                    id="booking-cpf"
+                    label="CPF"
+                    hint={`Para o PIX do sinal de ${company.depositPercent}%, que confirma o horário.`}
+                    error={touched.phone && cpf ? cpfError : null}
+                  >
+                    <Input
+                      ref={cpfRef}
+                      id="booking-cpf"
+                      name="cpf"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="000.000.000-00"
+                      value={cpf}
+                      onChange={(e) =>
+                        setCpf(
+                          e.target.value
+                            .replace(/\D/g, '')
+                            .slice(0, 11)
+                            .replace(/(\d{3})(\d)/, '$1.$2')
+                            .replace(/(\d{3})(\d)/, '$1.$2')
+                            .replace(/(\d{3})(\d{1,2})$/, '$1-$2'),
+                        )
+                      }
+                      className={fieldClass}
+                    />
+                  </Field>
+                )}
                 {/* Isca para robôs: invisível para pessoas. */}
                 <input
                   tabIndex={-1}

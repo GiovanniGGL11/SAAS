@@ -20,12 +20,17 @@ import type { AppointmentWithRelations } from '@/server/data/appointments';
  */
 export function serializeAppointment<T extends Appointment>(
   appointment: T,
-): Omit<T, 'priceSnapshot'> & { priceSnapshot: number } {
-  return { ...appointment, priceSnapshot: Number(appointment.priceSnapshot) };
+): Omit<T, 'priceSnapshot' | 'depositAmount'> & { priceSnapshot: number; depositAmount: number | null } {
+  return {
+    ...appointment,
+    priceSnapshot: Number(appointment.priceSnapshot),
+    depositAmount: appointment.depositAmount === null ? null : Number(appointment.depositAmount),
+  };
 }
 
-export type SerializedAppointment = Omit<AppointmentWithRelations, 'priceSnapshot'> & {
+export type SerializedAppointment = Omit<AppointmentWithRelations, 'priceSnapshot' | 'depositAmount'> & {
   priceSnapshot: number;
+  depositAmount: number | null;
 };
 
 export function serializeService<T extends Service>(

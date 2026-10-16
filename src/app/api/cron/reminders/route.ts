@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 import { sendEmailReminders } from '@/server/data/reminders';
 import { isEmailConfigured, sendEmail } from '@/server/email';
 import { runDailyWhatsapp } from '@/server/whatsapp/automation';
+import { releaseExpiredDeposits } from '@/server/billing/deposit';
+import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +34,16 @@ export async function GET(request: Request) {
   ).replace(/\/$/, '');
   // WhatsApp automático (Z-API) não depende do e-mail: roda sempre que alguma empresa ligou.
   const whatsapp = await runDailyWhatsapp(baseUrl);
+  // Sinais PIX vencidos que ninguém abriu a agenda para liberar.
+  const depositCompanies = await prisma.company.findMany({
+    where: { depositPercent: { gt: 0 }, deletedAt: null },
+    select: { id: true },
+  });
+  let depositsReleased = 0;
+  for (const c of depositCompanies)
+    depositsReleased += await releaseExpiredDeposits(c.id, 200).catch(() => 0);
   const email = isEmailConfigured()
     ? await sendEmailReminders(sendEmail, baseUrl)
     : { skipped: 'RESEND_API_KEY / RESEND_FROM não configurados.' };
-  return NextResponse.json({ email, whatsapp });
+  return NextResponse.json({ email, whatsapp, depositsReleased });
 }

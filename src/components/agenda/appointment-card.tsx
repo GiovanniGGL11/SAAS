@@ -195,6 +195,16 @@ export function AppointmentCard({
               style={{ backgroundColor: STATUS_COLORS[appointment.status] }}
             />
             {STATUS_LABELS[appointment.status]}
+            {appointment.depositStatus === 'PENDING' && (
+              <span className="rounded-full bg-[#ff9500]/15 px-2 py-0.5 text-[11px] font-semibold text-[#b25f00] dark:text-[#ffb340]">
+                Aguardando sinal PIX
+              </span>
+            )}
+            {appointment.depositStatus === 'PAID' && appointment.depositAmount !== null && (
+              <span className="bg-system-green/15 text-delta-good rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                Sinal pago {formatCurrencyBRL(appointment.depositAmount)}
+              </span>
+            )}
           </span>
         </Row>
 

@@ -691,6 +691,18 @@ export async function checkoutAppointment(params: CheckoutInput) {
       notes.push(`vale:${code} (−R$ ${use.toFixed(2).replace('.', ',')})`);
     }
 
+    // Sinal pago pelo link online: já entrou no caixa, sai do que falta cobrar.
+    const deposit = await tx.transaction.aggregate({
+      where: { appointmentId: appointment.id, category: 'Sinal', status: 'PAID' },
+      _sum: { amount: true },
+    });
+    const depositPaid = new PrismaNamespace.Decimal(deposit._sum.amount ?? 0);
+    if (depositPaid.gt(0)) {
+      const used = PrismaNamespace.Decimal.min(depositPaid, toCharge);
+      toCharge = toCharge.sub(used);
+      notes.push(`sinal pago (−R$ ${used.toFixed(2).replace('.', ',')})`);
+    }
+
     if (params.payOnTab && params.split?.length) {
       throw new UserError('No fiado não dá para dividir o pagamento.');
     }
