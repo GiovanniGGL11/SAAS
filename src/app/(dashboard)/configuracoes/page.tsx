@@ -15,6 +15,7 @@ import { PublicProfileCard } from '@/components/configuracoes/public-profile-car
 import { GoogleReviewCard } from '@/components/configuracoes/google-review-card';
 import { WhatsappAutomationCard } from '@/components/configuracoes/whatsapp-automation-card';
 import { DepositCard } from '@/components/configuracoes/deposit-card';
+import { AiSettingsCard } from '@/components/configuracoes/ai-settings-card';
 import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
 import { OpenDemoCard } from '@/components/demo/demo-controls';
@@ -60,6 +61,8 @@ export default async function ConfiguracoesPage() {
       <DepositCard />
 
       <WhatsappAutomationCard />
+
+      <AiSettingsCard />
 
       <GoogleReviewCard initialUrl={company.googleReviewUrl} />
 

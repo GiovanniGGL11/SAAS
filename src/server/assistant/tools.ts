@@ -25,6 +25,7 @@ import {
   getRevenueByService,
 } from '@/server/data/reports';
 import type { GeminiFunctionDeclaration } from './gemini';
+import type { FormAccess } from '@/server/data/form-permissions';
 import { localDayRange, parseLocalDateTime, toLocalDateTime } from './format';
 
 /**
@@ -37,6 +38,8 @@ export type AssistantContext = {
   timezone: string;
   userId: string;
   isAdmin: boolean;
+  /** Permissões de fichas da pessoa (para modelos e rascunhos). */
+  formAccess?: FormAccess;
 };
 
 export type ToolOutcome = { response: Record<string, unknown>; proposal?: AssistantProposal };

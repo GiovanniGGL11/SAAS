@@ -41,15 +41,64 @@ export const assistantActionSchema = z.discriminatedUnion('kind', [
     kind: z.literal('cancel_appointment'),
     args: z.object({ appointmentId: id, reason: z.string().max(500).optional() }),
   }),
+  z.object({
+    kind: z.literal('stock_entry'),
+    args: z.object({
+      productId: id,
+      quantity: z.number().int().min(1).max(100_000),
+      /** Custo unitário em centavos — só se a pessoa informou o valor. */
+      unitCostCents: z.number().int().min(0).max(100_000_000).optional(),
+      /** Padrão: não lançar pagamento (entrada de estoque não é pagamento). */
+      payment: z
+        .discriminatedUnion('kind', [
+          z.object({ kind: z.literal('not_recorded') }),
+          z.object({
+            kind: z.literal('paid'),
+            method: z.enum(['CASH', 'PIX', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'OTHER']),
+          }),
+          z.object({ kind: z.literal('payable'), dueDate: localDate }),
+        ])
+        .optional(),
+      supplier: z.string().max(120).optional(),
+    }),
+  }),
+  z.object({
+    kind: z.literal('create_form_template'),
+    args: z.object({
+      name: z.string().trim().min(1).max(120),
+      type: z.enum(['ANAMNESIS', 'ASSESSMENT', 'SERVICE_RECORD', 'CUSTOM']),
+      description: z.string().max(1000).optional(),
+      schema: z.unknown(),
+    }),
+  }),
+  z.object({
+    kind: z.literal('fill_form_draft'),
+    args: z.object({
+      clientId: id,
+      templateId: id,
+      answers: z.record(z.string().max(60), z.unknown()),
+    }),
+  }),
 ]);
 export type AssistantAction = z.infer<typeof assistantActionSchema>;
 
 /** O que a tela recebe: a ação e um resumo legível para a pessoa conferir antes de confirmar. */
 export type AssistantProposal = {
+  /** Id da proposta guardada no servidor — a confirmação usa só isto. */
   id: string;
   title: string;
   details: { label: string; value: string }[];
-  action: AssistantAction;
+  status: 'AWAITING_APPROVAL' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELED' | 'EXPIRED';
+  expiresAt: string;
+};
+
+export const AI_PROPOSAL_STATUS_LABEL: Record<AssistantProposal['status'], string> = {
+  AWAITING_APPROVAL: 'Aguardando sua aprovação',
+  EXECUTING: 'Executando…',
+  COMPLETED: 'Concluída',
+  FAILED: 'Falhou',
+  CANCELED: 'Cancelada',
+  EXPIRED: 'Expirou',
 };
 
 export type AssistantChatMessage = { role: 'user' | 'model'; text: string };

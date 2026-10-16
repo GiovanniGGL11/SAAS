@@ -404,7 +404,8 @@ export async function updateAppointmentStatus(params: {
       tx,
     );
     return updated;
-  });
+    // Desfazer uma conclusão estorna caixa, fidelidade e sessão de pacote: folga acima dos 5 s.
+  }, { maxWait: 10_000, timeout: 20_000 });
 }
 
 /**
@@ -833,7 +834,7 @@ export async function cancelAppointment(params: {
     return (await tx.appointment.findFirst({
       where: { id: params.id, companyId: params.companyId },
     }))!;
-  });
+  }, { maxWait: 10_000, timeout: 20_000 });
 }
 
 // ---------------------------------------------------------------------------

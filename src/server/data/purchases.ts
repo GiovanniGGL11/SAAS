@@ -8,7 +8,8 @@ import { UserError } from '@/server/errors';
   margem real) e lança a compra no financeiro — paga agora ou como conta a pagar.
 */
 
-export type PurchasePayment = { method: PaymentMethod } | { dueDate: Date };
+/** `notRecorded`: só a entrada no estoque, sem lançar pagamento no financeiro. */
+export type PurchasePayment = { method: PaymentMethod } | { dueDate: Date } | { notRecorded: true };
 
 export async function createPurchase(params: {
   companyId: string;
@@ -61,28 +62,32 @@ export async function createPurchase(params: {
     }
 
     const paid = 'method' in params.payment;
-    const transaction = await tx.transaction.create({
-      data: {
-        companyId: params.companyId,
-        type: 'EXPENSE',
-        status: paid ? 'PAID' : 'PENDING',
-        category: 'Produtos e insumos',
-        description: `Compra de mercadoria${params.supplier ? ` — ${params.supplier.trim()}` : ''}`,
-        notes: params.invoiceNumber ? `NF ${params.invoiceNumber.trim()}` : null,
-        amount: total,
-        paymentMethod: paid ? (params.payment as { method: PaymentMethod }).method : null,
-        paidAt: paid ? new Date() : null,
-        dueDate: paid ? null : (params.payment as { dueDate: Date }).dueDate,
-        createdByUserId: params.userId,
-      },
-    });
+    const transaction =
+      'notRecorded' in params.payment
+        ? null
+        : await tx.transaction.create({
+            data: {
+              companyId: params.companyId,
+              type: 'EXPENSE',
+              status: paid ? 'PAID' : 'PENDING',
+              category: 'Produtos e insumos',
+              description: `Compra de mercadoria${params.supplier ? ` — ${params.supplier.trim()}` : ''}`,
+              notes: params.invoiceNumber ? `NF ${params.invoiceNumber.trim()}` : null,
+              amount: total,
+              paymentMethod: paid ? (params.payment as { method: PaymentMethod }).method : null,
+              paidAt: paid ? new Date() : null,
+              dueDate: paid ? null : (params.payment as { dueDate: Date }).dueDate,
+              createdByUserId: params.userId,
+            },
+          });
+
     const purchase = await tx.stockPurchase.create({
       data: {
         companyId: params.companyId,
         supplier: params.supplier?.trim() || null,
         invoiceNumber: params.invoiceNumber?.trim() || null,
         total,
-        transactionId: transaction.id,
+        transactionId: transaction?.id ?? null,
         createdByUserId: params.userId,
         items: { create: lines },
       },

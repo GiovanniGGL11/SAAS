@@ -150,7 +150,14 @@ describe('assistant', () => {
     expect(JSON.stringify(gemini.requests[1].body)).toContain('aguardando_confirmacao');
     expect(gemini.requests[0].url).toContain('gemini-test:generateContent');
 
-    const executed = await executeAction(contextFor(a), proposal.action);
+    // A proposta ficou guardada no servidor; é ela que a confirmação executa.
+    const stored = await prisma.aiActionProposal.findUniqueOrThrow({ where: { id: proposal.id } });
+    expect(stored).toMatchObject({
+      companyId: a.company.id,
+      status: 'AWAITING_APPROVAL',
+      kind: 'create_appointment',
+    });
+    const executed = await executeAction(contextFor(a), stored.payload as AssistantAction);
     expect(executed.appointmentIds).toHaveLength(1);
     expect(executed.paths).toContain('/agenda');
 
@@ -286,7 +293,10 @@ describe('assistant', () => {
       nome: 'Maria Teste',
       telefone: '(11) 98888-7777',
     });
-    expect(proposal.proposal?.action).toEqual(create);
+    const stored = await prisma.aiActionProposal.findUniqueOrThrow({
+      where: { id: proposal.proposal!.id },
+    });
+    expect(stored.payload).toEqual(create);
     expect(await prisma.client.count({ where: { companyId: a.company.id } })).toBe(1);
 
     await executeAction(ctx, create);

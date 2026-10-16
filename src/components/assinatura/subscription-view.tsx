@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { unwrapResult } from '@/lib/action-result';
 import { formatCurrencyBRL } from '@/lib/serialize';
-import { PLANS, getPlan, type PlanId } from '@/lib/billing/plans';
+import { ADD_ONS, PLANS, getPlan, planPrice, type PlanId } from '@/lib/billing/plans';
 import { cn } from '@/lib/utils';
 import type { SubscriptionState } from '@/server/billing/subscription';
 import {
@@ -33,7 +33,12 @@ const STATUS: Record<string, string> = {
 /** Planos do Atendafy, teste grátis e pagamento pela Asaas (PIX, boleto ou cartão). */
 export function SubscriptionView({ state, companyName }: { state: State; companyName: string }) {
   const router = useRouter();
-  const [selected, setSelected] = React.useState<PlanId>((state.plan as PlanId) ?? 'profissional');
+  const offered = PLANS.filter((p) => p.offered);
+  const [selected, setSelected] = React.useState<PlanId>(() => {
+    const currentPlan = getPlan(state.plan);
+    return currentPlan?.offered && currentPlan.checkoutEnabled ? currentPlan.id : 'profissional';
+  });
+  const selectedPlan = getPlan(selected)!;
   const [form, setForm] = React.useState({ name: companyName, cpfCnpj: '', email: '', phone: '' });
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const date = new Intl.DateTimeFormat('pt-BR');
@@ -84,7 +89,7 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                 ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`
                 : 'O teste grátis terminou'
               : current
-                ? `Plano ${current.name} · ${formatCurrencyBRL(current.price)}/mês`
+                ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${formatCurrencyBRL(planPrice(current))}/mês`
                 : '—'}
           </div>
           <div className="text-label-secondary text-[13px]">
@@ -121,13 +126,15 @@ export function SubscriptionView({ state, companyName }: { state: State; company
       {(!state.hasSubscription || state.status === 'CANCELED') && (
         <>
           <div className="grid gap-4 md:grid-cols-3">
-            {PLANS.map((plan) => (
+            {offered.map((plan) => (
               <button
                 key={plan.id}
                 type="button"
+                disabled={!plan.checkoutEnabled}
+                aria-pressed={selected === plan.id}
                 onClick={() => setSelected(plan.id)}
                 className={cn(
-                  'bg-tile flex flex-col gap-3 rounded-[22px] p-5 text-left ring-2 transition-colors',
+                  'bg-tile flex flex-col gap-3 rounded-[22px] p-5 text-left ring-2 transition-colors disabled:cursor-default',
                   selected === plan.id
                     ? 'ring-system-blue'
                     : 'hover:ring-foreground/10 ring-transparent',
@@ -143,9 +150,23 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                 </div>
                 <div>
                   <span className="text-[28px] font-bold tracking-tight">
-                    {formatCurrencyBRL(plan.price)}
+                    {formatCurrencyBRL(planPrice(plan))}
                   </span>
                   <span className="text-label-secondary text-[14px]">/mês</span>
+                </div>
+                <div
+                  className={cn(
+                    'rounded-xl px-3 py-2 text-[13px]',
+                    plan.ai.assistant
+                      ? 'bg-system-blue/[0.07]'
+                      : 'bg-foreground/[0.04] text-label-secondary',
+                  )}
+                >
+                  {!plan.ai.assistant
+                    ? 'Sem inteligência artificial.'
+                    : plan.ai.autoExecution
+                      ? 'Assistente de IA com franquia maior. Automações e execução automática autorizada: em preparação.'
+                      : 'Assistente de IA por texto: consulta e prepara alterações que só valem com a sua aprovação.'}
                 </div>
                 <ul className="flex flex-col gap-1.5 text-[14px]">
                   {plan.highlights.map((h) => (
@@ -155,7 +176,29 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                     </li>
                   ))}
                 </ul>
+                {!plan.checkoutEnabled && (
+                  <p className="text-label-secondary mt-auto text-[12px]">
+                    Contratação ainda não disponível.
+                  </p>
+                )}
               </button>
+            ))}
+          </div>
+
+          <div className="text-label-secondary flex flex-col gap-1 text-[13px]">
+            <p>
+              Os planos com IA têm franquia mensal de uso; ao atingir o limite, a IA pausa até o mês
+              seguinte e o restante do sistema continua funcionando. Nada é cobrado além do plano
+              sem contratação.
+            </p>
+            <p>
+              Comandos de voz e automações com IA estão em preparação e serão liberados nos planos
+              com IA quando estiverem prontos.
+            </p>
+            {ADD_ONS.map((addOn) => (
+              <p key={addOn.id}>
+                Adicional em preparação: {addOn.name} (planos com IA; preço e limites a definir).
+              </p>
             ))}
           </div>
 
@@ -197,10 +240,14 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                 Pagamento pela Asaas: PIX, boleto ou cartão. Cancele quando quiser; o acesso vale
                 até o fim do mês pago.
               </p>
-              <Button type="submit" className="self-start" disabled={start.isPending}>
+              <Button
+                type="submit"
+                className="self-start"
+                disabled={start.isPending || !selectedPlan.checkoutEnabled}
+              >
                 {start.isPending
                   ? 'Criando assinatura...'
-                  : `Assinar ${getPlan(selected)!.name} — ${formatCurrencyBRL(getPlan(selected)!.price)}/mês`}
+                  : `Assinar ${selectedPlan.name} — ${formatCurrencyBRL(planPrice(selectedPlan))}/mês`}
               </Button>
             </form>
           )}

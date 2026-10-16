@@ -1,6 +1,12 @@
 import { prisma } from '@/lib/db';
 import type { Company, SubscriptionStatus } from '@/generated/prisma/client';
-import { effectiveTrialEnd, getPlan, type PlanId } from '@/lib/billing/plans';
+import {
+  PAST_DUE_GRACE_DAYS,
+  effectiveTrialEnd,
+  getPlan,
+  planPrice,
+  type PlanId,
+} from '@/lib/billing/plans';
 import { UserError } from '@/server/errors';
 import {
   AsaasError,
@@ -15,8 +21,6 @@ import {
   tela mostra os planos e o teste, mas não cobra. O bloqueio de quem não pagou só vale com
   BILLING_ENFORCE=true — ligado de propósito, quando a cobrança estiver valendo.
 */
-
-const PAST_DUE_GRACE_DAYS = 7;
 
 export function billingConfigured(): boolean {
   return Boolean(process.env.ASAAS_API_KEY?.trim());
@@ -78,6 +82,10 @@ export async function startSubscription(
 ) {
   const plan = getPlan(input.planId);
   if (!plan) throw new UserError('Plano não encontrado.');
+  // Preço ainda não publicado (ou plano antigo): a contratação fica fechada.
+  if (!plan.offered || !plan.checkoutEnabled) {
+    throw new UserError(`O plano ${plan.name} ainda não está disponível para contratação.`);
+  }
   if (company.asaasSubscriptionId && company.subscriptionStatus !== 'CANCELED') {
     throw new UserError(
       'Já existe uma assinatura ativa. Para trocar de plano, cancele a atual primeiro.',
@@ -100,7 +108,7 @@ export async function startSubscription(
     const firstDue = trialEnd.getTime() > Date.now() ? trialEnd : new Date();
     const subscription = await createSubscription(key, {
       customer: customerId,
-      value: plan.price,
+      value: planPrice(plan),
       nextDueDate: ymd(firstDue),
       description: `Atendafy — plano ${plan.name}`,
       externalReference: company.id,

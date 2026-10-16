@@ -23,7 +23,7 @@ export async function startSubscriptionAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = z
       .object({
-        planId: z.enum(['essencial', 'profissional', 'rede']),
+        planId: z.enum(['essencial', 'profissional', 'pro', 'rede']),
         name: z.string().trim().min(2, 'Informe o nome ou a razão social.').max(120),
         cpfCnpj,
         email: z.email('E-mail inválido.'),

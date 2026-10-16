@@ -54,6 +54,8 @@ model Company {
   asaasApiKey         String?
   depositPercent      Int                @default(0)
   depositHoldMinutes  Int                @default(30)
+  // Autonomia da IA. Padrão: pedir aprovação. "Executar regras autorizadas" só vale no Pro.
+  aiAutonomyMode      AiAutonomyMode     @default(APPROVAL)
   deletedAt           DateTime?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -89,6 +91,12 @@ model Company {
   sessionRecords            SessionRecord[]
   stockPurchases            StockPurchase[]
   whatsappMessages          WhatsappMessage[]
+  aiUsagePeriods            AiUsagePeriod[]
+  aiUsageReservations       AiUsageReservation[]
+  aiUsageEvents             AiUsageEvent[]
+  aiActionProposals         AiActionProposal[]
+  aiTaskAuthorizations      AiTaskAuthorization[]
+  addOns                    CompanyAddOn[]
 }
 
 model WebhookEvent {
@@ -1274,4 +1282,178 @@ model WhatsappMessage {
 
   @@unique([companyId, dedupeKey])
   @@index([companyId, createdAt])
+}
+
+// ---- IA: franquia, consumo, propostas e autonomia ----------------------------------------------
+
+enum AiAutonomyMode {
+  SUGGEST
+  APPROVAL
+  AUTO_RULES
+}
+
+/// Consumo de IA do mês (unidades efetivamente gastas). A reserva fica em AiUsageReservation.
+model AiUsagePeriod {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  /// "AAAA-MM" no fuso da empresa.
+  period       String
+  usedUnits    Int      @default(0)
+  audioSeconds Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, period])
+}
+
+enum AiReservationStatus {
+  ACTIVE
+  SETTLED
+  RELEASED
+}
+
+/// Reserva feita ANTES de chamar o provedor: pedidos simultâneos não passam do saldo. Expira
+/// sozinha se o processo cair no meio (não fica presa).
+model AiUsageReservation {
+  id        String              @id @default(cuid())
+  companyId String
+  company   Company             @relation(fields: [companyId], references: [id])
+  period    String
+  units     Int
+  feature   String
+  status    AiReservationStatus @default(ACTIVE)
+  expiresAt DateTime
+  createdAt DateTime            @default(now())
+
+  @@index([companyId, period, status])
+}
+
+enum AiUsageOutcome {
+  SUCCEEDED
+  FAILED
+  BLOCKED
+}
+
+/// Medição de custo por chamada. Sem o conteúdo das mensagens: só números e o tipo de operação.
+model AiUsageEvent {
+  id                  String         @id @default(cuid())
+  companyId           String
+  company             Company        @relation(fields: [companyId], references: [id])
+  userId              String?
+  /// assistant_chat | voice_command | form_template | automation | whatsapp_ai
+  feature             String
+  provider            String
+  model               String?
+  inputTokens         Int            @default(0)
+  outputTokens        Int            @default(0)
+  /// Outros consumos cobrados pelo provedor, quando informados (ex.: tokens de raciocínio).
+  otherUsage          Json?
+  audioSeconds        Int?
+  calls               Int            @default(0)
+  units               Int            @default(0)
+  /// Custo estimado em milionésimos da moeda (ex.: 1500 = US$ 0,0015).
+  estimatedCostMicros Int            @default(0)
+  currency            String         @default("USD")
+  outcome             AiUsageOutcome
+  errorCode           String?
+  createdAt           DateTime       @default(now())
+
+  @@index([companyId, createdAt])
+}
+
+enum AiProposalStatus {
+  PROPOSED
+  AWAITING_APPROVAL
+  EXECUTING
+  COMPLETED
+  FAILED
+  CANCELED
+  EXPIRED
+}
+
+/// Alteração preparada pela IA. Só executa a partir daqui (nunca do que o navegador mandar), uma
+/// vez só; se o resumo mudar entre propor e confirmar, volta a pedir aprovação.
+model AiActionProposal {
+  id              String           @id @default(cuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  userId          String
+  kind            String
+  /// Argumentos validados. Conteúdo sensível (respostas de ficha) é apagado ao encerrar.
+  payload         Json
+  /// Resumo mostrado na prévia (título e linhas) e o hash dele.
+  summary         Json
+  summaryHash     String
+  status          AiProposalStatus @default(AWAITING_APPROVAL)
+  /// assistant | automation
+  origin          String           @default("assistant")
+  authorizationId String?
+  resultMessage   String?
+  errorMessage    String?
+  expiresAt       DateTime
+  decidedAt       DateTime?
+  executedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([companyId, userId, status])
+}
+
+enum AiAuthorizationStatus {
+  ACTIVE
+  PAUSED
+  REVOKED
+}
+
+/// Autorização de UMA tarefa ou rotina para execução automática (só no Pro). Nunca genérica.
+/// Criada e alterada só por uma pessoa administradora — a automação não mexe na própria permissão.
+model AiTaskAuthorization {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id])
+  taskType        String
+  status          AiAuthorizationStatus @default(ACTIVE)
+  /// Escopo (público, serviços, unidades…) e limites (frequência, horários, gasto).
+  scope           Json?
+  limits          Json?
+  pausedReason    String?
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([companyId, status])
+}
+
+enum AddOnStatus {
+  INACTIVE
+  ACTIVE
+  PAUSED
+}
+
+enum AddOnIntegrationStatus {
+  NOT_CONFIGURED
+  CONNECTED
+  ERROR
+}
+
+/// Adicional contratado (ex.: atendimento com IA no WhatsApp), separado do plano.
+model CompanyAddOn {
+  id                String                 @id @default(cuid())
+  companyId         String
+  company           Company                @relation(fields: [companyId], references: [id])
+  addOnId           String
+  status            AddOnStatus            @default(INACTIVE)
+  integrationStatus AddOnIntegrationStatus @default(NOT_CONFIGURED)
+  /// Franquia própria do adicional e teto de gastos (centavos); null = não definido (bloqueia).
+  monthlyQuota      Int?
+  spendLimitCents   Int?
+  /// Regras de autorização de envios (horários, público, frequência).
+  sendRules         Json?
+  activatedAt       DateTime?
+  updatedByUserId   String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@unique([companyId, addOnId])
 }

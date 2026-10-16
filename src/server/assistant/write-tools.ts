@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto';
-
 import { z } from 'zod';
 
 import { assistantActionSchema, type AssistantAction } from '@/lib/assistant';
 import { declare, type AssistantContext, type AssistantTool, type ToolOutcome } from './tools';
 import { describeAction } from './execute';
+import { createProposal } from '@/server/ai/proposals';
 import { parseLocalDateTime } from './format';
 
 /*
@@ -17,16 +16,18 @@ import { parseLocalDateTime } from './format';
 const id = z.string().min(1).max(64);
 const str = (description: string) => ({ type: 'string', description });
 
-async function propose(ctx: AssistantContext, raw: AssistantAction): Promise<ToolOutcome> {
+export async function propose(ctx: AssistantContext, raw: AssistantAction): Promise<ToolOutcome> {
   const action = assistantActionSchema.parse(raw);
-  const { title, details } = await describeAction(ctx, action);
+  const summary = await describeAction(ctx, action);
+  // Guardada no servidor: a confirmação executa esta, não o que o navegador mandar.
+  const proposal = await createProposal(ctx, action, summary);
   return {
     response: {
       status: 'aguardando_confirmacao',
-      resumo: `${title}: ${details.map((d) => `${d.label} ${d.value}`).join('; ')}`,
+      resumo: `${summary.title}: ${summary.details.map((d) => `${d.label} ${d.value}`).join('; ')}`,
       aviso: 'Nada foi gravado ainda. A pessoa precisa confirmar no cartão da tela.',
     },
-    proposal: { id: randomUUID(), title, details, action },
+    proposal,
   };
 }
 
