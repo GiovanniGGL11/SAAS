@@ -29,7 +29,7 @@ export function CampaignsShell({ coupons }: { coupons: SerializedCoupon[] }) {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Marketing"
+        title="Cupons"
         description="Cupons, vales-presente, mensagens para grupos de clientes, indicações e avaliações."
       />
       <SegmentedControl

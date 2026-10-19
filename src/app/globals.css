@@ -145,6 +145,9 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Barras de rolagem finas, sem setas e com trilho transparente, em todo o sistema. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--foreground) 24%, transparent) transparent;
   }
   body {
     @apply bg-background text-foreground;
@@ -224,4 +227,16 @@
   &:focus-within {
     scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
   }
+}
+
+/* Campo numérico sem as setinhas nativas (o fundo branco delas destoava do tema). */
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
 }

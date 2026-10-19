@@ -5,7 +5,7 @@ import { listAllCoupons } from '@/server/data/coupons';
 import { serializeCoupon } from '@/lib/serialize';
 import { CampaignsShell } from '@/components/campanhas/campaigns-shell';
 
-export const metadata = { title: 'Marketing' };
+export const metadata = { title: 'Cupons' };
 
 export default async function CampanhasPage() {
   const { company } = await requireAdminPage();

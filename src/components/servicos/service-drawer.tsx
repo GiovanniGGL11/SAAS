@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
@@ -29,7 +29,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { ColorPicker, PRESET_COLORS } from '@/components/ui/color-picker';
-import { createServiceAction, updateServiceAction } from '@/server/actions/service-actions';
+import {
+  createServiceAction,
+  getServiceSuppliesAction,
+  updateServiceAction,
+} from '@/server/actions/service-actions';
+import { ServiceSuppliesField, type SupplyRow } from '@/components/servicos/service-supplies-field';
 import { serviceInput, type ServiceFormInput } from '@/lib/validations/service';
 import type { SerializedService } from '@/lib/serialize';
 
@@ -59,22 +64,53 @@ export function ServiceDrawer({
     },
   });
 
+  // Materiais: o que já está salvo (ao editar) e o que a pessoa mudou nesta abertura.
+  const { data: savedSupplies } = useQuery({
+    queryKey: ['service-supplies', service?.id],
+    queryFn: () => getServiceSuppliesAction(service!.id),
+    enabled: open && isEdit,
+  });
+  const [editedSupplies, setEditedSupplies] = React.useState<SupplyRow[] | null>(null);
+  const supplies: SupplyRow[] =
+    editedSupplies ??
+    (savedSupplies ?? []).map((s) => ({ productId: s.productId, quantity: s.quantity }));
+
   const mutation = useMutation({
-    mutationFn: (values: ServiceFormInput) =>
-      (isEdit ? updateServiceAction(service.id, values) : createServiceAction(values)).then(
-        unwrapResult,
-      ),
+    mutationFn: (values: ServiceFormInput) => {
+      const payload = {
+        ...values,
+        // Sem mexer na lista, ao editar, mantém a atual (undefined); linhas sem produto são ignoradas.
+        supplies:
+          editedSupplies === null && isEdit
+            ? undefined
+            : supplies
+                .filter((row) => row.productId)
+                .map((row) => ({ productId: row.productId, quantity: Number(row.quantity) || 0 })),
+      };
+      return (
+        isEdit ? updateServiceAction(service.id, payload) : createServiceAction(payload)
+      ).then(unwrapResult);
+    },
     onSuccess: (saved) => {
       upsertInList(queryClient, ['services'], saved);
       toast.success(isEdit ? 'Serviço atualizado.' : 'Serviço criado.');
       queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['service-supplies'] });
+      setEditedSupplies(null);
       onOpenChange(false);
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível salvar.'),
   });
 
   return (
-    <Drawer direction="right" open={open} onOpenChange={onOpenChange}>
+    <Drawer
+      direction="right"
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setEditedSupplies(null);
+        onOpenChange(next);
+      }}
+    >
       <DrawerContent className="data-[vaul-drawer-direction=right]:w-full! data-[vaul-drawer-direction=right]:sm:w-3/4!">
         <DrawerHeader>
           <DrawerTitle>{isEdit ? 'Editar serviço' : 'Novo serviço'}</DrawerTitle>
@@ -211,6 +247,8 @@ export function ServiceDrawer({
                 </FormItem>
               )}
             />
+
+            <ServiceSuppliesField value={supplies} onChange={setEditedSupplies} />
 
             <FormField
               control={form.control}

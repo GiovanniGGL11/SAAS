@@ -17,6 +17,20 @@ export const serviceInput = z.object({
     .max(365, 'Até 365 dias')
     .nullable()
     .optional(),
+  /** Materiais do estoque que cada atendimento deste serviço consome (vazio = não consome). */
+  supplies: z
+    .array(
+      z.object({
+        productId: z.string().min(1).max(64),
+        quantity: z.coerce
+          .number({ message: 'Informe a quantidade' })
+          .int('Use um número inteiro')
+          .min(1, 'A quantidade mínima é 1')
+          .max(10000),
+      }),
+    )
+    .max(30)
+    .optional(),
 });
 export type ServiceFormInput = z.infer<typeof serviceInput>;
 

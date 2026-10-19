@@ -193,6 +193,7 @@ model Service {
   loyaltyRewardOf   LoyaltyProgram[]
   waitlistEntries   WaitlistEntry[]
   formTemplates     FormTemplateService[]
+  supplies          ServiceSupply[]
 
   @@index([companyId])
 }
@@ -345,6 +346,7 @@ model Product {
   movements        StockMovement[]
   appointmentSales AppointmentProduct[]
   purchaseItems    StockPurchaseItem[]
+  serviceSupplies  ServiceSupply[]
 
   @@unique([companyId, sku])
   @@index([companyId])
@@ -365,11 +367,14 @@ model StockMovement {
   type            StockMovementType
   quantity        Int
   reason          String?
+  /// Atendimento que consumiu (ou devolveu) este material: base do estorno.
+  appointmentId   String?
   createdByUserId String
   createdAt       DateTime          @default(now())
 
   @@index([companyId, productId])
   @@index([companyId, createdAt])
+  @@index([appointmentId])
 }
 
 // Line item for a product sold during an appointment (e.g. a shampoo sold
@@ -1456,4 +1461,19 @@ model CompanyAddOn {
   updatedAt         DateTime               @updatedAt
 
   @@unique([companyId, addOnId])
+}
+
+/// Material que um serviço consome do estoque a cada atendimento concluído.
+model ServiceSupply {
+  id        String  @id @default(cuid())
+  companyId String
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@unique([serviceId, productId])
+  @@index([companyId, serviceId])
+  @@index([productId])
 }

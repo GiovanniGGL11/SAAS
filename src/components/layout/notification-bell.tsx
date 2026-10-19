@@ -36,6 +36,10 @@ const ICONS: Record<NoticeKind, { icon: LucideIcon; className: string }> = {
   upcoming: { icon: ClockIcon, className: 'text-system-blue bg-system-blue/10' },
   unconfirmed: { icon: TriangleAlertIcon, className: 'text-system-indigo bg-system-indigo/10' },
   low_stock: { icon: PackageIcon, className: 'text-system-red bg-system-red/10' },
+  supply_shortage: {
+    icon: PackageIcon,
+    className: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
+  },
   birthday: { icon: CakeIcon, className: 'text-system-green bg-system-green/10' },
 };
 

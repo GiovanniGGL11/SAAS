@@ -75,7 +75,7 @@ export const navItems: NavItem[] = [
     adminOnly: true,
   },
   {
-    label: 'Marketing',
+    label: 'Cupons',
     href: '/campanhas',
     icon: TicketPercent,
     color: '#ff2d55',

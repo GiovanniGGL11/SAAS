@@ -13,6 +13,11 @@ import {
 import { serviceInput, setServiceActiveInput } from '@/lib/validations/service';
 import { serializeService } from '@/lib/serialize';
 import { recordAuditLog } from '@/server/data/audit';
+import {
+  assertSupplies,
+  listServiceSupplies,
+  setServiceSupplies,
+} from '@/server/data/service-supplies';
 
 export async function listServicesAction() {
   const { company } = await requireCurrentCompany();
@@ -25,7 +30,11 @@ export async function createServiceAction(input: unknown) {
     const parsed = serviceInput.parse(input);
     const { userId, company } = await requireCompanyAdmin();
 
-    const service = await createService(company.id, parsed);
+    const { supplies, ...fields } = parsed;
+    // Confere o estoque antes de criar o serviço (nada fica pela metade).
+    await assertSupplies(company.id, supplies ?? []);
+    const service = await createService(company.id, fields);
+    if (supplies?.length) await setServiceSupplies(company.id, service.id, supplies);
     await recordAuditLog({
       companyId: company.id,
       entityType: 'Service',
@@ -44,7 +53,11 @@ export async function updateServiceAction(rawId: unknown, input: unknown) {
     const parsed = serviceInput.parse(input);
     const { userId, company } = await requireCompanyAdmin();
 
-    const service = await updateService(company.id, id, parsed);
+    const { supplies, ...fields } = parsed;
+    await assertSupplies(company.id, supplies ?? []);
+    const service = await updateService(company.id, id, fields);
+    // `undefined` mantém a lista atual; lista vazia limpa (o serviço deixa de consumir estoque).
+    if (supplies !== undefined) await setServiceSupplies(company.id, service.id, supplies);
     await recordAuditLog({
       companyId: company.id,
       entityType: 'Service',
@@ -72,4 +85,11 @@ export async function setServiceActiveAction(input: unknown) {
       metadata: { source: 'app', active: parsed.active },
     });
   });
+}
+
+/** Materiais que o serviço consome, com o saldo atual de cada um. */
+export async function getServiceSuppliesAction(rawId: unknown) {
+  const id = parseId(rawId);
+  const { company } = await requireCurrentCompany();
+  return listServiceSupplies(company.id, id);
 }

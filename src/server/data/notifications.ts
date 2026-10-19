@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { addDays, calendarDateToUtc, formatTimeInTz, getTodayInTz } from '@/lib/time';
 import { listLowStockProducts } from '@/server/data/stock';
+import { listUpcomingSupplyShortages } from '@/server/data/service-supplies';
 
 /*
   Avisos do sino, calculados na hora (sem tabela): o navegador pergunta a cada minuto. Cada
@@ -16,6 +17,7 @@ export type NoticeKind =
   | 'upcoming'
   | 'unconfirmed'
   | 'low_stock'
+  | 'supply_shortage'
   | 'birthday';
 
 export type Notice = {
@@ -167,6 +169,21 @@ async function lowStock(companyId: string): Promise<Notice[]> {
   }));
 }
 
+/** Material que os atendimentos marcados dos próximos 7 dias vão pedir e o estoque não cobre. */
+async function supplyShortages(companyId: string, now: Date): Promise<Notice[]> {
+  const shortages = await listUpcomingSupplyShortages(companyId, {
+    from: now,
+    to: new Date(now.getTime() + 7 * 86_400_000),
+  });
+  return shortages.map((s) => ({
+    id: `supply:${s.productId}:${s.stock}:${s.needed}`,
+    kind: 'supply_shortage' as const,
+    title: 'Falta material para os próximos atendimentos',
+    body: `${s.name}: precisa de ${s.needed}, tem ${s.stock} em estoque`,
+    href: '/estoque',
+  }));
+}
+
 async function birthdays(companyId: string, timezone: string): Promise<Notice[]> {
   const today = getTodayInTz(timezone);
   // Aniversário é guardado como data à meia-noite UTC; comparar mês e dia no próprio banco.
@@ -192,12 +209,13 @@ export async function listNotices(
   timezone: string,
   now = new Date(),
 ): Promise<Notice[]> {
-  const [activity, soon, unconfirmed, stock, birthdayNotices] = await Promise.all([
+  const [activity, soon, unconfirmed, stock, shortages, birthdayNotices] = await Promise.all([
     clientActivity(companyId, timezone, now),
     upcoming(companyId, timezone, now),
     tomorrowUnconfirmed(companyId, timezone),
     lowStock(companyId),
+    supplyShortages(companyId, now),
     birthdays(companyId, timezone),
   ]);
-  return [...activity, ...soon, ...unconfirmed, ...stock, ...birthdayNotices];
+  return [...activity, ...soon, ...unconfirmed, ...stock, ...shortages, ...birthdayNotices];
 }

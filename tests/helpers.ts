@@ -63,6 +63,7 @@ export async function deleteTestCompany(companyId: string) {
   await prisma.paymentMethodFee.deleteMany({ where: { companyId } });
   await prisma.financeCategory.deleteMany({ where: { companyId } });
   await prisma.appointmentProduct.deleteMany({ where: { appointment: { companyId } } });
+  await prisma.serviceSupply.deleteMany({ where: { companyId } });
   await prisma.stockMovement.deleteMany({ where: { companyId } });
   await prisma.stockPurchase.deleteMany({ where: { companyId } });
   await prisma.product.deleteMany({ where: { companyId } });

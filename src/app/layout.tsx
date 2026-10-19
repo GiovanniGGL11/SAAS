@@ -35,7 +35,11 @@ export const metadata: Metadata = {
   applicationName: 'Atendafy',
   // iPhone: "Adicionar à Tela de Início" abre em tela cheia, com o ícone do app.
   appleWebApp: { capable: true, title: 'Atendafy', statusBarStyle: 'default' },
-  icons: { apple: '/icons/apple-touch-icon.png' },
+  // Declarar só `apple` fazia o Next descartar o src/app/icon.png (sem <link rel="icon"> no HTML).
+  icons: {
+    icon: [{ url: '/icon.png', type: 'image/png', sizes: '256x256' }],
+    apple: '/icons/apple-touch-icon.png',
+  },
 };
 
 // viewport-fit=cover lets the mobile tab bar sit above the iPhone home indicator via

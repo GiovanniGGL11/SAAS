@@ -224,7 +224,7 @@ function NewCampaignDialog({
           <label className="flex flex-col gap-1.5">
             <span className="font-medium">Cupom (opcional)</span>
             <Input
-              placeholder="Código de um cupom de Marketing → Cupons"
+              placeholder="Código de um cupom da aba Cupons"
               value={coupon}
               onChange={(e) => setCoupon(e.target.value.toUpperCase())}
               maxLength={40}

@@ -17,6 +17,7 @@ import { UserError } from '@/server/errors';
 import { addDays, calendarDateToUtc, utcToCalendarDate } from '@/lib/time';
 import { assertAppointmentFormsReady } from '@/server/data/forms';
 import { assertPackageForAppointment } from '@/server/data/package-sessions';
+import { consumeSuppliesForAppointment } from '@/server/data/service-supplies';
 
 export class AppointmentConflictError extends Error {
   constructor(reason: 'overlap' | 'blocked') {
@@ -387,6 +388,12 @@ export async function updateAppointmentStatus(params: {
     if (params.status === 'DONE') {
       await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
       await earnLoyaltyFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
+      await consumeSuppliesForAppointment(tx, {
+        companyId: params.companyId,
+        appointmentId: updated.id,
+        serviceId: updated.serviceId,
+        userId: params.updatedByUserId,
+      });
     } else if (before.status === 'DONE') {
       await reverseIncomeFromAppointment(params.companyId, params.id, tx, params.updatedByUserId);
       await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
@@ -770,6 +777,12 @@ export async function checkoutAppointment(params: CheckoutInput) {
       });
     }
     await earnLoyaltyFromAppointment(params.companyId, done, params.updatedByUserId, tx);
+    await consumeSuppliesForAppointment(tx, {
+      companyId: params.companyId,
+      appointmentId: done.id,
+      serviceId: done.serviceId,
+      userId: params.updatedByUserId,
+    });
     await recordAuditLog(
       {
         companyId: params.companyId,

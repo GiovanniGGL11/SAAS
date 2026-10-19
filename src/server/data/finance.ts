@@ -1,3 +1,4 @@
+import { restoreSuppliesForAppointment } from '@/server/data/service-supplies';
 import { Prisma as PrismaNamespace, type Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/db';
 import type {
@@ -377,6 +378,13 @@ export async function reverseIncomeFromAppointment(
     }
   }
   if (credits.length) await db.appointmentCredit.deleteMany({ where: { appointmentId } });
+
+  // Material que o serviço baixou do estoque volta (a conclusão foi desfeita ou cancelada).
+  await restoreSuppliesForAppointment(db as Prisma.TransactionClient, {
+    companyId,
+    appointmentId,
+    userId,
+  });
 
   // Serviço e gorjeta saem juntos; produto vendido continua (a mercadoria saiu).
   await db.transaction.updateMany({
