@@ -60,11 +60,13 @@ export async function createProposal(
   ctx: AssistantContext,
   action: AssistantAction,
   summary: Summary,
+  origin: 'assistant' | 'automation' = 'assistant',
 ): Promise<AssistantProposal> {
   const row = await prisma.aiActionProposal.create({
     data: {
       companyId: ctx.companyId,
       userId: ctx.userId,
+      origin,
       kind: action.kind,
       payload: action as unknown as Prisma.InputJsonValue,
       summary: summary as unknown as Prisma.InputJsonValue,
@@ -111,19 +113,22 @@ export async function confirmProposal(
     throw new AiAccessError('not_allowed', 'No modo "Sugerir" a IA não altera dados.');
   }
 
+  // Quem pediu aprova a própria proposta; administradores aprovam as de qualquer pessoa (e a
+  // execução usa as permissões de QUEM APROVA, conferidas de novo agora).
+  const owner = session.isAdmin ? {} : { userId: session.userId };
   const claimed = await prisma.aiActionProposal.updateMany({
     where: {
       id: proposalId,
       companyId: session.companyId,
-      userId: session.userId,
+      ...owner,
       status: 'AWAITING_APPROVAL',
       expiresAt: { gt: new Date() },
     },
-    data: { status: 'EXECUTING', decidedAt: new Date() },
+    data: { status: 'EXECUTING', decidedAt: new Date(), decidedByUserId: session.userId },
   });
   if (claimed.count === 0) {
     const row = await prisma.aiActionProposal.findFirst({
-      where: { id: proposalId, companyId: session.companyId, userId: session.userId },
+      where: { id: proposalId, companyId: session.companyId, ...owner },
     });
     if (!row) throw new UserError('Proposta não encontrada.');
     if (row.status === 'COMPLETED') {
@@ -141,6 +146,7 @@ export async function confirmProposal(
     }
     if (row.status === 'FAILED')
       throw new UserError(`Esta proposta já falhou: ${row.errorMessage ?? 'erro'}`);
+    if (row.status === 'REJECTED') throw new UserError('Esta proposta foi recusada.');
     throw new UserError('Esta proposta foi cancelada ou expirou.');
   }
 
@@ -185,7 +191,13 @@ export async function confirmProposal(
       entityId: row.id,
       action: 'status_changed',
       userId: session.userId,
-      metadata: { kind: action.kind, status: 'COMPLETED', source: 'assistant' },
+      metadata: {
+        kind: action.kind,
+        status: 'COMPLETED',
+        source: row.origin,
+        requestedBy: row.userId,
+        approvedBy: session.userId,
+      },
     });
     return {
       status: 'COMPLETED',
@@ -235,6 +247,7 @@ export async function cancelProposal(session: AiSession, proposalId: string) {
     data: {
       status: 'CANCELED',
       decidedAt: new Date(),
+      decidedByUserId: session.userId,
       ...(SENSITIVE_KINDS.has(row.kind as AssistantAction['kind'])
         ? {
             payload: { kind: row.kind, redacted: true },
@@ -259,4 +272,122 @@ export async function getProposals(session: AiSession, ids: string[]) {
         : row,
     ),
   );
+}
+
+// ---- Central de aprovações ---------------------------------------------------------------------
+
+/**
+ * Recusa (administrador ou quem pediu). Fica registrada com quem decidiu e o motivo. Recusar não
+ * desfaz nada porque nada foi executado.
+ */
+export async function rejectProposal(session: AiSession, proposalId: string, note?: string | null) {
+  const owner = session.isAdmin ? {} : { userId: session.userId };
+  const row = await prisma.aiActionProposal.findFirst({
+    where: { id: proposalId, companyId: session.companyId, ...owner },
+  });
+  if (!row) throw new UserError('Proposta não encontrada.');
+  const result = await prisma.aiActionProposal.updateMany({
+    where: { id: proposalId, status: 'AWAITING_APPROVAL' },
+    data: {
+      status: 'REJECTED',
+      decidedAt: new Date(),
+      decidedByUserId: session.userId,
+      decisionNote: note?.trim().slice(0, 500) || null,
+      ...(SENSITIVE_KINDS.has(row.kind as AssistantAction['kind'])
+        ? {
+            payload: { kind: row.kind, redacted: true },
+            summary: REDACTED_SUMMARY((row.summary as Summary).title),
+          }
+        : {}),
+    },
+  });
+  if (result.count === 0) throw new UserError('Esta proposta não está mais aguardando aprovação.');
+  await recordAuditLog({
+    companyId: session.companyId,
+    entityType: 'AiActionProposal',
+    entityId: proposalId,
+    action: 'rejected',
+    userId: session.userId,
+    metadata: { kind: row.kind, requestedBy: row.userId },
+  });
+}
+
+export type ApprovalItem = {
+  id: string;
+  kind: string;
+  origin: string;
+  requestedBy: string;
+  mine: boolean;
+  title: string;
+  details: { label: string; value: string }[];
+  status: string;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  decidedBy: string | null;
+  decisionNote: string | null;
+  resultMessage: string | null;
+  errorMessage: string | null;
+};
+
+/**
+ * Propostas para a Central: administradores veem as de toda a empresa; a equipe, as próprias.
+ * Pendentes vencidas aparecem como expiradas (e são marcadas no banco).
+ */
+export async function listApprovals(
+  session: AiSession,
+  filter: { pending?: boolean; limit?: number } = {},
+): Promise<ApprovalItem[]> {
+  const owner = session.isAdmin ? {} : { userId: session.userId };
+  const stale = await prisma.aiActionProposal.findMany({
+    where: {
+      companyId: session.companyId,
+      ...owner,
+      status: 'AWAITING_APPROVAL',
+      expiresAt: { lt: new Date() },
+    },
+    select: { id: true, kind: true },
+    take: 100,
+  });
+  for (const row of stale) await expire(row.id, row.kind);
+  const rows = await prisma.aiActionProposal.findMany({
+    where: {
+      companyId: session.companyId,
+      ...owner,
+      ...(filter.pending ? { status: 'AWAITING_APPROVAL' } : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(filter.limit ?? 50, 100),
+  });
+  return rows.map((row) => {
+    const summary = row.summary as Summary;
+    return {
+      id: row.id,
+      kind: row.kind,
+      origin: row.origin,
+      requestedBy: row.userId,
+      mine: row.userId === session.userId,
+      title: summary.title,
+      details: summary.details,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+      decidedAt: row.decidedAt?.toISOString() ?? null,
+      decidedBy: row.decidedByUserId,
+      decisionNote: row.decisionNote,
+      resultMessage: row.resultMessage,
+      errorMessage: row.errorMessage,
+    };
+  });
+}
+
+export async function countPendingApprovals(companyId: string, userId: string, isAdmin: boolean) {
+  return prisma.aiActionProposal.count({
+    where: {
+      companyId,
+      ...(isAdmin ? {} : { userId }),
+      status: 'AWAITING_APPROVAL',
+      expiresAt: { gt: new Date() },
+    },
+  });
 }

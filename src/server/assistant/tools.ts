@@ -40,6 +40,8 @@ export type AssistantContext = {
   isAdmin: boolean;
   /** Permissões de fichas da pessoa (para modelos e rascunhos). */
   formAccess?: FormAccess;
+  /** Preferências de linguagem do negócio (dado delimitado no prompt; nunca regra). */
+  languagePreferences?: string;
 };
 
 export type ToolOutcome = { response: Record<string, unknown>; proposal?: AssistantProposal };

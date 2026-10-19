@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { addDays, calendarDateToUtc, formatTimeInTz, getTodayInTz } from '@/lib/time';
 import { listLowStockProducts } from '@/server/data/stock';
 import { listUpcomingSupplyShortages } from '@/server/data/service-supplies';
+import { getPreferences } from '@/server/data/business-preferences';
 
 /*
   Avisos do sino, calculados na hora (sem tabela): o navegador pergunta a cada minuto. Cada
@@ -18,7 +19,10 @@ export type NoticeKind =
   | 'unconfirmed'
   | 'low_stock'
   | 'supply_shortage'
-  | 'birthday';
+  | 'birthday'
+  | 'approvals'
+  | 'tasks_due'
+  | 'quotes_waiting';
 
 export type Notice = {
   id: string;
@@ -204,18 +208,97 @@ async function birthdays(companyId: string, timezone: string): Promise<Notice[]>
   }));
 }
 
+/**
+ * Acompanhamento: propostas da IA aguardando (quem aprova vê as da equipe; os outros, as próprias),
+ * tarefas vencendo e orçamentos enviados há mais de 3 dias sem resposta. Cada um respeita as
+ * preferências de aviso.
+ */
+async function followUp(
+  companyId: string,
+  timezone: string,
+  now: Date,
+  viewer?: { userId: string; isAdmin: boolean },
+): Promise<Notice[]> {
+  const prefs = await getPreferences(companyId);
+  const endOfToday = calendarDateToUtc(addDays(getTodayInTz(timezone), 1), 0, timezone);
+  const [approvals, tasks, quotes] = await Promise.all([
+    prefs.notifyApprovals && viewer
+      ? prisma.aiActionProposal.count({
+          where: {
+            companyId,
+            status: 'AWAITING_APPROVAL',
+            expiresAt: { gt: now },
+            ...(viewer.isAdmin ? {} : { userId: viewer.userId }),
+          },
+        })
+      : 0,
+    prefs.notifyTasks
+      ? prisma.task.count({ where: { companyId, status: 'OPEN', dueAt: { lt: endOfToday } } })
+      : 0,
+    prefs.notifyQuotes
+      ? prisma.quote.count({
+          where: {
+            companyId,
+            status: 'SENT',
+            sentAt: { lt: new Date(now.getTime() - 3 * 86_400_000) },
+          },
+        })
+      : 0,
+  ]);
+  const notices: Notice[] = [];
+  if (approvals > 0) {
+    notices.push({
+      id: `approvals:${approvals}`,
+      kind: 'approvals',
+      title: 'Propostas aguardando aprovação',
+      body: `${approvals} ${approvals === 1 ? 'proposta' : 'propostas'} da IA esperando decisão`,
+      href: '/dashboard/aprovacoes',
+    });
+  }
+  if (tasks > 0) {
+    notices.push({
+      id: `tasks:${tasks}:${endOfToday.toISOString().slice(0, 10)}`,
+      kind: 'tasks_due',
+      title: 'Tarefas para hoje',
+      body: `${tasks} ${tasks === 1 ? 'tarefa vence' : 'tarefas vencem'} até hoje`,
+      href: '/dashboard#tarefas',
+    });
+  }
+  if (quotes > 0) {
+    notices.push({
+      id: `quotes:${quotes}`,
+      kind: 'quotes_waiting',
+      title: 'Orçamentos sem resposta',
+      body: `${quotes} ${quotes === 1 ? 'orçamento enviado' : 'orçamentos enviados'} há mais de 3 dias`,
+      href: '/clientes/orcamentos',
+    });
+  }
+  return notices;
+}
+
 export async function listNotices(
   companyId: string,
   timezone: string,
   now = new Date(),
+  viewer?: { userId: string; isAdmin: boolean },
 ): Promise<Notice[]> {
-  const [activity, soon, unconfirmed, stock, shortages, birthdayNotices] = await Promise.all([
-    clientActivity(companyId, timezone, now),
-    upcoming(companyId, timezone, now),
-    tomorrowUnconfirmed(companyId, timezone),
-    lowStock(companyId),
-    supplyShortages(companyId, now),
-    birthdays(companyId, timezone),
-  ]);
-  return [...activity, ...soon, ...unconfirmed, ...stock, ...shortages, ...birthdayNotices];
+  const [activity, soon, unconfirmed, stock, shortages, birthdayNotices, follow] =
+    await Promise.all([
+      clientActivity(companyId, timezone, now),
+      upcoming(companyId, timezone, now),
+      tomorrowUnconfirmed(companyId, timezone),
+      lowStock(companyId),
+      supplyShortages(companyId, now),
+      birthdays(companyId, timezone),
+      followUp(companyId, timezone, now, viewer).catch(() => []),
+    ]);
+  return [
+    ...activity,
+    ...soon,
+    ...follow,
+    ...unconfirmed,
+    ...stock,
+    ...shortages,
+    ...birthdayNotices,
+  ];
 }

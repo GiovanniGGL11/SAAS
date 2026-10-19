@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { csvSafe } from '@/lib/import';
 import { monthLabel, monthRange, shiftMonth, type MonthKey } from '@/lib/month';
 import { PAYMENT_METHODS } from '@/lib/validations/finance';
 
@@ -118,7 +119,11 @@ export async function exportMonthCsv(
   const date = (d: Date | null) =>
     d ? new Intl.DateTimeFormat('pt-BR', { timeZone: timezone }).format(d) : '';
   const money = (n: number) => n.toFixed(2).replace('.', ',');
-  const cell = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  // Texto vindo de cadastro pode começar com "=": sai neutralizado (nunca vira fórmula no Excel).
+  const cell = (raw: string) => {
+    const v = csvSafe(raw);
+    return /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  };
   const header = [
     'Data',
     'Tipo',

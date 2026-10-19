@@ -37,6 +37,7 @@ import { TransactionDrawer } from '@/components/financeiro/transaction-drawer';
 import {
   cancelTransactionAction,
   getCashFlowSummaryAction,
+  getSoldDueReceivedAction,
   listTransactionsAction,
   markTransactionPaidAction,
 } from '@/server/actions/finance-actions';
@@ -66,6 +67,11 @@ export function FinanceView() {
   const { data: summary } = useQuery({
     queryKey: ['cash-flow', preset],
     queryFn: () => getCashFlowSummaryAction({ preset }),
+  });
+
+  const { data: sdr } = useQuery({
+    queryKey: ['sold-due-received', preset],
+    queryFn: () => getSoldDueReceivedAction({ preset }),
   });
 
   const { data: transactions } = useQuery({
@@ -183,6 +189,32 @@ export function FinanceView() {
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-[120px] rounded-[22px]" />
           ))}
+        </div>
+      )}
+
+      {sdr && (
+        <div className="bg-tile grid grid-cols-3 gap-2 rounded-[22px] p-4 text-[13px]">
+          <div>
+            <div className="text-label-secondary">Vendido no período</div>
+            <div className="text-[17px] font-semibold tabular-nums">
+              {formatCurrencyBRL(sdr.sold)}
+            </div>
+          </div>
+          <div>
+            <div className="text-label-secondary">Recebido no período</div>
+            <div className="text-system-green text-[17px] font-semibold tabular-nums">
+              {formatCurrencyBRL(sdr.received)}
+            </div>
+          </div>
+          <div>
+            <div className="text-label-secondary">A receber hoje</div>
+            <div className="text-[17px] font-semibold tabular-nums">
+              {formatCurrencyBRL(sdr.due)}
+            </div>
+            {sdr.overdue > 0 && (
+              <div className="text-system-red">{formatCurrencyBRL(sdr.overdue)} vencido</div>
+            )}
+          </div>
         </div>
       )}
 

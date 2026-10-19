@@ -12,10 +12,11 @@ Referência para quem mantém o Atendafy. Valores comerciais são **provisórios
 | Franquia do teste grátis e plano-base do teste | `TRIAL_GRANT` |
 | Valor provisório só para desenvolvimento | `DEV_PROVISIONAL_AI_UNITS` (nunca vale em produção) |
 | Tolerância de atraso | `PAST_DUE_GRACE_DAYS` |
-| O que de IA está construído de fato | `AI_IMPLEMENTED` (voz, automações, execução automática e WhatsApp com IA estão `false`) |
+| O que de IA está construído de fato | `AI_IMPLEMENTED` (voz, automações com IA e WhatsApp com IA estão `false`; execução automática de rotinas autorizadas está `true`) |
+| Funcionalidades de gestão por plano (orçamentos, área do cliente, convites, importação, resumo do dia, rotinas, resultados, checklist, margem) | `FeatureKey` e as matrizes `ESSENTIAL_FEATURES` / `FULL_FEATURES` / `PRO_FEATURES` em `plans.ts`; conferidas no servidor por `src/server/billing/features.ts` |
 | Adicionais (WhatsApp com IA) | `ADD_ONS` |
 | Preço estimado do provedor (só para estimar custo) | `AI_PROVIDER_PRICING` |
-| Rotinas que podem receber execução automática | `AUTOMATABLE_TASKS` em `src/server/ai/autonomy.ts` (vazio hoje) |
+| Rotinas que podem receber execução automática | `AUTOMATABLE_TASKS` em `src/server/ai/autonomy.ts` (renovação de pacotes e lista de espera automática) |
 | Categorias sensíveis (nunca automáticas) | `SENSITIVE_CATEGORIES` em `src/server/ai/autonomy.ts` |
 
 A tela de planos, a página de assinatura, o assistente e as validações do servidor leem dessas mesmas constantes.
@@ -54,3 +55,7 @@ Permissão da pessoa (papel e permissões de fichas), saldo do mês e aprovaçã
 ## Pendências comerciais
 
 Preços definitivos, franquias por plano e do teste, liberação da contratação do Pro, preço e limites do adicional de WhatsApp com IA, e o destino dos assinantes do Rede.
+
+## Evolução operacional (orçamentos, portal, lista de espera, aprovações, rotinas)
+
+Detalhes por etapa, dependências e pendências: `docs/evolucao-operacional.md`.

@@ -15,7 +15,14 @@ import {
   buildAiSession,
 } from '@/server/ai/access';
 import { handleAssistantMessage } from '@/server/ai/assistant-service';
-import { cancelProposal, confirmProposal, getProposals } from '@/server/ai/proposals';
+import {
+  cancelProposal,
+  confirmProposal,
+  countPendingApprovals,
+  getProposals,
+  listApprovals,
+  rejectProposal,
+} from '@/server/ai/proposals';
 import { getUsageSummary } from '@/server/ai/quota';
 import { listAuthorizations, setAuthorizationStatus, setAutonomyMode } from '@/server/ai/autonomy';
 import { listAddOnStates } from '@/server/ai/addons';
@@ -142,4 +149,63 @@ export async function processVoiceCommandAction(formData: FormData) {
     void formData;
     throw new AiAccessError('not_implemented');
   });
+}
+
+// ---- Central de aprovações ---------------------------------------------------------------------
+
+/** Nome de quem pediu/decidiu (do Clerk). Falhar aqui não impede a lista. */
+async function userNames(ids: string[]): Promise<Record<string, string>> {
+  const unique = [...new Set(ids.filter((id) => id.startsWith('user_')))].slice(0, 100);
+  if (!unique.length) return {};
+  try {
+    const { clerkClient } = await import('@clerk/nextjs/server');
+    const client = await clerkClient();
+    const { data } = await client.users.getUserList({ userId: unique, limit: unique.length });
+    return Object.fromEntries(
+      data.map((u) => [
+        u.id,
+        [u.firstName, u.lastName].filter(Boolean).join(' ') ||
+          u.emailAddresses[0]?.emailAddress ||
+          'Pessoa da equipe',
+      ]),
+    );
+  } catch {
+    return {};
+  }
+}
+
+export async function listApprovalsAction(input: unknown) {
+  return toActionResult(async () => {
+    const { pending } = z.object({ pending: z.boolean().optional() }).parse(input ?? {});
+    const session = await aiSession();
+    const items = await listApprovals(session, { pending });
+    const names = await userNames(items.flatMap((i) => [i.requestedBy, i.decidedBy ?? '']));
+    return {
+      isAdmin: session.isAdmin,
+      items: items.map((i) => ({
+        ...i,
+        requestedByName: i.mine ? 'Você' : (names[i.requestedBy] ?? 'Pessoa da equipe'),
+        decidedByName: i.decidedBy
+          ? i.decidedBy === session.userId
+            ? 'Você'
+            : (names[i.decidedBy] ?? 'Pessoa da equipe')
+          : null,
+      })),
+    };
+  });
+}
+
+export async function rejectProposalAction(input: unknown) {
+  return toActionResult(async () => {
+    const { proposalId, note } = z
+      .object({ proposalId: z.string().min(1).max(64), note: z.string().max(500).nullish() })
+      .parse(input);
+    const session = await aiSession();
+    await rejectProposal(session, proposalId, note);
+  });
+}
+
+export async function countPendingApprovalsAction() {
+  const session = await requireCurrentCompany();
+  return countPendingApprovals(session.company.id, session.userId, isCompanyAdmin(session));
 }

@@ -93,8 +93,21 @@ function toServerHistory(entries: ChatEntry[]): AssistantChatMessage[] {
   });
 }
 
+/** Abre o assistente com um texto já escrito (ex.: "Corrigir" na Central de aprovações). */
+export const ASSISTANT_PREFILL_EVENT = 'atendafy:assistant-prefill';
+
 export function AssistantButton({ configured }: { configured: boolean }) {
   const [open, setOpen] = React.useState(false);
+  const [prefill, setPrefill] = React.useState<string | undefined>(undefined);
+  React.useEffect(() => {
+    const onPrefill = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: string }>).detail?.text;
+      setPrefill(typeof text === 'string' ? text.slice(0, 1000) : undefined);
+      setOpen(true);
+    };
+    window.addEventListener(ASSISTANT_PREFILL_EVENT, onPrefill);
+    return () => window.removeEventListener(ASSISTANT_PREFILL_EVENT, onPrefill);
+  }, []);
 
   return (
     <>
@@ -107,16 +120,23 @@ export function AssistantButton({ configured }: { configured: boolean }) {
       >
         <SparklesIcon className="size-[18px]" />
       </button>
-      <Drawer direction="right" open={open} onOpenChange={setOpen}>
+      <Drawer
+        direction="right"
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setPrefill(undefined);
+        }}
+      >
         <DrawerContent className="font-apple h-[88svh] md:h-auto">
-          {open && <AssistantPanel configured={configured} />}
+          {open && <AssistantPanel configured={configured} prefill={prefill} />}
         </DrawerContent>
       </Drawer>
     </>
   );
 }
 
-function AssistantPanel({ configured }: { configured: boolean }) {
+function AssistantPanel({ configured, prefill }: { configured: boolean; prefill?: string }) {
   const { data: status, isLoading } = useQuery({
     queryKey: ['ai-status'],
     queryFn: () => getAiStatusAction(),
@@ -158,17 +178,25 @@ function AssistantPanel({ configured }: { configured: boolean }) {
     );
   }
 
-  return <AssistantChat configured={configured} status={status} />;
+  return <AssistantChat configured={configured} status={status} prefill={prefill} />;
 }
 
 type Status = Awaited<ReturnType<typeof getAiStatusAction>>;
 
-function AssistantChat({ configured, status }: { configured: boolean; status: Status }) {
+function AssistantChat({
+  configured,
+  status,
+  prefill,
+}: {
+  configured: boolean;
+  status: Status;
+  prefill?: string;
+}) {
   const { orgId } = useAuth();
   const queryClient = useQueryClient();
   const key = storageKey(orgId);
   const [entries, setEntries] = React.useState<ChatEntry[]>(() => loadHistory(key));
-  const [draft, setDraft] = React.useState('');
+  const [draft, setDraft] = React.useState(prefill ?? '');
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => saveHistory(key, entries), [key, entries]);
@@ -267,6 +295,12 @@ function AssistantChat({ configured, status }: { configured: boolean; status: St
               {status.provisionalUnits ? ' (limite provisório de desenvolvimento)' : ''}
             </p>
           )}
+          <Link
+            href="/dashboard/aprovacoes"
+            className="text-system-blue mt-0.5 inline-block text-[12px] hover:underline"
+          >
+            Central de aprovações
+          </Link>
         </div>
         {entries.length > 0 && (
           <Button

@@ -21,7 +21,20 @@ export type AuditAction =
   | 'finalized'
   | 'amended'
   | 'signed'
-  | 'adjusted';
+  | 'adjusted'
+  // Orçamentos, lista de espera, aprovações, importação e rotinas automáticas.
+  | 'sent'
+  | 'approved'
+  | 'rejected'
+  | 'converted'
+  | 'offered'
+  | 'accepted'
+  | 'declined'
+  | 'expired'
+  | 'imported'
+  | 'paused'
+  | 'resumed'
+  | 'completed';
 
 export async function recordAuditLog(
   params: {

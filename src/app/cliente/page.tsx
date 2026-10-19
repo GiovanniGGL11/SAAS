@@ -6,6 +6,7 @@ import { isOnlineBookingEnabled } from '@/server/data/public-booking';
 import {
   PORTAL_COOKIE,
   getCompanyOfStaleToken,
+  getPortalExtras,
   getPortalOverview,
   getPortalSession,
 } from '@/server/data/client-portal';
@@ -29,9 +30,10 @@ export default async function ClientePage() {
     return <RequestAccess company={stale} expired={Boolean(stale)} />;
   }
 
-  const [overview, onlineBooking] = await Promise.all([
+  const [overview, onlineBooking, extras] = await Promise.all([
     getPortalOverview(session),
     isOnlineBookingEnabled(session.company.clerkOrgId),
+    getPortalExtras(session),
   ]);
 
   return (
@@ -44,6 +46,7 @@ export default async function ClientePage() {
         whatsapp: session.company.whatsapp,
       }}
       overview={overview}
+      extras={extras}
       onlineBooking={onlineBooking}
       today={getTodayInTz(session.company.timezone)}
     />

@@ -2,9 +2,12 @@
 
 import { useAuth } from '@clerk/nextjs';
 import { ImportClientsDialog } from '@/components/clientes/import-clients-dialog';
+import { ImportWizard } from '@/components/importacao/import-wizard';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRightIcon, PlusIcon, StarIcon, UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -62,6 +65,10 @@ export function ClientList({
   const [importOpen, setImportOpen] = React.useState(false);
   // Importar é de admin; a equipe só cadastra um por vez.
   const isAdmin = useAuth().orgRole === 'org:admin';
+  const planFeatures = usePlanFeatures();
+  const quotesEnabled = planFeatures.has('quotes');
+  // Profissional em diante: importação assistida (mapeamento, prévia, duplicados, relatório).
+  const assistedImport = planFeatures.has('assistedImport');
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<ClientFilter>(initialFilter);
   const lapsedSet = React.useMemo(() => new Set(lapsedIds), [lapsedIds]);
@@ -122,6 +129,11 @@ export function ClientList({
         description={`${counts.active} ${counts.active === 1 ? 'cliente ativo' : 'clientes ativos'} na sua base.`}
         actions={
           <>
+            {quotesEnabled && (
+              <Button variant="outline" asChild>
+                <Link href="/clientes/orcamentos">Orçamentos</Link>
+              </Button>
+            )}
             {isAdmin && (
               <Button variant="outline" onClick={() => setImportOpen(true)}>
                 Importar
@@ -251,7 +263,11 @@ export function ClientList({
       </Surface>
 
       <ClientDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
-      <ImportClientsDialog open={importOpen} onOpenChange={setImportOpen} />
+      {assistedImport ? (
+        <ImportWizard kind="clients" open={importOpen} onOpenChange={setImportOpen} />
+      ) : (
+        <ImportClientsDialog open={importOpen} onOpenChange={setImportOpen} />
+      )}
     </div>
   );
 }

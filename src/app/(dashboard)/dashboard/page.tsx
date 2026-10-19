@@ -34,6 +34,10 @@ import { TodayAgendaCard } from '@/components/dashboard/today-agenda-card';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { listAppointmentsInRange } from '@/server/data/appointments';
 import { addDays, getTodayInTz, startOfCalendarDateUtc } from '@/lib/time';
+import { hasFeature } from '@/server/billing/features';
+import { buildAiSession } from '@/server/ai/access';
+import { DailySummaryCard } from '@/components/dashboard/daily-summary-card';
+import { TasksCard } from '@/components/dashboard/tasks-card';
 
 function greetingFor(timezone: string, now: Date) {
   const hour = Number(
@@ -170,6 +174,16 @@ export default async function DashboardPage({
     />
   );
 
+  // Resumo do dia (Profissional em diante) e tarefas de acompanhamento: para toda a equipe.
+  const aiAvailable = buildAiSession({ company, userId: session.userId, isAdmin }).entitlements.ai
+    .available.assistant;
+  const followUp = (
+    <div className="grid grid-cols-1 items-start gap-4 md:gap-5 lg:grid-cols-2">
+      <TasksCard />
+      {hasFeature(company, 'dailySummary') && <DailySummaryCard aiAvailable={aiAvailable} />}
+    </div>
+  );
+
   // A equipe vê o dia de trabalho; números de dinheiro e gestão ficam com o dono.
   if (!isAdmin) {
     return (
@@ -184,6 +198,7 @@ export default async function DashboardPage({
           <AttentionCard overview={overview} isAdmin={false} />
           {agendaCard}
         </div>
+        {followUp}
         {returnsCard}
       </div>
     );
@@ -249,6 +264,8 @@ export default async function DashboardPage({
           totalDays={month.totalDays}
         />
       </div>
+
+      {followUp}
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
         <div>

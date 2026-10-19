@@ -26,6 +26,7 @@
   --color-system-green: var(--system-green);
   --color-system-indigo: var(--system-indigo);
   --color-system-red: var(--system-red);
+  --color-system-orange: var(--system-orange);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -87,6 +88,7 @@
   --system-green: #34c759;
   --system-indigo: #5856d6;
   --system-red: #ff3b30;
+  --system-orange: #ff9500;
   --radius: 0.75rem;
   --sidebar: #f5f5f7;
   --sidebar-foreground: oklch(0.145 0 0);
@@ -132,6 +134,7 @@
   --system-green: #30d158;
   --system-indigo: #5e5ce6;
   --system-red: #ff453a;
+  --system-orange: #ff9f0a;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: #0a84ff;

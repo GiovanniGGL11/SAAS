@@ -34,6 +34,7 @@ import {
   saveTemplate,
   setTemplateArchived,
   submitEntry,
+  setEntryReleasedToClient,
 } from '@/server/data/forms';
 
 /*
@@ -232,6 +233,15 @@ export async function submitEntryAction(input: unknown) {
       .parse(input);
     const { company, access } = await requireFormAccess();
     return submitEntry(company.id, access, parsed.id, parsed.answers, parsed);
+  });
+}
+
+/** Liberar (ou recolher) a ficha enviada para o cliente ver na área do cliente. */
+export async function setEntryReleasedAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = z.object({ id, released: z.boolean() }).parse(input);
+    const { company, access } = await requireFormAccess();
+    await setEntryReleasedToClient(company.id, access, parsed.id, parsed.released);
   });
 }
 

@@ -69,6 +69,11 @@ export type CreatePackageInput = {
    * de atendimentos, nem assinaturas, nem lançamentos para o passado — só o saldo de partida.
    */
   opening?: { sessionsDone: number; paidAmount: number } | null;
+  /**
+   * Roda dentro da mesma transação, depois de criar o pacote (ex.: marcar o orçamento como
+   * convertido). Se lançar, nada é gravado — nem o pacote.
+   */
+  afterCreate?: (tx: Prisma.TransactionClient, pkg: { id: string }) => Promise<void>;
 };
 
 async function assertTemplate(db: Db, companyId: string, id: string | null | undefined) {
@@ -180,6 +185,8 @@ export async function createClientPackage(input: CreatePackageInput) {
         },
       });
     }
+
+    if (input.afterCreate) await input.afterCreate(tx, pkg);
 
     const description = `${pkg.nameSnapshot} — ${client.name}`;
     const charge = (amount: Prisma.Decimal, payment: { method: PaymentMethod } | { tab: true }) =>

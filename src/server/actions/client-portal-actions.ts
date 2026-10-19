@@ -14,6 +14,9 @@ import { rateLimit } from '@/server/rate-limit';
 import { isOnlineBookingEnabled } from '@/server/data/public-booking';
 import {
   PORTAL_COOKIE,
+  assertPortalFeature,
+  getPortalExtras,
+  updateOwnProfile,
   cancelOwnAppointment,
   confirmOwnAppointment,
   createPortalToken,
@@ -21,6 +24,9 @@ import {
   listRescheduleSlots,
   rescheduleOwnAppointment,
 } from '@/server/data/client-portal';
+import { createPortalFormLink, getReleasedDocument } from '@/server/data/forms';
+import { respondQuoteFromPortal } from '@/server/data/quotes';
+import { respondWaitlistOffer } from '@/server/data/waitlist';
 
 const dateSchema = z.object({
   year: z.number().int(),
@@ -120,4 +126,99 @@ export async function rescheduleMyAppointmentAction(input: unknown) {
 /** "Sair deste aparelho": apaga só o cookie; o link continua valendo para abrir de novo. */
 export async function signOutPortalAction() {
   (await cookies()).delete(PORTAL_COOKIE);
+}
+
+// ---- Área do cliente ampliada (plano Profissional em diante) --------------------------------
+
+export async function getMyPortalExtrasAction() {
+  return toActionResult(async () => {
+    const session = await requirePortalSession();
+    return getPortalExtras(session);
+  });
+}
+
+/** Abre uma ficha pedida: devolve o link curto de preenchimento (mesmas regras do link da ficha). */
+export async function openMyFormAction(rawId: unknown) {
+  return toActionResult(async () => {
+    const id = idSchema.parse(rawId);
+    const session = await requirePortalSession();
+    await assertPortalFeature(session);
+    const { token } = await createPortalFormLink(session.company.id, session.id, id);
+    return { url: `/ficha/${token}` };
+  });
+}
+
+export async function getMyDocumentAction(rawId: unknown) {
+  return toActionResult(async () => {
+    const id = idSchema.parse(rawId);
+    const session = await requirePortalSession();
+    await assertPortalFeature(session);
+    return getReleasedDocument(session.company.id, session.id, id);
+  });
+}
+
+export async function respondMyQuoteAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = z
+      .discriminatedUnion('approve', [
+        z.object({
+          id: idSchema,
+          approve: z.literal(true),
+          version: z.number().int().min(1),
+          contentHash: z.string().length(64),
+        }),
+        z.object({
+          id: idSchema,
+          approve: z.literal(false),
+          reason: z.string().max(500).optional(),
+        }),
+      ])
+      .parse(input);
+    const session = await requirePortalSession();
+    await assertPortalFeature(session);
+    const { id, ...answer } = parsed;
+    await respondQuoteFromPortal(session, id, answer);
+    revalidatePath('/cliente');
+    return { ok: true };
+  });
+}
+
+export async function respondMyOfferAction(input: unknown) {
+  return toActionResult(async () => {
+    const { id, accept } = z.object({ id: idSchema, accept: z.boolean() }).parse(input);
+    const session = await requirePortalSession();
+    await assertPortalFeature(session);
+    const result = await respondWaitlistOffer({
+      companyId: session.company.id,
+      offerId: id,
+      accept,
+      actorUserId: 'client-portal',
+      clientId: session.id,
+    });
+    if (result.appointmentId) changed(session.company.id, result.appointmentId);
+    return result;
+  });
+}
+
+const optionalText = (max: number) => z.string().max(max).nullish();
+
+export async function updateMyProfileAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = z
+      .object({
+        email: optionalText(200),
+        birthDate: optionalText(10),
+        zipCode: optionalText(9),
+        street: optionalText(200),
+        number: optionalText(20),
+        complement: optionalText(100),
+        district: optionalText(100),
+        city: optionalText(100),
+        state: optionalText(2),
+      })
+      .parse(input);
+    const session = await requirePortalSession();
+    await updateOwnProfile(session, parsed);
+    return { ok: true };
+  });
 }

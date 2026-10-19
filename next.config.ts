@@ -6,7 +6,14 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.*.*', '10.*.*.*'],
   // Link da ficha: respostas sensíveis — nada em cache, nada em buscador, sem Referer.
   async headers() {
+    const privateLink = [
+      { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+      { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+      { key: 'Referrer-Policy', value: 'no-referrer' },
+    ];
     return [
+      // Orçamento enviado ao cliente: mesmo cuidado do link da ficha.
+      { source: '/orcamento/:token*', headers: privateLink },
       {
         source: '/ficha/:token*',
         headers: [

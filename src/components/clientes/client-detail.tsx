@@ -41,12 +41,15 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { ClientFormsTab } from '@/components/fichas/client-forms-tab';
 import { ClientPackagesTab } from '@/components/pacotes/client-packages-tab';
 import { ClientSessionsTab } from '@/components/pacotes/client-sessions-tab';
+import { QuotesView } from '@/components/orcamentos/quotes-view';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 
 const TABS = [
   { value: 'resumo', label: 'Resumo' },
   { value: 'fichas', label: 'Fichas e formulários' },
   { value: 'pacotes', label: 'Pacotes e tratamentos' },
   { value: 'sessoes', label: 'Histórico das sessões' },
+  { value: 'orcamentos', label: 'Orçamentos' },
 ] as const;
 type Tab = (typeof TABS)[number]['value'];
 
@@ -76,6 +79,8 @@ export function ClientDetail({
     window.history.replaceState(null, '', url);
   }
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  // Orçamentos só aparecem no plano que inclui (o servidor confere de novo).
+  const quotesEnabled = usePlanFeatures().has('quotes');
 
   const { data } = useQuery({
     queryKey: ['client-detail', clientId],
@@ -216,7 +221,10 @@ export function ClientDetail({
         className="self-start"
         value={tab}
         onValueChange={changeTab}
-        options={TABS.map((t) => ({ value: t.value, label: t.label }))}
+        options={TABS.filter((t) => t.value !== 'orcamentos' || quotesEnabled).map((t) => ({
+          value: t.value,
+          label: t.label,
+        }))}
       />
 
       {tab === 'fichas' && (
@@ -224,6 +232,9 @@ export function ClientDetail({
       )}
       {tab === 'pacotes' && <ClientPackagesTab clientId={clientId} timezone={timezone} />}
       {tab === 'sessoes' && <ClientSessionsTab clientId={clientId} timezone={timezone} />}
+      {tab === 'orcamentos' && quotesEnabled && (
+        <QuotesView timezone={timezone} clientId={clientId} clientName={client.name} />
+      )}
 
       {tab === 'resumo' && (
         <>

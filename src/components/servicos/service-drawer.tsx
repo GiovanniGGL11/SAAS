@@ -36,6 +36,7 @@ import {
 } from '@/server/actions/service-actions';
 import { ServiceSuppliesField, type SupplyRow } from '@/components/servicos/service-supplies-field';
 import { serviceInput, type ServiceFormInput } from '@/lib/validations/service';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 import type { SerializedService } from '@/lib/serialize';
 
 export function ServiceDrawer({
@@ -71,6 +72,10 @@ export function ServiceDrawer({
     enabled: open && isEdit,
   });
   const [editedSupplies, setEditedSupplies] = React.useState<SupplyRow[] | null>(null);
+  // Checklist: um item por linha; `null` = a pessoa não mexeu (ao editar, mantém o atual).
+  const { has } = usePlanFeatures();
+  const [editedChecklist, setEditedChecklist] = React.useState<string | null>(null);
+  const checklistText = editedChecklist ?? (service?.checklistItems ?? []).join('\n');
   const supplies: SupplyRow[] =
     editedSupplies ??
     (savedSupplies ?? []).map((s) => ({ productId: s.productId, quantity: s.quantity }));
@@ -86,6 +91,17 @@ export function ServiceDrawer({
             : supplies
                 .filter((row) => row.productId)
                 .map((row) => ({ productId: row.productId, quantity: Number(row.quantity) || 0 })),
+        checklistItems:
+          editedChecklist === null
+            ? undefined
+            : [
+                ...new Set(
+                  editedChecklist
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean),
+                ),
+              ],
       };
       return (
         isEdit ? updateServiceAction(service.id, payload) : createServiceAction(payload)
@@ -97,6 +113,7 @@ export function ServiceDrawer({
       queryClient.invalidateQueries({ queryKey: ['services'] });
       queryClient.invalidateQueries({ queryKey: ['service-supplies'] });
       setEditedSupplies(null);
+      setEditedChecklist(null);
       onOpenChange(false);
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível salvar.'),
@@ -107,7 +124,10 @@ export function ServiceDrawer({
       direction="right"
       open={open}
       onOpenChange={(next) => {
-        if (!next) setEditedSupplies(null);
+        if (!next) {
+          setEditedSupplies(null);
+          setEditedChecklist(null);
+        }
         onOpenChange(next);
       }}
     >
@@ -249,6 +269,21 @@ export function ServiceDrawer({
             />
 
             <ServiceSuppliesField value={supplies} onChange={setEditedSupplies} />
+
+            {has('checklists') && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Checklist do atendimento</span>
+                <span className="text-label-secondary text-[12px]">
+                  Um item por linha. Aparece na Visão do atendimento para a equipe conferir.
+                </span>
+                <Textarea
+                  rows={3}
+                  value={checklistText}
+                  placeholder={'Ex.: Conferir alergias\nHigienizar equipamento'}
+                  onChange={(e) => setEditedChecklist(e.target.value)}
+                />
+              </label>
+            )}
 
             <FormField
               control={form.control}

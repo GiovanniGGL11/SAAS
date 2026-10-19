@@ -97,6 +97,13 @@ model Company {
   aiActionProposals         AiActionProposal[]
   aiTaskAuthorizations      AiTaskAuthorization[]
   addOns                    CompanyAddOn[]
+  quotes                    Quote[]
+  tasks                     Task[]
+  waitlistOffers            WaitlistOffer[]
+  preferences               BusinessPreferences?
+  importBatches             ImportBatch[]
+  automationRuns            AutomationRun[]
+  dailySummaries            DailySummary[]
 }
 
 model WebhookEvent {
@@ -186,6 +193,8 @@ model Service {
   commissionPercent Float?
   // Retorno sugerido: em quantos dias o cliente costuma refazer este serviço. Vazio = sem sugestão.
   returnAfterDays   Int?
+  /// Checklist do atendimento (itens conferidos na Visão do atendimento). Vazio = sem checklist.
+  checklistItems    String[]              @default([])
   appointmentItems  AppointmentItem[]
   packagePlans      PackagePlan[]
   clientPackages    ClientPackage[]
@@ -237,6 +246,8 @@ model Client {
   campaignSends   CampaignRecipient[]
   formEntries     FormEntry[]
   sessionRecords  SessionRecord[]
+  quotes          Quote[]
+  tasks           Task[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -305,6 +316,9 @@ model Appointment {
   formEntries      FormEntry[]
   sessionRecord    SessionRecord?
   packageMovements PackageMovement[]
+  /// Itens do checklist do serviço já conferidos neste atendimento (pelo texto do item).
+  checklistChecked String[]              @default([])
+  waitlistOffer    WaitlistOffer?
 
   @@index([companyId, startAt])
   @@index([companyId, professionalId, startAt])
@@ -677,29 +691,200 @@ enum WaitlistStatus {
   WAITING
   FULFILLED
   CANCELED
+  /// O interesse venceu (validUntil) sem vaga.
+  EXPIRED
+}
+
+/// Canal que o cliente autorizou para ser chamado.
+enum ContactChannel {
+  WHATSAPP
+  PHONE
+  EMAIL
+  NONE
 }
 
 /// Cliente esperando uma vaga num dia que estava cheio. A equipe avisa quando alguém cancela.
 model WaitlistEntry {
-  id              String         @id @default(cuid())
-  companyId       String
-  company         Company        @relation(fields: [companyId], references: [id])
-  clientId        String
-  client          Client         @relation(fields: [clientId], references: [id])
-  serviceId       String
-  service         Service        @relation(fields: [serviceId], references: [id])
+  id                      String          @id @default(cuid())
+  companyId               String
+  company                 Company         @relation(fields: [companyId], references: [id])
+  clientId                String
+  client                  Client          @relation(fields: [clientId], references: [id])
+  serviceId               String
+  service                 Service         @relation(fields: [serviceId], references: [id])
   /// Opcional: quando o cliente só quer um profissional específico.
-  professionalId  String?
-  professional    Professional?  @relation(fields: [professionalId], references: [id])
-  /// Dia desejado (AAAA-MM-DD) no fuso da empresa.
-  desiredDate     String         @db.VarChar(10)
-  notes           String?
-  status          WaitlistStatus @default(WAITING)
-  createdByUserId String
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  professionalId          String?
+  professional            Professional?   @relation(fields: [professionalId], references: [id])
+  /// Dia desejado (AAAA-MM-DD) no fuso da empresa. Vazio = qualquer dia dentro das preferências.
+  desiredDate             String?         @db.VarChar(10)
+  /// Profissionais aceitos (vazio = o de professionalId, ou qualquer um).
+  acceptedProfessionalIds String[]        @default([])
+  /// Dias da semana aceitos (0 = domingo). Vazio = qualquer dia.
+  weekdays                Int[]           @default([])
+  /// Faixa de horário aceita, em minutos desde a meia-noite (vazio = o dia todo).
+  timeFrom                Int?
+  timeTo                  Int?
+  /// Até quando o interesse vale.
+  validUntil              DateTime?
+  contactChannel          ContactChannel  @default(WHATSAPP)
+  notes                   String?
+  status                  WaitlistStatus  @default(WAITING)
+  createdByUserId         String
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  offers                  WaitlistOffer[]
 
   @@index([companyId, status, desiredDate])
+}
+
+enum WaitlistOfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELED
+}
+
+/// Convite de uma vaga para alguém da lista de espera: segura o horário até expiresAt. Só um
+/// convite pendente por horário; aceitar revalida a agenda e cria o agendamento uma vez.
+model WaitlistOffer {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  entryId         String
+  entry           WaitlistEntry       @relation(fields: [entryId], references: [id])
+  professionalId  String
+  serviceId       String
+  startAt         DateTime
+  endAt           DateTime
+  status          WaitlistOfferStatus @default(PENDING)
+  /// Prazo de resposta (o horário fica segurado até aqui).
+  expiresAt       DateTime
+  appointmentId   String?             @unique
+  appointment     Appointment?        @relation(fields: [appointmentId], references: [id])
+  /// manual | automation
+  origin          String              @default("manual")
+  createdByUserId String
+  respondedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([companyId, status, expiresAt])
+  @@index([companyId, professionalId, startAt])
+  @@index([entryId])
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELED
+}
+
+/// Orçamento. O conteúdo fica nas versões: mudar algo depois de enviado cria versão nova, e a
+/// aprovação vale só para a versão (e o hash) aprovada. Aprovar não é pagar.
+model Quote {
+  id                        String         @id @default(cuid())
+  companyId                 String
+  company                   Company        @relation(fields: [companyId], references: [id])
+  clientId                  String
+  client                    Client         @relation(fields: [clientId], references: [id])
+  /// Número sequencial por empresa (mostrado como #12).
+  number                    Int
+  title                     String
+  status                    QuoteStatus    @default(DRAFT)
+  currentVersion            Int            @default(1)
+  responsibleProfessionalId String?
+  approvedVersion           Int?
+  approvedHash              String?
+  approvedAt                DateTime?
+  /// staff | client_link | client_portal
+  approvedVia               String?
+  approvedByUserId          String?
+  approvalNote              String?
+  rejectedAt                DateTime?
+  rejectionReason           String?
+  sentAt                    DateTime?
+  /// Link protegido: a versão entra na assinatura; subir revoga os links enviados.
+  shareVersion              Int            @default(0)
+  shareExpiresAt            DateTime?
+  /// Conversão (uma vez só): pacote ou venda criada a partir da versão aprovada.
+  convertedAt               DateTime?
+  convertedKind             String?
+  convertedRefId            String?
+  convertedByUserId         String?
+  /// manual | ai
+  origin                    String         @default("manual")
+  createdByUserId           String
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  versions                  QuoteVersion[]
+  tasks                     Task[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, clientId])
+}
+
+model QuoteVersion {
+  id              String    @id @default(cuid())
+  companyId       String
+  quoteId         String
+  quote           Quote     @relation(fields: [quoteId], references: [id])
+  version         Int
+  /// Itens: [{ kind, refId, description, quantity, sessions, unitPrice, discount }]
+  items           Json
+  subtotal        Decimal   @db.Decimal(10, 2)
+  discount        Decimal   @db.Decimal(10, 2)
+  total           Decimal   @db.Decimal(10, 2)
+  paymentTerms    String?
+  notes           String?
+  validUntil      DateTime?
+  contentHash     String
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+
+  @@unique([quoteId, version])
+  @@index([companyId])
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+  CANCELED
+}
+
+/// Tarefa de acompanhamento (retornar um orçamento, renovar um pacote...). Rotinas automáticas
+/// usam dedupeKey para nunca criar a mesma tarefa duas vezes.
+model Task {
+  id                String     @id @default(cuid())
+  companyId         String
+  company           Company    @relation(fields: [companyId], references: [id])
+  title             String
+  details           String?
+  dueAt             DateTime?
+  status            TaskStatus @default(OPEN)
+  clientId          String?
+  client            Client?    @relation(fields: [clientId], references: [id])
+  quoteId           String?
+  quote             Quote?     @relation(fields: [quoteId], references: [id])
+  clientPackageId   String?
+  appointmentId     String?
+  /// manual | ai | automation:<rotina>
+  origin            String     @default("manual")
+  dedupeKey         String?
+  assignedUserId    String?
+  createdByUserId   String
+  completedAt       DateTime?
+  completedByUserId String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@unique([companyId, dedupeKey])
+  @@index([companyId, status, dueAt])
+  @@index([companyId, clientId])
 }
 
 /// Vale/adiantamento pago ao profissional; é descontado no próximo fechamento de comissão.
@@ -1015,41 +1200,43 @@ model FormTemplateService {
 /// Um preenchimento (ou pedido de preenchimento) de um cliente. Respostas enviadas nunca são
 /// sobrescritas em silêncio: cada envio fica em FormEntryRevision.
 model FormEntry {
-  id                String              @id @default(cuid())
-  companyId         String
-  company           Company             @relation(fields: [companyId], references: [id])
-  clientId          String
-  client            Client              @relation(fields: [clientId], references: [id])
-  templateId        String
-  template          FormTemplate        @relation(fields: [templateId], references: [id])
-  versionId         String
-  version           FormTemplateVersion @relation(fields: [versionId], references: [id])
-  status            FormEntryStatus     @default(REQUESTED)
-  appointmentId     String?
-  appointment       Appointment?        @relation(fields: [appointmentId], references: [id])
-  clientPackageId   String?
-  clientPackage     ClientPackage?      @relation(fields: [clientPackageId], references: [id])
-  sessionRecordId   String?
-  sessionRecord     SessionRecord?      @relation(fields: [sessionRecordId], references: [id])
+  id                 String              @id @default(cuid())
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id])
+  clientId           String
+  client             Client              @relation(fields: [clientId], references: [id])
+  templateId         String
+  template           FormTemplate        @relation(fields: [templateId], references: [id])
+  versionId          String
+  version            FormTemplateVersion @relation(fields: [versionId], references: [id])
+  status             FormEntryStatus     @default(REQUESTED)
+  appointmentId      String?
+  appointment        Appointment?        @relation(fields: [appointmentId], references: [id])
+  clientPackageId    String?
+  clientPackage      ClientPackage?      @relation(fields: [clientPackageId], references: [id])
+  sessionRecordId    String?
+  sessionRecord      SessionRecord?      @relation(fields: [sessionRecordId], references: [id])
   /// Respostas atuais (rascunho ou enviadas), por id estável de pergunta.
-  answers           Json?
+  answers            Json?
   /// Atualização iniciada com as respostas de uma ficha anterior: precisa ser conferida.
-  copiedFromEntryId String?
-  filledBy          FormFilledBy?
-  filledByUserId    String?
-  submittedAt       DateTime?
-  reviewedAt        DateTime?
-  reviewedByUserId  String?
+  copiedFromEntryId  String?
+  filledBy           FormFilledBy?
+  filledByUserId     String?
+  submittedAt        DateTime?
+  reviewedAt         DateTime?
+  reviewedByUserId   String?
   /// Observação interna da revisão: nunca aparece para o cliente.
-  reviewNotes       String?
-  revision          Int                 @default(0)
+  reviewNotes        String?
+  revision           Int                 @default(0)
+  /// Liberada para o cliente ver na área do cliente (só o que a equipe liberar).
+  releasedToClientAt DateTime?
   /// Evita pedidos repetidos (recarregar a página, vários serviços pedindo o mesmo modelo).
-  requestKey        String?             @unique
-  createdByUserId   String
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  revisions         FormEntryRevision[]
-  accessTokens      FormAccessToken[]
+  requestKey         String?             @unique
+  createdByUserId    String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  revisions          FormEntryRevision[]
+  accessTokens       FormAccessToken[]
 
   @@index([companyId, clientId])
   @@index([companyId, status])
@@ -1374,6 +1561,8 @@ enum AiProposalStatus {
   FAILED
   CANCELED
   EXPIRED
+  /// Recusada por quem aprova (na Central de aprovações).
+  REJECTED
 }
 
 /// Alteração preparada pela IA. Só executa a partir daqui (nunca do que o navegador mandar), uma
@@ -1395,6 +1584,9 @@ model AiActionProposal {
   authorizationId String?
   resultMessage   String?
   errorMessage    String?
+  /// Quem aprovou, recusou ou cancelou (pode ser um administrador, não quem pediu).
+  decidedByUserId String?
+  decisionNote    String?
   expiresAt       DateTime
   decidedAt       DateTime?
   executedAt      DateTime?
@@ -1476,4 +1668,112 @@ model ServiceSupply {
   @@unique([serviceId, productId])
   @@index([companyId, serviceId])
   @@index([productId])
+}
+
+/// Preferências do negócio. Três coisas que não se misturam:
+/// - linguagem (tom, observações): só orientam o texto da IA, nunca liberam nada;
+/// - regras aplicadas no servidor (limite de desconto, horário de contato, gasto automático);
+/// - permissões de acesso continuam nos papéis da organização e nas permissões de fichas.
+model BusinessPreferences {
+  companyId           String    @id
+  company             Company   @relation(fields: [companyId], references: [id])
+  /// cordial | formal | descontraido
+  tone                String    @default("cordial")
+  /// Observações de linguagem para a IA (texto livre, tratado como dado).
+  languageNotes       String?
+  /// Quando chamar uma pessoa da equipe em vez de seguir (texto para a IA e lista de casos).
+  escalationNotes     String?
+  escalateOnComplaint Boolean   @default(true)
+  escalateOnHealth    Boolean   @default(true)
+  /// Janela de contato com clientes (minutos desde a meia-noite, fuso da empresa) e dias (0 = dom).
+  contactStartMinutes Int       @default(480)
+  contactEndMinutes   Int       @default(1200)
+  contactWeekdays     Int[]     @default([1, 2, 3, 4, 5, 6])
+  /// Desconto máximo em orçamentos (%). Vazio = sem limite.
+  maxDiscountPercent  Int?
+  /// Ações da IA com valor acima disto sempre pedem aprovação, mesmo em rotina autorizada (centavos).
+  approvalAboveCents  Int?
+  /// Teto mensal de unidades de IA para rotinas automáticas (dentro da franquia). Vazio = sem rotinas com IA.
+  autoSpendLimitUnits Int?
+  /// Resumo do dia: gerar sozinho (Pro) e a hora local.
+  dailySummaryAuto    Boolean   @default(false)
+  dailySummaryHour    Int       @default(7)
+  /// Avisos no sino.
+  notifyQuotes        Boolean   @default(true)
+  notifyTasks         Boolean   @default(true)
+  notifyApprovals     Boolean   @default(true)
+  /// Pausa das ações automáticas: geral e por rotina. O uso manual continua normal.
+  automationsPaused   Boolean   @default(false)
+  pausedRoutines      String[]  @default([])
+  pausedAt            DateTime?
+  pausedByUserId      String?
+  updatedByUserId     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+/// Importação assistida (clientes ou produtos). O arquivo não é guardado: só o hash (para repetir
+/// sem duplicar) e o relatório por linha, sem os valores das linhas.
+model ImportBatch {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  /// clients | products
+  kind            String
+  fileHash        String
+  /// Mapeamento de colunas e modo de duplicados usados (hash).
+  optionsHash     String
+  fileName        String?
+  /// RUNNING | DONE | PARTIAL | FAILED
+  status          String
+  totalRows       Int
+  created         Int       @default(0)
+  updated         Int       @default(0)
+  skipped         Int       @default(0)
+  failed          Int       @default(0)
+  /// [{ row, outcome, message }]
+  report          Json?
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  @@unique([companyId, kind, fileHash, optionsHash])
+  @@index([companyId, createdAt])
+}
+
+/// Uma execução de rotina automática (renovação de pacotes, lista de espera, resumo do dia).
+model AutomationRun {
+  id         String    @id @default(cuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  /// package_renewal | waitlist_auto | daily_summary
+  routine    String
+  /// cron | manual
+  trigger    String
+  /// RUNNING | COMPLETED | PARTIAL | FAILED | SKIPPED
+  status     String
+  /// Contagens verificáveis do que a rotina fez (tarefas, orçamentos, convites, pulados, falhas).
+  stats      Json?
+  /// Motivo de ter sido pulada (pausada, fora do plano, sem saldo) ou do erro.
+  note       String?
+  aiUnits    Int       @default(0)
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([companyId, routine, startedAt])
+}
+
+/// Resumo do dia (cálculo determinístico; a IA só explica, quando pedida).
+model DailySummary {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  /// AAAA-MM-DD no fuso da empresa.
+  date        String   @db.VarChar(10)
+  content     Json
+  /// manual | cron
+  trigger     String
+  generatedAt DateTime @default(now())
+
+  @@unique([companyId, date])
 }

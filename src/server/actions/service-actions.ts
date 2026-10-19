@@ -13,6 +13,7 @@ import {
 import { serviceInput, setServiceActiveInput } from '@/lib/validations/service';
 import { serializeService } from '@/lib/serialize';
 import { recordAuditLog } from '@/server/data/audit';
+import { assertFeature } from '@/server/billing/features';
 import {
   assertSupplies,
   listServiceSupplies,
@@ -31,6 +32,7 @@ export async function createServiceAction(input: unknown) {
     const { userId, company } = await requireCompanyAdmin();
 
     const { supplies, ...fields } = parsed;
+    if (fields.checklistItems?.length) assertFeature(company, 'checklists');
     // Confere o estoque antes de criar o serviço (nada fica pela metade).
     await assertSupplies(company.id, supplies ?? []);
     const service = await createService(company.id, fields);
@@ -54,6 +56,7 @@ export async function updateServiceAction(rawId: unknown, input: unknown) {
     const { userId, company } = await requireCompanyAdmin();
 
     const { supplies, ...fields } = parsed;
+    if (fields.checklistItems?.length) assertFeature(company, 'checklists');
     await assertSupplies(company.id, supplies ?? []);
     const service = await updateService(company.id, id, fields);
     // `undefined` mantém a lista atual; lista vazia limpa (o serviço deixa de consumir estoque).

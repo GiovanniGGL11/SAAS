@@ -29,6 +29,8 @@ export type ServiceInput = {
   color: string;
   commissionPercent?: number | null;
   returnAfterDays?: number | null;
+  /** `undefined` mantém o checklist atual. */
+  checklistItems?: string[];
 };
 
 export async function createService(companyId: string, data: ServiceInput): Promise<Service> {
@@ -43,6 +45,7 @@ export async function createService(companyId: string, data: ServiceInput): Prom
       color: data.color,
       commissionPercent: data.commissionPercent ?? null,
       returnAfterDays: data.returnAfterDays ?? null,
+      checklistItems: data.checklistItems ?? [],
     },
   });
 }
@@ -63,6 +66,7 @@ export async function updateService(
       color: data.color,
       commissionPercent: data.commissionPercent ?? null,
       returnAfterDays: data.returnAfterDays ?? null,
+      ...(data.checklistItems !== undefined ? { checklistItems: data.checklistItems } : {}),
     },
   });
   if (result.count === 0) throw new UserError('Serviço não encontrado.');

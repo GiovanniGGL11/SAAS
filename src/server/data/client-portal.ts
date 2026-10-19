@@ -11,6 +11,12 @@ import {
 } from '@/server/data/appointments';
 import { getClientLoyalty } from '@/server/data/loyalty';
 import { BOOKING_DAYS_AHEAD, listAvailableSlots } from '@/server/data/public-booking';
+import { companyHasFeature } from '@/server/billing/features';
+import { recordAuditLog } from '@/server/data/audit';
+import { listClientPortalForms } from '@/server/data/forms';
+import { listClientQuotes } from '@/server/data/quotes';
+import { listClientOffers } from '@/server/data/waitlist';
+import { sessionsDone } from '@/lib/packages';
 
 /**
  * Área do cliente: a equipe manda um link pessoal pelo WhatsApp; ao abrir, o cliente fica
@@ -321,4 +327,136 @@ export async function rescheduleOwnAppointment(
     }
     throw error;
   }
+}
+
+// ---- Área do cliente ampliada (plano Profissional em diante) ----------------------------------
+
+/**
+ * Pacotes, fichas a preencher, documentos liberados, orçamentos e convites da lista de espera do
+ * próprio cliente. Nada de valores internos (custo, comissão, notas da equipe). `null` quando o
+ * plano da empresa não inclui.
+ */
+export async function getPortalExtras(session: PortalSession) {
+  const companyId = session.company.id;
+  if (!(await companyHasFeature(companyId, 'clientPortal'))) return null;
+  const [packages, forms, quotes, offers, profile] = await Promise.all([
+    prisma.clientPackage.findMany({
+      where: { companyId, clientId: session.id, status: 'ACTIVE', recurring: false },
+      select: {
+        id: true,
+        nameSnapshot: true,
+        sessionsTotal: true,
+        periodEnd: true,
+        movements: { select: { kind: true, quantity: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    listClientPortalForms(companyId, session.id),
+    (await companyHasFeature(companyId, 'quotes'))
+      ? listClientQuotes(companyId, session.id)
+      : Promise.resolve([]),
+    listClientOffers(companyId, session.id),
+    prisma.client.findUniqueOrThrow({
+      where: { id: session.id },
+      select: {
+        email: true,
+        birthDate: true,
+        zipCode: true,
+        street: true,
+        number: true,
+        complement: true,
+        district: true,
+        city: true,
+        state: true,
+      },
+    }),
+  ]);
+  return {
+    packages: packages.map((p) => {
+      const done = sessionsDone(p.movements);
+      return {
+        id: p.id,
+        name: p.nameSnapshot,
+        done,
+        total: p.sessionsTotal,
+        remaining: Math.max(p.sessionsTotal - done, 0),
+        validUntil: p.periodEnd?.toISOString() ?? null,
+      };
+    }),
+    forms,
+    quotes,
+    offers: offers.map((o) => ({
+      id: o.id,
+      startAt: o.startAt.toISOString(),
+      expiresAt: o.expiresAt.toISOString(),
+      service: o.entry.service.name,
+    })),
+    profile: {
+      ...profile,
+      birthDate: profile.birthDate ? profile.birthDate.toISOString().slice(0, 10) : null,
+    },
+  };
+}
+
+export type PortalExtras = NonNullable<Awaited<ReturnType<typeof getPortalExtras>>>;
+
+export async function assertPortalFeature(session: PortalSession) {
+  if (!(await companyHasFeature(session.company.id, 'clientPortal'))) {
+    throw new UserError('Este recurso não está disponível. Fale com o estabelecimento.');
+  }
+}
+
+export type PortalProfileInput = {
+  email?: string | null;
+  birthDate?: string | null;
+  zipCode?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+};
+
+/**
+ * Dados que o próprio cliente pode atualizar. Nome, telefone e CPF ficam com a equipe: o
+ * telefone identifica o cliente e não pode ser trocado por quem só tem o link.
+ */
+export async function updateOwnProfile(session: PortalSession, input: PortalProfileInput) {
+  await assertPortalFeature(session);
+  const clean = (v: string | null | undefined, max: number) => {
+    const t = v?.trim() ?? '';
+    return t ? t.slice(0, max) : null;
+  };
+  const email = clean(input.email, 200);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new UserError('E-mail inválido.');
+  let birthDate: Date | null = null;
+  if (input.birthDate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birthDate)) throw new UserError('Data inválida.');
+    birthDate = new Date(`${input.birthDate}T12:00:00Z`);
+    if (Number.isNaN(birthDate.getTime()) || birthDate > new Date()) {
+      throw new UserError('Data de nascimento inválida.');
+    }
+  }
+  const data = {
+    email,
+    birthDate,
+    zipCode: clean(input.zipCode, 9)?.replace(/\D/g, '') || null,
+    street: clean(input.street, 200),
+    number: clean(input.number, 20),
+    complement: clean(input.complement, 100),
+    district: clean(input.district, 100),
+    city: clean(input.city, 100),
+    state: clean(input.state, 2)?.toUpperCase() ?? null,
+  };
+  await prisma.client.update({ where: { id: session.id }, data });
+  await recordAuditLog({
+    companyId: session.company.id,
+    entityType: 'Client',
+    entityId: session.id,
+    action: 'updated',
+    userId: PORTAL_ACTOR,
+    metadata: { fields: Object.keys(data), source: 'client-portal' },
+  });
 }

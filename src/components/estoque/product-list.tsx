@@ -38,6 +38,8 @@ import { ListToolbar, SearchField, matchesSearch } from '@/components/layout/lis
 import { ProductDrawer } from '@/components/estoque/product-drawer';
 import { StockMovementDialog } from '@/components/estoque/stock-movement-dialog';
 import { listProductsAction, setProductActiveAction } from '@/server/actions/stock-actions';
+import { ImportWizard } from '@/components/importacao/import-wizard';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { SerializedProduct } from '@/lib/serialize';
 
@@ -49,6 +51,9 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
   const [purchasesOpen, setPurchasesOpen] = React.useState(false);
   // Compra mexe no custo e no financeiro: só admin.
   const isAdmin = useAuth().orgRole === 'org:admin';
+  // Importação assistida: plano Profissional em diante, só administradores.
+  const canImport = usePlanFeatures().has('assistedImport');
+  const [importOpen, setImportOpen] = React.useState(false);
   const [movementDialogOpen, setMovementDialogOpen] = React.useState(false);
   const [editingProduct, setEditingProduct] = React.useState<SerializedProduct | null>(null);
   const [search, setSearch] = React.useState('');
@@ -114,6 +119,11 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                 <Button variant="outline" onClick={() => setPurchasesOpen(true)}>
                   Compras
                 </Button>
+                {canImport && (
+                  <Button variant="outline" onClick={() => setImportOpen(true)}>
+                    Importar
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
                   <TruckIcon className="size-4" />
                   Entrada de mercadoria
@@ -336,6 +346,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
         products={products}
       />
       <StockHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} />
+      <ImportWizard kind="products" open={importOpen} onOpenChange={setImportOpen} />
       <PurchaseDialog open={purchaseOpen} onOpenChange={setPurchaseOpen} products={products} />
       <PurchasesHistoryDialog open={purchasesOpen} onOpenChange={setPurchasesOpen} />
     </div>

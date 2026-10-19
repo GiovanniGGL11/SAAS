@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { quoteInputSchema } from '@/lib/quotes';
+
 /*
   Ações que o assistente pode PROPOR. O modelo nunca escreve nada: ele devolve uma destas, a tela
   mostra um cartão e só o clique em "Confirmar" executa — validando tudo de novo no servidor.
@@ -72,6 +74,20 @@ export const assistantActionSchema = z.discriminatedUnion('kind', [
     }),
   }),
   z.object({
+    kind: z.literal('create_quote'),
+    /** Fica como RASCUNHO: nada é enviado ao cliente nem lançado no financeiro. */
+    args: quoteInputSchema,
+  }),
+  z.object({
+    kind: z.literal('create_task'),
+    args: z.object({
+      title: z.string().trim().min(1).max(160),
+      details: z.string().max(1000).optional(),
+      dueDate: localDate.optional(),
+      clientId: id.optional(),
+    }),
+  }),
+  z.object({
     kind: z.literal('fill_form_draft'),
     args: z.object({
       clientId: id,
@@ -88,7 +104,14 @@ export type AssistantProposal = {
   id: string;
   title: string;
   details: { label: string; value: string }[];
-  status: 'AWAITING_APPROVAL' | 'EXECUTING' | 'COMPLETED' | 'FAILED' | 'CANCELED' | 'EXPIRED';
+  status:
+    | 'AWAITING_APPROVAL'
+    | 'EXECUTING'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'CANCELED'
+    | 'EXPIRED'
+    | 'REJECTED';
   expiresAt: string;
 };
 
@@ -99,6 +122,21 @@ export const AI_PROPOSAL_STATUS_LABEL: Record<AssistantProposal['status'], strin
   FAILED: 'Falhou',
   CANCELED: 'Cancelada',
   EXPIRED: 'Expirou',
+  REJECTED: 'Recusada',
+};
+
+/** Nome de cada tipo de ação, para a Central de aprovações. */
+export const AI_ACTION_KIND_LABEL: Record<AssistantAction['kind'], string> = {
+  create_client: 'Cadastrar cliente',
+  update_client: 'Alterar cadastro de cliente',
+  create_appointment: 'Agendar',
+  reschedule_appointment: 'Remarcar',
+  cancel_appointment: 'Cancelar agendamento',
+  stock_entry: 'Entrada no estoque',
+  create_form_template: 'Criar modelo de ficha',
+  fill_form_draft: 'Rascunho de ficha',
+  create_quote: 'Preparar orçamento',
+  create_task: 'Criar tarefa',
 };
 
 export type AssistantChatMessage = { role: 'user' | 'model'; text: string };

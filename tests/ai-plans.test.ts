@@ -79,12 +79,18 @@ describe('direitos efetivos', () => {
     expect(dev.ai.reasons.autoExecution).toBe('not_in_plan');
   });
 
-  it('Pro: inclui execução automática, mas ela segue indisponível até existir', () => {
+  it('Pro: execução automática de rotinas autorizadas existe e não depende da franquia de IA', () => {
     const pro = resolve({ plan: 'pro' });
     expect(pro.ai.included?.autoExecution).toBe(true);
-    expect(pro.ai.reasons.autoExecution).toBe('not_implemented');
-    expect(effectiveAutonomy('AUTO_RULES', pro)).toBe('APPROVAL');
+    expect(pro.ai.available.autoExecution).toBe(true);
+    // Mesmo em produção sem franquia definida: as rotinas não chamam o modelo.
+    const prodPro = resolve({ plan: 'pro' }, true);
+    expect(prodPro.ai.available.autoExecution).toBe(true);
+    expect(prodPro.ai.available.assistant).toBe(false);
+    expect(effectiveAutonomy('AUTO_RULES', pro)).toBe('AUTO_RULES');
     expect(effectiveAutonomy('SUGGEST', pro)).toBe('SUGGEST');
+    // Profissional nunca chega a AUTO_RULES.
+    expect(effectiveAutonomy('AUTO_RULES', resolve({ plan: 'profissional' }))).toBe('APPROVAL');
   });
 
   it('teste grátis: concessão explícita do plano base; quem escolheu o Básico fica sem IA', () => {

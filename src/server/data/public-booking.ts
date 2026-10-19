@@ -163,7 +163,7 @@ export async function listAvailabilityRange(params: {
   const rangeStart = calendarDateToUtc(params.from, 0, params.timezone);
   const rangeEnd = calendarDateToUtc(addDays(params.from, params.days), 0, params.timezone);
   const ids = professionals.map((p) => p.id);
-  const [busy, blocks] = await Promise.all([
+  const [busy, blocks, held] = await Promise.all([
     prisma.appointment.findMany({
       where: {
         companyId: params.companyId,
@@ -179,8 +179,20 @@ export async function listAvailabilityRange(params: {
       where: { professionalId: { in: ids }, startAt: { lt: rangeEnd }, endAt: { gt: rangeStart } },
       select: { professionalId: true, startAt: true, endAt: true },
     }),
+    // Horário segurado por convite pendente da lista de espera.
+    prisma.waitlistOffer.findMany({
+      where: {
+        companyId: params.companyId,
+        professionalId: { in: ids },
+        status: 'PENDING',
+        expiresAt: { gt: new Date() },
+        startAt: { lt: rangeEnd },
+        endAt: { gt: rangeStart },
+      },
+      select: { professionalId: true, startAt: true, endAt: true },
+    }),
   ]);
-  const occupied = [...busy, ...blocks];
+  const occupied = [...busy, ...blocks, ...held];
   const earliest = Date.now() + LEAD_MINUTES * 60_000;
   const durationMs = durationMinutes * 60_000;
   const result = new Map<string, PublicSlot[]>();

@@ -31,6 +31,12 @@ export const serviceInput = z.object({
     )
     .max(30)
     .optional(),
+  /** Checklist conferido na Visão do atendimento (plano Profissional em diante). */
+  checklistItems: z
+    .array(z.string().trim().min(1).max(120))
+    .max(20, 'Até 20 itens no checklist')
+    .refine((items) => new Set(items).size === items.length, 'Há um item repetido no checklist.')
+    .optional(),
 });
 export type ServiceFormInput = z.infer<typeof serviceInput>;
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { csvSafe } from '@/lib/import';
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'motion/react';
@@ -62,7 +63,7 @@ function downloadCsv(data: ReportData, presetLabel: string) {
     ['Faltas', String(data.cancellation.noShow)],
   ];
   const csv = rows
-    .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(';'))
+    .map((row) => row.map((cell) => `"${csvSafe(cell).replace(/"/g, '""')}"`).join(';'))
     .join('\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);

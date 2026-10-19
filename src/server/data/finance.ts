@@ -397,3 +397,46 @@ export async function reverseIncomeFromAppointment(
     data: { status: 'CANCELED' },
   });
 }
+
+/**
+ * Vendido × a receber × recebido — números separados de propósito:
+ * - vendido: entradas lançadas no período (pagas ou pendentes);
+ * - recebido: entradas pagas no período (pela data do pagamento);
+ * - a receber: tudo o que está pendente hoje (e quanto já venceu).
+ */
+export async function getSoldDueReceived(companyId: string, range: { startAt: Date; endAt: Date }) {
+  const inRange = { gte: range.startAt, lt: range.endAt };
+  const now = new Date();
+  const [sold, received, receivedNoDate, due, overdue] = await Promise.all([
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'INCOME', status: { not: 'CANCELED' }, createdAt: inRange },
+      _sum: { amount: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'INCOME', status: 'PAID', paidAt: inRange },
+      _sum: { amount: true },
+    }),
+    // Lançamentos pagos antigos sem data de pagamento contam pela data do lançamento.
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'INCOME', status: 'PAID', paidAt: null, createdAt: inRange },
+      _sum: { amount: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'INCOME', status: 'PENDING' },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'INCOME', status: 'PENDING', dueDate: { lt: now } },
+      _sum: { amount: true },
+    }),
+  ]);
+  const n = (v: { _sum: { amount: unknown } }) => Number(v._sum.amount ?? 0);
+  return {
+    sold: n(sold),
+    received: Math.round((n(received) + n(receivedNoDate)) * 100) / 100,
+    due: n(due),
+    dueCount: due._count,
+    overdue: n(overdue),
+  };
+}

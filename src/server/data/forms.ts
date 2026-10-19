@@ -15,6 +15,7 @@ import {
   type Answers,
   type FormSchema,
   allQuestions,
+  answerText,
   parseFormSchema,
   sectionsFor,
   validateAnswers,
@@ -505,6 +506,7 @@ export async function getEntryDetail(companyId: string, access: FormAccess, entr
     packageName: entry.clientPackage?.nameSnapshot ?? null,
     revisions,
     activeLink: links[0] ?? null,
+    releasedToClientAt: entry.releasedToClientAt,
   };
 }
 
@@ -1434,3 +1436,156 @@ export async function getEntryForExport(companyId: string, access: FormAccess, e
 }
 
 export type EntryExport = Awaited<ReturnType<typeof getEntryForExport>>;
+
+// ---- Área do cliente: fichas a preencher e documentos liberados --------------------------------
+
+/** Autor dos registros feitos pelo cliente na área do cliente. */
+export const PORTAL_FORM_ACTOR = 'client-portal';
+/** Link curto gerado na própria área do cliente (o cliente já está identificado pelo link pessoal). */
+const PORTAL_FORM_LINK_HOURS = 2;
+
+/** Fichas do cliente para a área do cliente: o que falta preencher e o que a equipe liberou. */
+export async function listClientPortalForms(companyId: string, clientId: string) {
+  const entries = await prisma.formEntry.findMany({
+    where: {
+      companyId,
+      clientId,
+      OR: [
+        {
+          status: { in: ['REQUESTED', 'DRAFT'] },
+          version: { fillableBy: { not: 'PROFESSIONAL' } },
+        },
+        { status: { in: ['SUBMITTED', 'REVIEWED'] }, releasedToClientAt: { not: null } },
+      ],
+      template: { status: { not: 'ARCHIVED' } },
+    },
+    select: {
+      id: true,
+      status: true,
+      submittedAt: true,
+      releasedToClientAt: true,
+      template: { select: { name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+  });
+  return {
+    toFill: entries
+      .filter((e) => e.status === 'REQUESTED' || e.status === 'DRAFT')
+      .map((e) => ({ id: e.id, name: e.template.name, started: e.status === 'DRAFT' })),
+    documents: entries
+      .filter((e) => e.releasedToClientAt)
+      .map((e) => ({
+        id: e.id,
+        name: e.template.name,
+        submittedAt: e.submittedAt?.toISOString() ?? null,
+      })),
+  };
+}
+
+/**
+ * O cliente, já identificado pelo link pessoal, abre uma ficha pedida para ele: gera um link de
+ * preenchimento curto (o mesmo fluxo do link da ficha, com as mesmas regras).
+ */
+export async function createPortalFormLink(companyId: string, clientId: string, entryId: string) {
+  const entry = await loadEntry(prisma, companyId, entryId);
+  if (entry.clientId !== clientId) throw new UserError('Ficha não encontrada.');
+  if (entry.status !== 'REQUESTED' && entry.status !== 'DRAFT') {
+    throw new UserError('Esta ficha já foi enviada.');
+  }
+  if (entry.version.fillableBy === 'PROFESSIONAL') {
+    throw new UserError('Esta ficha é preenchida pela equipe.');
+  }
+  const token = randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + PORTAL_FORM_LINK_HOURS * 3_600_000);
+  await txRun(async (tx) => {
+    await tx.formAccessToken.updateMany({
+      where: { entryId, revokedAt: null, usedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await tx.formAccessToken.create({
+      data: {
+        companyId,
+        entryId,
+        tokenHash: hashToken(token),
+        expiresAt,
+        createdByUserId: PORTAL_FORM_ACTOR,
+      },
+    });
+    await recordAuditLog(
+      {
+        companyId,
+        entityType: 'FormEntry',
+        entityId: entryId,
+        action: 'link_created',
+        userId: PORTAL_FORM_ACTOR,
+        metadata: { clientId, name: entry.template.name, expiresAt: expiresAt.toISOString() },
+      },
+      tx,
+    );
+  });
+  return { token };
+}
+
+/**
+ * Libera (ou recolhe) uma ficha enviada para o cliente ver na área do cliente. Só as seções do
+ * cliente aparecem para ele — nunca as seções internas da equipe.
+ */
+export async function setEntryReleasedToClient(
+  companyId: string,
+  access: FormAccess,
+  entryId: string,
+  released: boolean,
+) {
+  requireAccess(access, 'canReview', 'liberar fichas para o cliente');
+  const entry = await loadEntry(prisma, companyId, entryId);
+  assertInScope(access, entry);
+  if (released && entry.status !== 'SUBMITTED' && entry.status !== 'REVIEWED') {
+    throw new UserError('Só fichas enviadas podem ser liberadas para o cliente.');
+  }
+  await prisma.formEntry.update({
+    where: { id: entry.id },
+    data: { releasedToClientAt: released ? new Date() : null },
+  });
+  await recordAuditLog({
+    companyId,
+    entityType: 'FormEntry',
+    entityId: entry.id,
+    action: released ? 'link_created' : 'link_revoked',
+    userId: access.userId,
+    metadata: { clientId: entry.clientId, releasedToClient: released },
+  });
+}
+
+/** Documento liberado, como o cliente vê: só as seções do cliente, em texto. */
+export async function getReleasedDocument(companyId: string, clientId: string, entryId: string) {
+  const entry = await prisma.formEntry.findFirst({
+    where: {
+      id: entryId,
+      companyId,
+      clientId,
+      releasedToClientAt: { not: null },
+      status: { in: ['SUBMITTED', 'REVIEWED'] },
+    },
+    include: { version: true, template: { select: { name: true } } },
+  });
+  if (!entry) throw new UserError('Documento não encontrado.');
+  const schema = schemaOf(entry);
+  const answers = clientVisibleAnswers(schema, answersOf(entry.answers));
+  await recordAuditLog({
+    companyId,
+    entityType: 'FormEntry',
+    entityId: entry.id,
+    action: 'viewed',
+    userId: PORTAL_FORM_ACTOR,
+    metadata: { clientId },
+  });
+  return {
+    name: entry.template.name,
+    submittedAt: entry.submittedAt?.toISOString() ?? null,
+    sections: sectionsFor(schema, 'client').map((section) => ({
+      title: section.title,
+      rows: section.questions.map((q) => ({ label: q.title, value: answerText(q, answers[q.id]) })),
+    })),
+  };
+}

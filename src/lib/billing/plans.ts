@@ -27,7 +27,29 @@ export type FeatureKey =
   | 'campaigns'
   | 'packages'
   | 'forms'
-  | 'multiUnit';
+  | 'multiUnit'
+  /** Área do cliente ampliada: pacotes, fichas a preencher, documentos liberados, orçamentos e dados. */
+  | 'clientPortal'
+  /** Orçamentos com versões, link protegido, aprovação e conversão em pacote. */
+  | 'quotes'
+  /** Lista de espera com preferências e convites com prazo (manual). */
+  | 'waitlistInvites'
+  /** Convite automático da lista de espera quando abre uma vaga (rotina). */
+  | 'waitlistAutomation'
+  /** Importação assistida de clientes e produtos (mapeamento, prévia, duplicados, relatório). */
+  | 'assistedImport'
+  /** Resumo do dia sob demanda. */
+  | 'dailySummary'
+  /** Resumo do dia gerado sozinho no horário configurado. */
+  | 'dailySummaryAuto'
+  /** Rotina de renovação de pacotes (tarefas e orçamentos preparados, nunca cobrança). */
+  | 'packageRenewal'
+  /** Resultados das automações, com critério de atribuição explícito. */
+  | 'automationResults'
+  /** Checklist por serviço na Visão do atendimento. */
+  | 'checklists'
+  /** Margem de contribuição por serviço (preço − materiais − comissão). */
+  | 'contributionMargin';
 
 /** O que o plano INCLUI de IA. Incluir não basta: o recurso também precisa estar implementado (ver AI_IMPLEMENTED). */
 export type AiPlanEntitlements = {
@@ -108,6 +130,17 @@ const ESSENTIAL_FEATURES: Record<FeatureKey, boolean> = {
   packages: false,
   forms: false,
   multiUnit: false,
+  clientPortal: false,
+  quotes: false,
+  waitlistInvites: false,
+  waitlistAutomation: false,
+  assistedImport: false,
+  dailySummary: false,
+  dailySummaryAuto: false,
+  packageRenewal: false,
+  automationResults: false,
+  checklists: false,
+  contributionMargin: false,
 };
 
 const FULL_FEATURES: Record<FeatureKey, boolean> = {
@@ -118,6 +151,23 @@ const FULL_FEATURES: Record<FeatureKey, boolean> = {
   campaigns: true,
   packages: true,
   forms: true,
+  clientPortal: true,
+  quotes: true,
+  waitlistInvites: true,
+  assistedImport: true,
+  dailySummary: true,
+  checklists: true,
+};
+
+/** Só no Pro: rotinas automáticas e análises que dependem delas. */
+const PRO_FEATURES: Record<FeatureKey, boolean> = {
+  ...FULL_FEATURES,
+  multiUnit: true,
+  waitlistAutomation: true,
+  dailySummaryAuto: true,
+  packageRenewal: true,
+  automationResults: true,
+  contributionMargin: true,
 };
 
 export const PLANS: Plan[] = [
@@ -170,6 +220,8 @@ export const PLANS: Plan[] = [
       'Comissões, metas e relatórios',
       'WhatsApp automático e campanhas',
       'Pacotes, assinaturas e fichas',
+      'Orçamentos com link para o cliente aprovar',
+      'Lista de espera com convites e área do cliente completa',
       'Assistente de IA por texto, com sua aprovação antes de alterar dados',
     ],
   },
@@ -183,7 +235,7 @@ export const PLANS: Plan[] = [
     checkoutEnabled: false,
     maxProfessionals: null,
     maxUnits: null,
-    features: { ...FULL_FEATURES, multiUnit: true },
+    features: PRO_FEATURES,
     ai: {
       assistant: true,
       voice: true,
@@ -201,6 +253,9 @@ export const PLANS: Plan[] = [
       'Profissionais ilimitados',
       'Tudo do Profissional',
       'Várias unidades num painel só',
+      'Rotinas que você autoriza: renovação de pacotes e lista de espera automática',
+      'Resumo do dia automático e resultados das automações',
+      'Margem por serviço',
       'Assistente de IA com franquia maior que a do Profissional',
     ],
   },
@@ -265,7 +320,8 @@ export const AI_IMPLEMENTED = {
   assistedActions: true,
   voice: false,
   aiAutomations: false,
-  autoExecution: false,
+  // Rotinas autorizadas reais: renovação de pacotes e lista de espera (sem chamar o modelo).
+  autoExecution: true,
   whatsappAi: false,
 } as const;
 

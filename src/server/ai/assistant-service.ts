@@ -1,4 +1,5 @@
 import type { AssistantChatMessage } from '@/lib/assistant';
+import { getPreferences, languagePreferencesForPrompt } from '@/server/data/business-preferences';
 import { UserError } from '@/server/errors';
 import { rateLimitByKey } from '@/server/rate-limit';
 import { AiAccessError, assertAiCapability, type AiSession } from '@/server/ai/access';
@@ -46,6 +47,7 @@ export async function handleAssistantMessage(params: {
     userId: session.userId,
     isAdmin: session.isAdmin,
     formAccess: params.formAccess,
+    languagePreferences: languagePreferencesForPrompt(await getPreferences(session.companyId)),
   };
   const run = params.run ?? runAssistant;
   let reply: AssistantReply | null = null;

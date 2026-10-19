@@ -26,6 +26,12 @@ import {
   type FormSchema,
 } from '@/lib/forms/schema';
 import { formatBRL, toHumanDateTime } from './format';
+import { quoteTotals, discountPercent } from '@/lib/quotes';
+import { createQuote } from '@/server/data/quotes';
+import { createTask } from '@/server/data/tasks';
+import { assertQuoteDiscountAllowed } from '@/server/data/business-preferences';
+import { companyHasFeature } from '@/server/billing/features';
+import { calendarDateToUtc } from '@/lib/time';
 
 /*
   Validação e execução das ações propostas pelo assistente. A mesma `describeAction` roda ao
@@ -302,6 +308,72 @@ export async function describeAction(
         ],
       };
     }
+    case 'create_quote': {
+      if (!(await companyHasFeature(ctx.companyId, 'quotes'))) {
+        throw new UserError('Orçamentos não estão incluídos no plano desta empresa.');
+      }
+      const client = await findActive(
+        'cliente',
+        prisma.client.findFirst({ where: { id: action.args.clientId, companyId: ctx.companyId } }),
+      );
+      const serviceIds = action.args.items.filter((i) => i.kind === 'service').map((i) => i.refId!);
+      if (serviceIds.some((sid) => !sid)) throw new UserError('Escolha o serviço de cada item.');
+      if (serviceIds.length) {
+        const found = await prisma.service.count({
+          where: { companyId: ctx.companyId, id: { in: [...new Set(serviceIds)] } },
+        });
+        if (found !== new Set(serviceIds).size) throw new UserError('Serviço não encontrado.');
+      }
+      await assertQuoteDiscountAllowed(ctx.companyId, action.args);
+      const totals = quoteTotals(action.args);
+      const percent = discountPercent(action.args);
+      return {
+        title: 'Preparar orçamento (rascunho)',
+        details: [
+          { label: 'Cliente', value: client.name },
+          { label: 'Nome', value: action.args.title },
+          ...action.args.items.map((i, n) => ({
+            label: `Item ${n + 1}`,
+            value: `${i.description} — ${i.quantity} × ${formatBRL(i.unitPrice)}${
+              (i.sessions ?? 1) > 1 ? ` (${i.sessions} sessões)` : ''
+            }${i.discount ? `, desconto ${formatBRL(i.discount)}` : ''}`,
+          })),
+          ...(totals.discount
+            ? [{ label: 'Desconto geral', value: formatBRL(totals.discount) }]
+            : []),
+          { label: 'Total', value: formatBRL(totals.total) },
+          ...(percent > 0 ? [{ label: 'Desconto sobre o valor cheio', value: `${percent}%` }] : []),
+          ...detail('Pagamento', action.args.paymentTerms ?? undefined),
+          ...detail(
+            'Válido até',
+            action.args.validUntil ? brDate(action.args.validUntil) : undefined,
+          ),
+          {
+            label: 'Depois de confirmar',
+            value: 'Fica como rascunho. Nada é enviado ao cliente nem lançado no financeiro.',
+          },
+        ],
+      };
+    }
+    case 'create_task': {
+      const client = action.args.clientId
+        ? await findActive(
+            'cliente',
+            prisma.client.findFirst({
+              where: { id: action.args.clientId, companyId: ctx.companyId },
+            }),
+          )
+        : null;
+      return {
+        title: 'Criar tarefa',
+        details: [
+          { label: 'Tarefa', value: action.args.title },
+          ...detail('Cliente', client?.name),
+          ...detail('Prazo', action.args.dueDate ? brDate(action.args.dueDate) : undefined),
+          ...detail('Detalhes', action.args.details),
+        ],
+      };
+    }
     case 'fill_form_draft': {
       const access = ctx.formAccess;
       if (!access) throw new UserError('Permissões de fichas indisponíveis.');
@@ -522,6 +594,39 @@ export async function executeAction(
         appointmentIds: [],
         paths: ['/fichas'],
         link: `/fichas/modelos/${template.id}`,
+      };
+    }
+    case 'create_quote': {
+      const quote = await createQuote({
+        companyId: ctx.companyId,
+        timezone: ctx.timezone,
+        userId: ctx.userId,
+        input: action.args,
+        origin: 'ai',
+      });
+      return {
+        message: `Orçamento #${quote.number} salvo como rascunho. Confira e envie pela tela de orçamentos — nada foi enviado ao cliente.`,
+        appointmentIds: [],
+        paths: ['/clientes/orcamentos'],
+        link: `/clientes/orcamentos?id=${quote.id}`,
+      };
+    }
+    case 'create_task': {
+      const [y, m, d] = (action.args.dueDate ?? '').split('-').map(Number);
+      const { task } = await createTask(ctx.companyId, ctx.userId, {
+        title: action.args.title,
+        details: action.args.details,
+        dueAt: action.args.dueDate
+          ? calendarDateToUtc({ year: y, month: m, day: d }, 12 * 60, ctx.timezone)
+          : null,
+        clientId: action.args.clientId ?? null,
+        origin: 'ai',
+      });
+      return {
+        message: `Tarefa "${task.title}" criada.`,
+        appointmentIds: [],
+        paths: ['/dashboard'],
+        link: '/dashboard',
       };
     }
     case 'fill_form_draft': {

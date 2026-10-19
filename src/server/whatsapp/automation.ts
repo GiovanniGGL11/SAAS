@@ -18,7 +18,14 @@ import { addDays, startOfCalendarDateUtc, utcToCalendarDate } from '@/lib/time';
 */
 
 export type AutomationKind =
-  'CONFIRMATION' | 'REMINDER' | 'REVIEW' | 'BIRTHDAY' | 'CAMPAIGN' | 'TEST';
+  | 'CONFIRMATION'
+  | 'REMINDER'
+  | 'REVIEW'
+  | 'BIRTHDAY'
+  | 'CAMPAIGN'
+  | 'TEST'
+  // Convite automático da lista de espera (só com integração, janela de contato e autorização).
+  | 'WAITLIST_OFFER';
 
 export async function getZapiConfig(companyId: string): Promise<ZapiConfig | null> {
   const company = await prisma.company.findUnique({
@@ -264,7 +271,11 @@ export async function checkZapiConnection(companyId: string) {
  * WhatsApp bloqueia números que disparam rápido demais). No máximo 60 por vez; o resto fica para
  * um próximo clique.
  */
-export function scheduleCampaignSend(companyId: string, campaignId: string, personalize: (message: string, name: string, coupon?: string | null) => string) {
+export function scheduleCampaignSend(
+  companyId: string,
+  campaignId: string,
+  personalize: (message: string, name: string, coupon?: string | null) => string,
+) {
   after(async () => {
     const config = await getZapiConfig(companyId);
     if (!config) return;
@@ -290,7 +301,10 @@ export function scheduleCampaignSend(companyId: string, campaignId: string, pers
         config,
       });
       if (outcome === 'sent') {
-        await prisma.campaignRecipient.update({ where: { id: recipient.id }, data: { sentAt: new Date() } });
+        await prisma.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: { sentAt: new Date() },
+        });
       }
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }

@@ -12,7 +12,10 @@ import {
   CalendarPlusIcon,
   CalendarXIcon,
   ClockIcon,
+  FileTextIcon,
+  ListChecksIcon,
   PackageIcon,
+  SparklesIcon,
   TriangleAlertIcon,
   XIcon,
   type LucideIcon,
@@ -41,6 +44,9 @@ const ICONS: Record<NoticeKind, { icon: LucideIcon; className: string }> = {
     className: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
   },
   birthday: { icon: CakeIcon, className: 'text-system-green bg-system-green/10' },
+  approvals: { icon: SparklesIcon, className: 'text-system-blue bg-system-blue/10' },
+  tasks_due: { icon: ListChecksIcon, className: 'text-system-orange bg-system-orange/10' },
+  quotes_waiting: { icon: FileTextIcon, className: 'text-system-indigo bg-system-indigo/10' },
 };
 
 // ---- Lido / dispensado, por pessoa, no navegador ------------------------------------------------

@@ -34,6 +34,8 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { LoyaltyCard } from '@/components/fidelidade/loyalty-card';
+import { PortalExtrasSections } from '@/components/client-portal/portal-extras';
+import type { PortalExtras } from '@/server/data/client-portal';
 import {
   cancelMyAppointmentAction,
   confirmMyAppointmentAction,
@@ -81,12 +83,15 @@ export function ClientPortal({
   clientName,
   company,
   overview,
+  extras,
   onlineBooking,
   today,
 }: {
   clientName: string;
   company: Company;
   overview: PortalOverview;
+  /** Área ampliada (plano Profissional em diante); `null` quando o plano não inclui. */
+  extras: PortalExtras | null;
   onlineBooking: boolean;
   today: CalendarDate;
 }) {
@@ -177,6 +182,8 @@ export function ClientPortal({
           )}
         </div>
       )}
+
+      {extras && <PortalExtrasSections extras={extras} timezone={company.timezone} />}
 
       {overview.loyalty && (
         <section className="flex flex-col gap-3">

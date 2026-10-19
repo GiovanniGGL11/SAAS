@@ -42,7 +42,22 @@ export type AutomatableTask = {
   implemented: boolean;
 };
 
-export const AUTOMATABLE_TASKS: Record<string, AutomatableTask> = {};
+export const AUTOMATABLE_TASKS: Record<string, AutomatableTask> = {
+  package_renewal: {
+    label: 'Renovação de pacotes',
+    description:
+      'Quando um pacote está na penúltima sessão, com saldo baixo, perto de vencer ou terminou sem próximo agendamento: cria uma tarefa de acompanhamento e prepara um orçamento de renovação em rascunho. Nunca renova, nunca cobra e não envia mensagem.',
+    category: null,
+    implemented: true,
+  },
+  waitlist_auto: {
+    label: 'Lista de espera automática',
+    description:
+      'Quando há vaga compatível, convida UMA pessoa da lista (a mais antiga que combina), com prazo de resposta, e guarda o horário. Nunca chama a lista inteira. Mensagem real só com o WhatsApp integrado, dentro da janela de contato e se a autorização permitir.',
+    category: null,
+    implemented: true,
+  },
+};
 
 export type AuthorizationLimits = {
   /** Execuções por dia. */

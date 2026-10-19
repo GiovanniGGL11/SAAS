@@ -154,8 +154,13 @@ export function resolveEntitlements(
     else if (!included?.[capability]) reason = 'not_in_plan';
     else if (!AI_IMPLEMENTED[capability]) reason = 'not_implemented';
     else if (source === 'grace') reason = 'past_due';
-    // Executar o que já foi aprovado não chama o modelo; os demais consomem franquia.
-    else if (capability !== 'assistedActions' && monthlyUnits <= 0) reason = 'quota_not_configured';
+    // Executar o que já foi aprovado ou autorizado não chama o modelo; os demais consomem franquia.
+    else if (
+      capability !== 'assistedActions' &&
+      capability !== 'autoExecution' &&
+      monthlyUnits <= 0
+    )
+      reason = 'quota_not_configured';
     available[capability] = reason === null;
     if (reason) reasons[capability] = reason;
   }

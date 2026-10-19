@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -117,6 +118,12 @@ export function AppointmentDetailDrawer({
             {formatTimeInTz(appointment.startAt, timezone)} –{' '}
             {formatTimeInTz(appointment.endAt, timezone)} · {appointment.serviceNameSnapshot}
           </DrawerDescription>
+          <Link
+            href={`/agenda/atendimento/${appointment.id}`}
+            className="text-system-blue self-start text-[13px] font-medium hover:underline"
+          >
+            Abrir visão do atendimento
+          </Link>
         </DrawerHeader>
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 text-sm">

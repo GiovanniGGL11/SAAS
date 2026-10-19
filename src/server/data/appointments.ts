@@ -20,11 +20,13 @@ import { assertPackageForAppointment } from '@/server/data/package-sessions';
 import { consumeSuppliesForAppointment } from '@/server/data/service-supplies';
 
 export class AppointmentConflictError extends Error {
-  constructor(reason: 'overlap' | 'blocked') {
+  constructor(reason: 'overlap' | 'blocked' | 'held') {
     super(
       reason === 'overlap'
         ? 'Este profissional já tem um agendamento nesse horário.'
-        : 'Esse horário está bloqueado na agenda deste profissional.',
+        : reason === 'held'
+          ? 'Esse horário está reservado para um convite da lista de espera. Cancele o convite (Lista de espera) para usar o horário.'
+          : 'Esse horário está bloqueado na agenda deste profissional.',
     );
     this.name = 'AppointmentConflictError';
   }
@@ -148,17 +150,19 @@ export async function getAppointmentById(
  * Trava por profissional até o fim da transação: dois agendamentos no mesmo horário, criados ao
  * mesmo tempo, passavam ambos pela checagem de conflito antes de qualquer um gravar.
  */
-async function lockProfessionalSchedule(db: Prisma.TransactionClient, professionalId: string) {
+export async function lockProfessionalSchedule(db: Prisma.TransactionClient, professionalId: string) {
   await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'agenda:' + professionalId}))`;
 }
 
-async function assertNoConflict(
+export async function assertNoConflict(
   params: {
     companyId: string;
     professionalId: string;
     startAt: Date;
     endAt: Date;
     excludeAppointmentId?: string;
+    /** Convite da lista de espera que está sendo aceito: a reserva dele não conta como conflito. */
+    allowOfferId?: string;
   },
   db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
@@ -188,6 +192,23 @@ async function assertNoConflict(
   if (overlappingBlock) {
     throw new AppointmentConflictError('blocked');
   }
+
+  // Convite pendente da lista de espera segura o horário até o prazo de resposta.
+  const heldByOffer = await db.waitlistOffer.findFirst({
+    where: {
+      companyId: params.companyId,
+      professionalId: params.professionalId,
+      status: 'PENDING',
+      expiresAt: { gt: new Date() },
+      startAt: { lt: params.endAt },
+      endAt: { gt: params.startAt },
+      ...(params.allowOfferId ? { id: { not: params.allowOfferId } } : {}),
+    },
+    select: { id: true },
+  });
+  if (heldByOffer) {
+    throw new AppointmentConflictError('held');
+  }
 }
 
 export async function createAppointment(params: {
@@ -202,6 +223,8 @@ export async function createAppointment(params: {
   /** Sessão de pacote planejada (escolhida por quem agenda; a baixa só acontece ao concluir). */
   clientPackageId?: string | null;
   createdByUserId: string;
+  /** Aceite de convite da lista de espera: a reserva do próprio convite não é conflito. */
+  waitlistOfferId?: string;
 }): Promise<Appointment> {
   const [client, professional, resolved] = await Promise.all([
     prisma.client.findFirst({ where: { id: params.clientId, companyId: params.companyId } }),
@@ -230,6 +253,7 @@ export async function createAppointment(params: {
         professionalId: params.professionalId,
         startAt: params.startAt,
         endAt,
+        allowOfferId: params.waitlistOfferId,
       },
       tx,
     );

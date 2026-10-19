@@ -34,6 +34,7 @@ import {
   listEntryAuditAction,
   requestEntryUpdateAction,
   reviewEntryAction,
+  setEntryReleasedAction,
   revokeEntryLinksAction,
   saveEntryDraftAction,
   submitEntryAction,
@@ -229,6 +230,9 @@ function EntryContent({
             )}
             {(data.status === 'SUBMITTED' || data.status === 'REVIEWED') && access?.canRequest && (
               <RequestUpdateButton entryId={entryId} onCreated={onClose} />
+            )}
+            {(data.status === 'SUBMITTED' || data.status === 'REVIEWED') && access?.canReview && (
+              <ReleaseButton entryId={entryId} released={!!data.releasedToClientAt} />
             )}
             {access?.canExport && data.status !== 'REQUESTED' && (
               <Button variant="outline" size="sm" asChild>
@@ -639,5 +643,24 @@ function AuditList({ entryId, timezone }: { entryId: string; timezone: string })
         </ul>
       )}
     </div>
+  );
+}
+
+/** Liberar a ficha para o cliente ver na área do cliente (só as seções do cliente aparecem). */
+function ReleaseButton({ entryId, released }: { entryId: string; released: boolean }) {
+  const queryClient = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: () =>
+      setEntryReleasedAction({ id: entryId, released: !released }).then(unwrapResult),
+    onSuccess: () => {
+      toast.success(released ? 'A ficha saiu da área do cliente.' : 'Liberada na área do cliente.');
+      invalidateEntries(queryClient);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <Button variant="outline" size="sm" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
+      {released ? 'Recolher da área do cliente' : 'Liberar na área do cliente'}
+    </Button>
   );
 }

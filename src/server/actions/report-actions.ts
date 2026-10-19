@@ -1,6 +1,9 @@
 'use server';
 
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
+import { toActionResult } from '@/server/action-result';
+import { assertFeature } from '@/server/billing/features';
+import { listServiceMargins } from '@/server/data/service-margins';
 import { reportPresetInput } from '@/lib/validations/report';
 import { resolveReportRange } from '@/lib/report-range';
 import {
@@ -23,4 +26,13 @@ export async function getReportAction(input: unknown) {
   ]);
 
   return { byProfessional, byService, byWeekday, cancellation };
+}
+
+/** Margem de contribuição por serviço (plano Pro). */
+export async function getServiceMarginsAction() {
+  return toActionResult(async () => {
+    const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'contributionMargin');
+    return listServiceMargins(company.id);
+  });
 }

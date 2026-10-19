@@ -11,6 +11,7 @@ import {
   listTransactions,
   markTransactionPaid,
   updateTransaction,
+  getSoldDueReceived,
 } from '@/server/data/finance';
 import { transactionInput } from '@/lib/validations/finance';
 import { serializeTransaction } from '@/lib/serialize';
@@ -57,6 +58,14 @@ export async function getCashFlowSummaryAction(input: unknown) {
   await ensureRecurringTransactions(company.id, company.timezone, userId);
   const range = resolveReportRange(parsed.preset as ReportPreset, company.timezone);
   return getCashFlowSummary(company.id, range);
+}
+
+/** Vendido × a receber × recebido no período (números separados, sem misturar). */
+export async function getSoldDueReceivedAction(input: unknown) {
+  const parsed = reportPresetInput.parse(input);
+  const { company } = await requireCompanyAdmin();
+  const range = resolveReportRange(parsed.preset as ReportPreset, company.timezone);
+  return getSoldDueReceived(company.id, range);
 }
 
 export async function createTransactionAction(input: unknown) {
