@@ -212,3 +212,16 @@
   );
   background-size: 22px 22px;
 }
+
+/* Barra de rolagem fina e discreta (menu lateral): sem setas, trilho transparente, some até passar o mouse. */
+@utility scrollbar-thin-soft {
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+
+  &:hover,
+  &:focus-within {
+    scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+  }
+}

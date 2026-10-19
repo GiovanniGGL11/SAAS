@@ -7,7 +7,7 @@ import { NavList } from '@/components/layout/nav-list';
 
 export function Sidebar() {
   return (
-    <aside className="bg-sidebar/80 border-foreground/[0.06] sticky top-0 hidden h-svh w-64 shrink-0 flex-col overflow-y-auto border-r px-3 py-4 backdrop-blur-xl md:flex">
+    <aside className="bg-sidebar/80 border-foreground/[0.06] sticky top-0 hidden h-svh w-64 shrink-0 flex-col overflow-y-auto scrollbar-thin-soft border-r px-3 py-4 backdrop-blur-xl md:flex">
       <Link
         href="/dashboard"
         className="mb-6 flex items-center gap-2.5 px-2.5 text-[15px] font-semibold tracking-tight"
