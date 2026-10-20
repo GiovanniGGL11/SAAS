@@ -607,8 +607,8 @@ export async function executeAction(
       return {
         message: `Orçamento #${quote.number} salvo como rascunho. Confira e envie pela tela de orçamentos — nada foi enviado ao cliente.`,
         appointmentIds: [],
-        paths: ['/clientes/orcamentos'],
-        link: `/clientes/orcamentos?id=${quote.id}`,
+        paths: ['/comercial'],
+        link: `/comercial?aba=orcamentos&id=${quote.id}`,
       };
     }
     case 'create_task': {

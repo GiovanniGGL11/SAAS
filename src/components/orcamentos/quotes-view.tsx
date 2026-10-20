@@ -31,12 +31,15 @@ export function QuotesView({
   clientName,
   initialOpenId,
   initialNewForClient,
+  initialOpportunityId,
 }: {
   timezone: string;
   clientId?: string;
   clientName?: string;
   initialOpenId?: string;
   initialNewForClient?: string;
+  /** Orçamento novo já ligado a uma oportunidade. */
+  initialOpportunityId?: string;
 }) {
   const [status, setStatus] = React.useState<'' | QuoteStatusValue>('');
   const [openId, setOpenId] = React.useState<string | null>(initialOpenId ?? null);
@@ -140,6 +143,7 @@ export function QuotesView({
         quoteId={null}
         lockedClient={Boolean(clientId)}
         initial={newDraft}
+        opportunityId={initialOpportunityId}
         onSaved={(id) => setOpenId(id)}
       />
       <QuoteDetailDrawer

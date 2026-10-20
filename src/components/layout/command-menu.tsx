@@ -1,5 +1,6 @@
 'use client';
 
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
@@ -22,6 +23,7 @@ import {
 export function CommandMenu() {
   const { orgRole } = useAuth();
   const isAdmin = orgRole === 'org:admin';
+  const { has } = usePlanFeatures();
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = React.useState(false);
@@ -75,7 +77,10 @@ export function CommandMenu() {
               {navItems
                 .filter(
                   (item) =>
-                    item.group === group && !item.comingSoon && (isAdmin || !item.adminOnly),
+                    item.group === group &&
+                    !item.comingSoon &&
+                    (isAdmin || !item.adminOnly) &&
+                    (!item.anyFeature || item.anyFeature.some((f) => has(f))),
                 )
                 .map((item) => {
                   const Icon = item.icon;

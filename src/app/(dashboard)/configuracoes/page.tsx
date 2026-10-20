@@ -17,6 +17,7 @@ import { WhatsappAutomationCard } from '@/components/configuracoes/whatsapp-auto
 import { DepositCard } from '@/components/configuracoes/deposit-card';
 import { AiSettingsCard } from '@/components/configuracoes/ai-settings-card';
 import { BusinessPreferencesCard } from '@/components/configuracoes/business-preferences-card';
+import { CustomFieldsCard } from '@/components/configuracoes/custom-fields-card';
 import { appBaseUrl } from '@/server/app-url';
 import { PageHeader } from '@/components/layout/page';
 import { OpenDemoCard } from '@/components/demo/demo-controls';
@@ -66,6 +67,8 @@ export default async function ConfiguracoesPage() {
       <AiSettingsCard />
 
       <BusinessPreferencesCard />
+
+      <CustomFieldsCard />
 
       <GoogleReviewCard initialUrl={company.googleReviewUrl} />
 

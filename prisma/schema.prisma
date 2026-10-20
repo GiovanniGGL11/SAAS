@@ -104,6 +104,12 @@ model Company {
   importBatches             ImportBatch[]
   automationRuns            AutomationRun[]
   dailySummaries            DailySummary[]
+  taskComments              TaskComment[]
+  opportunityStages         OpportunityStage[]
+  opportunities             Opportunity[]
+  opportunityEvents         OpportunityEvent[]
+  customFields              CustomField[]
+  customFieldValues         CustomFieldValue[]
 }
 
 model WebhookEvent {
@@ -248,6 +254,7 @@ model Client {
   sessionRecords  SessionRecord[]
   quotes          Quote[]
   tasks           Task[]
+  opportunities   Opportunity[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -817,6 +824,9 @@ model Quote {
   convertedByUserId         String?
   /// manual | ai
   origin                    String         @default("manual")
+  /// Oportunidade comercial de origem (opcional).
+  opportunityId             String?
+  opportunity               Opportunity?   @relation(fields: [opportunityId], references: [id])
   createdByUserId           String
   createdAt                 DateTime       @default(now())
   updatedAt                 DateTime       @updatedAt
@@ -854,37 +864,205 @@ enum TaskStatus {
   OPEN
   DONE
   CANCELED
+  /// Em andamento (começou, ainda não terminou).
+  IN_PROGRESS
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 /// Tarefa de acompanhamento (retornar um orçamento, renovar um pacote...). Rotinas automáticas
 /// usam dedupeKey para nunca criar a mesma tarefa duas vezes.
 model Task {
-  id                String     @id @default(cuid())
-  companyId         String
-  company           Company    @relation(fields: [companyId], references: [id])
-  title             String
-  details           String?
-  dueAt             DateTime?
-  status            TaskStatus @default(OPEN)
-  clientId          String?
-  client            Client?    @relation(fields: [clientId], references: [id])
-  quoteId           String?
-  quote             Quote?     @relation(fields: [quoteId], references: [id])
-  clientPackageId   String?
-  appointmentId     String?
+  id                 String        @id @default(cuid())
+  companyId          String
+  company            Company       @relation(fields: [companyId], references: [id])
+  title              String
+  details            String?
+  dueAt              DateTime?
+  status             TaskStatus    @default(OPEN)
+  clientId           String?
+  client             Client?       @relation(fields: [clientId], references: [id])
+  quoteId            String?
+  quote              Quote?        @relation(fields: [quoteId], references: [id])
+  clientPackageId    String?
+  appointmentId      String?
+  opportunityId      String?
+  opportunity        Opportunity?  @relation(fields: [opportunityId], references: [id])
+  /// Lançamento financeiro relacionado (conta a pagar/receber).
+  transactionId      String?
   /// manual | ai | automation:<rotina>
-  origin            String     @default("manual")
-  dedupeKey         String?
-  assignedUserId    String?
-  createdByUserId   String
-  completedAt       DateTime?
-  completedByUserId String?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  origin             String        @default("manual")
+  dedupeKey          String?
+  assignedUserId     String?
+  priority           TaskPriority  @default(NORMAL)
+  /// Checklist opcional: [{ id, text, done }]
+  checklist          Json?
+  /// Lembrete interno (aviso no sino da pessoa responsável); nada é enviado para fora.
+  remindAt           DateTime?
+  /// Recorrência simples: daily | weekly | monthly. A próxima nasce ao concluir/cancelar esta.
+  recurrence         String?
+  /// Primeira tarefa da série (para não gerar a mesma ocorrência duas vezes).
+  recurrenceSourceId String?
+  createdByUserId    String
+  completedAt        DateTime?
+  completedByUserId  String?
+  canceledAt         DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  comments           TaskComment[]
 
   @@unique([companyId, dedupeKey])
   @@index([companyId, status, dueAt])
   @@index([companyId, clientId])
+  @@index([companyId, assignedUserId, status])
+  @@index([opportunityId])
+}
+
+/// Comentário numa tarefa (interno da equipe).
+model TaskComment {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+enum OpportunityStageKind {
+  OPEN
+  WON
+  LOST
+}
+
+/// Etapa do funil comercial (personalizável por empresa). Ganho e Perdido são etapas finais.
+model OpportunityStage {
+  id            String               @id @default(cuid())
+  companyId     String
+  company       Company              @relation(fields: [companyId], references: [id])
+  name          String
+  position      Int
+  kind          OpportunityStageKind @default(OPEN)
+  archived      Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  opportunities Opportunity[]
+
+  @@index([companyId, position])
+}
+
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+}
+
+/// Oportunidade comercial. Pode ter um cliente cadastrado ou só o contato (vira cliente quando
+/// a equipe decidir, sem duplicar quem já existe pelo telefone).
+model Opportunity {
+  id              String             @id @default(cuid())
+  companyId       String
+  company         Company            @relation(fields: [companyId], references: [id])
+  clientId        String?
+  client          Client?            @relation(fields: [clientId], references: [id])
+  contactName     String?
+  contactPhone    String?
+  title           String
+  /// indicacao | instagram | site | whatsapp | passante | outro (texto livre curto)
+  source          String?
+  ownerUserId     String?
+  serviceIds      String[]           @default([])
+  /// Valor estimado do negócio (não é receita).
+  estimatedValue  Decimal?           @db.Decimal(10, 2)
+  stageId         String
+  stage           OpportunityStage   @relation(fields: [stageId], references: [id])
+  status          OpportunityStatus  @default(OPEN)
+  nextAction      String?
+  nextActionAt    DateTime?
+  expectedCloseAt DateTime?
+  lostReason      String?
+  wonAt           DateTime?
+  lostAt          DateTime?
+  /// Quando entrou na etapa atual (para tempo por etapa).
+  stageEnteredAt  DateTime           @default(now())
+  createdByUserId String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  events          OpportunityEvent[]
+  tasks           Task[]
+  quotes          Quote[]
+
+  @@index([companyId, status, stageId])
+  @@index([companyId, ownerUserId])
+  @@index([companyId, clientId])
+}
+
+/// Linha do tempo da oportunidade: interações registradas e mudanças de etapa.
+model OpportunityEvent {
+  id            String      @id @default(cuid())
+  companyId     String
+  company       Company     @relation(fields: [companyId], references: [id])
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  /// stage_change | note | call | message | meeting | email | won | lost | reopened
+  kind          String
+  body          String?
+  fromStageId   String?
+  toStageId     String?
+  userId        String
+  createdAt     DateTime    @default(now())
+
+  @@index([opportunityId, createdAt])
+}
+
+/// Campo personalizado. O id é estável: renomear não muda nada nas respostas; o tipo nunca muda
+/// depois de criado; arquivar esconde o campo sem apagar respostas.
+model CustomField {
+  id          String             @id @default(cuid())
+  companyId   String
+  company     Company            @relation(fields: [companyId], references: [id])
+  /// client | service | opportunity | job
+  entity      String
+  label       String
+  description String?
+  /// short_text | long_text | number | date | boolean | single_select | multi_select
+  type        String
+  required    Boolean            @default(false)
+  /// Opções com id estável: [{ id, label, archived? }]
+  options     Json?
+  position    Int                @default(0)
+  /// Quem vê / quem edita: all | admin
+  viewRole    String             @default("all")
+  editRole    String             @default("all")
+  archived    Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  values      CustomFieldValue[]
+
+  @@index([companyId, entity, archived])
+}
+
+model CustomFieldValue {
+  id              String      @id @default(cuid())
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+  fieldId         String
+  field           CustomField @relation(fields: [fieldId], references: [id])
+  recordId        String
+  value           Json
+  updatedByUserId String
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([fieldId, recordId])
+  @@index([companyId, recordId])
 }
 
 /// Vale/adiantamento pago ao profissional; é descontado no próximo fechamento de comissão.

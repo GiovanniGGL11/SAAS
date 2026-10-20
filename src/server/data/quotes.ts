@@ -157,6 +157,16 @@ export async function createQuote(params: {
   }
   const quote = await prisma.$transaction(async (tx) => {
     await assertQuoteRefs(tx, params.companyId, { ...params.input, items: content.items });
+    if (params.input.opportunityId) {
+      const opp = await tx.opportunity.findFirst({
+        where: { id: params.input.opportunityId, companyId: params.companyId },
+        select: { clientId: true },
+      });
+      if (!opp) throw new UserError('Oportunidade não encontrada.');
+      if (opp.clientId && opp.clientId !== params.input.clientId) {
+        throw new UserError('A oportunidade é de outro cliente.');
+      }
+    }
     // Número sequencial por empresa, sem buraco por corrida.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'quote-number:' + params.companyId}))`;
     const last = await tx.quote.aggregate({
@@ -170,6 +180,7 @@ export async function createQuote(params: {
         number: (last._max.number ?? 0) + 1,
         title,
         responsibleProfessionalId: params.input.responsibleProfessionalId || null,
+        opportunityId: params.input.opportunityId || null,
         origin: params.origin ?? 'manual',
         createdByUserId: params.userId,
         versions: {
@@ -213,7 +224,7 @@ export async function updateQuote(params: {
     if (quote.status === 'CANCELED')
       throw new UserError('Orçamento cancelado não pode ser alterado.');
     if (quote.convertedAt) {
-      throw new UserError('Este orçamento já virou pacote. Para mudar, crie um orçamento novo.');
+      throw new UserError('Este orçamento já foi convertido (pacote ou venda). Para mudar, crie um orçamento novo.');
     }
     if (quote.currentVersion !== params.expectedVersion) {
       throw new UserError(
@@ -691,7 +702,7 @@ export async function convertQuoteToPackage(params: {
     where: { id: params.id, companyId: params.companyId },
   });
   if (!quote) throw new UserError('Orçamento não encontrado.');
-  if (quote.convertedAt) throw new UserError('Este orçamento já foi convertido em pacote.');
+  if (quote.convertedAt) throw new UserError('Este orçamento já foi convertido.');
   if (quote.status !== 'APPROVED' || quote.approvedVersion !== quote.currentVersion) {
     throw new UserError('Só a versão aprovada pode virar pacote. Registre a aprovação primeiro.');
   }
@@ -926,4 +937,81 @@ export async function respondQuoteFromPortal(
     reason: answer.reason,
     via: 'client_portal',
   });
+}
+
+/**
+ * Converte a versão aprovada em VENDA, uma vez só: reivindica o orçamento, baixa do estoque os
+ * produtos do orçamento e lança UMA conta a receber (pendente) com o valor aprovado — tudo na
+ * mesma transação. Aprovar não é receber: o pagamento é registrado depois, no financeiro.
+ */
+export async function convertQuoteToSale(params: {
+  companyId: string;
+  timezone: string;
+  userId: string;
+  id: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const { quote, version } = await lockQuote(tx, params.companyId, params.id);
+    if (quote.convertedAt) throw new UserError('Este orçamento já foi convertido.');
+    if (quote.status !== 'APPROVED' || quote.approvedVersion !== quote.currentVersion) {
+      throw new UserError('Só a versão aprovada pode virar venda. Registre a aprovação primeiro.');
+    }
+    if (version.contentHash !== quote.approvedHash) {
+      throw new UserError('O conteúdo aprovado não confere. Peça uma nova aprovação.');
+    }
+    const items = version.items as QuoteItem[];
+    for (const item of items.filter((i) => i.kind === 'product' && i.refId)) {
+      const updated = await tx.product.updateMany({
+        where: { id: item.refId!, companyId: params.companyId, quantity: { gte: item.quantity } },
+        data: { quantity: { decrement: item.quantity } },
+      });
+      if (updated.count === 0) {
+        throw new UserError(`Estoque insuficiente de ${item.description}.`);
+      }
+      await tx.stockMovement.create({
+        data: {
+          companyId: params.companyId,
+          productId: item.refId!,
+          type: 'SALE',
+          quantity: item.quantity,
+          reason: `Venda do orçamento #${quote.number}`,
+          createdByUserId: params.userId,
+        },
+      });
+    }
+    const receivable = await tx.transaction.create({
+      data: {
+        companyId: params.companyId,
+        clientId: quote.clientId,
+        type: 'INCOME',
+        status: 'PENDING',
+        category: 'Orçamento',
+        description: `Orçamento #${quote.number} — ${quote.title}`.slice(0, 200),
+        notes: 'A receber (orçamento aprovado)',
+        amount: version.total,
+        createdByUserId: params.userId,
+      },
+    });
+    await tx.quote.update({
+      where: { id: quote.id },
+      data: {
+        convertedAt: new Date(),
+        convertedKind: 'sale',
+        convertedRefId: receivable.id,
+        convertedByUserId: params.userId,
+      },
+    });
+    await recordAuditLog(
+      {
+        companyId: params.companyId,
+        entityType: 'Quote',
+        entityId: quote.id,
+        action: 'converted',
+        userId: params.userId,
+        metadata: { kind: 'sale', transactionId: receivable.id, version: version.version },
+      },
+      tx,
+    );
+    return { transactionId: receivable.id, total: Number(version.total) };
+  }, TX);
 }

@@ -5,7 +5,6 @@ import { ImportClientsDialog } from '@/components/clientes/import-clients-dialog
 import { ImportWizard } from '@/components/importacao/import-wizard';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePlanFeatures } from '@/components/plan/use-plan-features';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -66,7 +65,6 @@ export function ClientList({
   // Importar é de admin; a equipe só cadastra um por vez.
   const isAdmin = useAuth().orgRole === 'org:admin';
   const planFeatures = usePlanFeatures();
-  const quotesEnabled = planFeatures.has('quotes');
   // Profissional em diante: importação assistida (mapeamento, prévia, duplicados, relatório).
   const assistedImport = planFeatures.has('assistedImport');
   const [search, setSearch] = React.useState('');
@@ -129,11 +127,6 @@ export function ClientList({
         description={`${counts.active} ${counts.active === 1 ? 'cliente ativo' : 'clientes ativos'} na sua base.`}
         actions={
           <>
-            {quotesEnabled && (
-              <Button variant="outline" asChild>
-                <Link href="/clientes/orcamentos">Orçamentos</Link>
-              </Button>
-            )}
             {isAdmin && (
               <Button variant="outline" onClick={() => setImportOpen(true)}>
                 Importar

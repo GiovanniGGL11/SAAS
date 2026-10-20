@@ -140,6 +140,8 @@ type EditorProps = {
   initial?: QuoteDraft;
   lockedClient?: boolean;
   status?: string;
+  /** Oportunidade de origem (só ao criar). */
+  opportunityId?: string;
   onSaved: (id: string) => void;
 };
 
@@ -160,6 +162,7 @@ function QuoteEditorInner({
   lockedClient,
   status,
   onSaved,
+  opportunityId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -168,6 +171,7 @@ function QuoteEditorInner({
   initial?: QuoteDraft;
   lockedClient?: boolean;
   status?: string;
+  opportunityId?: string;
   onSaved: (id: string) => void;
 }) {
   const blank: QuoteDraft = React.useMemo(
@@ -240,7 +244,11 @@ function QuoteEditorInner({
         await updateQuoteAction({ id: quoteId, expectedVersion, ...payload }).then(unwrapResult);
         return quoteId;
       }
-      return (await createQuoteAction(payload).then(unwrapResult)).id;
+      return (
+        await createQuoteAction({ ...payload, opportunityId: opportunityId ?? null }).then(
+          unwrapResult,
+        )
+      ).id;
     },
     onSuccess: (id) => {
       store(quoteId, null);

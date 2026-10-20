@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import type { FeatureKey } from '@/lib/billing/plans';
 import {
   LayoutDashboard,
   CalendarDays,
@@ -15,6 +16,8 @@ import {
   History,
   Settings,
   CreditCard,
+  ListChecks,
+  Handshake,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -27,6 +30,8 @@ export type NavItem = {
   comingSoon?: boolean;
   /** Só para dono/gerente (admin da organização); a equipe não vê no menu. */
   adminOnly?: boolean;
+  /** Aparece só se o plano incluir alguma destas funcionalidades (o servidor confere de novo). */
+  anyFeature?: FeatureKey[];
 };
 
 export type NavGroup = 'Visão geral' | 'Operação' | 'Gestão';
@@ -42,7 +47,22 @@ export const navItems: NavItem[] = [
     group: 'Visão geral',
   },
   { label: 'Agenda', href: '/agenda', icon: CalendarDays, color: '#ff3b30', group: 'Visão geral' },
+  {
+    label: 'Atividades',
+    href: '/atividades',
+    icon: ListChecks,
+    color: '#ff9500',
+    group: 'Visão geral',
+  },
   { label: 'Clientes', href: '/clientes', icon: Users, color: '#34c759', group: 'Operação' },
+  {
+    label: 'Comercial',
+    href: '/comercial',
+    icon: Handshake,
+    color: '#5ac8fa',
+    group: 'Operação',
+    anyFeature: ['crm', 'quotes'],
+  },
   {
     label: 'Profissionais',
     href: '/profissionais',

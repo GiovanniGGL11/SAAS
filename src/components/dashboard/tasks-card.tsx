@@ -109,7 +109,7 @@ export function TasksCard() {
                     )}
                     {task.quote && (
                       <Link
-                        href={`/clientes/orcamentos?id=${task.quote.id}`}
+                        href={`/comercial?aba=orcamentos&id=${task.quote.id}`}
                         className="hover:underline"
                       >
                         Orçamento #{task.quote.number}

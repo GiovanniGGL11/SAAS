@@ -13,6 +13,7 @@ import {
   approveQuote,
   cancelQuote,
   convertQuoteToPackage,
+  convertQuoteToSale,
   createQuote,
   createQuoteFollowUp,
   createQuoteShareLink,
@@ -176,6 +177,15 @@ export async function convertQuoteToPackageAction(rawId: unknown) {
       id,
     });
     return { packageId: pkg.id, clientId: pkg.clientId };
+  });
+}
+
+/** Converte em venda: conta a receber pendente + baixa dos produtos. Uma vez só. */
+export async function convertQuoteToSaleAction(rawId: unknown) {
+  return toActionResult(async () => {
+    const id = parseId(rawId);
+    const { company, userId } = await session();
+    return convertQuoteToSale({ companyId: company.id, timezone: company.timezone, userId, id });
   });
 }
 

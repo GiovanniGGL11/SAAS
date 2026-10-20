@@ -1,5 +1,6 @@
 'use client';
 
+import { CustomFieldsEditor } from '@/components/custom-fields/custom-fields-editor';
 import Link from 'next/link';
 
 import * as React from 'react';
@@ -238,6 +239,7 @@ export function ClientDetail({
 
       {tab === 'resumo' && (
         <>
+          <CustomFieldsEditor entity="client" recordId={clientId} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard label="Total gasto" value={formatCurrencyBRL(stats.totalSpent)} />
             <StatCard label="Ticket médio" value={formatCurrencyBRL(stats.averageTicket)} />

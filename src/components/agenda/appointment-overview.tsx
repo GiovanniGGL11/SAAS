@@ -354,7 +354,7 @@ export function AppointmentOverviewView({
                 {data.quotes.map((q) => (
                   <Link
                     key={q.id}
-                    href={`/clientes/orcamentos?id=${q.id}`}
+                    href={`/comercial?aba=orcamentos&id=${q.id}`}
                     className="text-system-blue text-[13px] hover:underline"
                   >
                     #{q.number} {q.title} — {QUOTE_STATUS_LABEL[q.status]}
@@ -363,7 +363,7 @@ export function AppointmentOverviewView({
               </div>
             )}
             <Link
-              href={`/clientes/orcamentos?novo=${data.client.id}`}
+              href={`/comercial?aba=orcamentos&novo=${data.client.id}`}
               className="text-system-blue text-[13px] hover:underline"
             >
               Novo orçamento para {data.client.name.split(/\s+/)[0]}

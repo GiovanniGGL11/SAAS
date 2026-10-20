@@ -98,7 +98,7 @@ export async function getAutomationResults(companyId: string, days = 30) {
     tasks: {
       created: tasks.reduce((s, t) => s + t._count, 0),
       done: count(tasks, 'DONE'),
-      open: count(tasks, 'OPEN'),
+      open: count(tasks, 'OPEN') + count(tasks, 'IN_PROGRESS'),
     },
     renewals: {
       quotesPrepared: quotes.length,

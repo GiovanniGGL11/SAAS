@@ -26,6 +26,7 @@ import {
   approveQuoteAction,
   cancelQuoteAction,
   convertQuoteToPackageAction,
+  convertQuoteToSaleAction,
   createQuoteFollowUpAction,
   duplicateQuoteAction,
   getQuoteAction,
@@ -85,7 +86,7 @@ export function QuoteDetailDrawer({
   const [approvalNote, setApprovalNote] = React.useState('');
   const [rejecting, setRejecting] = React.useState(false);
   const [reason, setReason] = React.useState('');
-  const [confirm, setConfirm] = React.useState<'cancel' | 'convert' | null>(null);
+  const [confirm, setConfirm] = React.useState<'cancel' | 'convert' | 'sale' | null>(null);
   const [taskDue, setTaskDue] = React.useState('');
 
   const refresh = () => {
@@ -140,6 +141,15 @@ export function QuoteDetailDrawer({
       run(
         () => convertQuoteToPackageAction(quote!.id).then(unwrapResult),
         'Pacote criado no cliente (sem cobrança lançada).',
+      ),
+    onSuccess: () => setConfirm(null),
+    onError: () => setConfirm(null),
+  });
+  const sale = useMutation({
+    mutationFn: () =>
+      run(
+        () => convertQuoteToSaleAction(quote!.id).then(unwrapResult),
+        'Venda registrada como conta a receber (nada foi marcado como pago).',
       ),
     onSuccess: () => setConfirm(null),
     onError: () => setConfirm(null),
@@ -266,7 +276,13 @@ export function QuoteDetailDrawer({
                   {quote.rejected.reason && `: “${quote.rejected.reason}”`}
                 </p>
               )}
-              {quote.converted && (
+              {quote.converted?.kind === 'sale' && (
+                <p className="bg-system-blue/[0.06] rounded-xl px-3 py-2 text-[13px]">
+                  Convertido em venda em {fmtDate(quote.converted.at, timezone)}: conta a receber
+                  lançada no financeiro. O recebimento é registrado quando acontecer.
+                </p>
+              )}
+              {quote.converted && quote.converted.kind !== 'sale' && (
                 <p className="bg-system-blue/[0.06] rounded-xl px-3 py-2 text-[13px]">
                   Convertido em pacote em {fmtDate(quote.converted.at, timezone)}
                   {quote.converted.packageName && ` (${quote.converted.packageName})`}.{' '}
@@ -385,6 +401,11 @@ export function QuoteDetailDrawer({
                     Converter em pacote
                   </Button>
                 )}
+                {status === 'APPROVED' && !quote.converted && (
+                  <Button size="sm" variant="outline" onClick={() => setConfirm('sale')}>
+                    Converter em venda
+                  </Button>
+                )}
                 {editable && (
                   <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                     {status === 'DRAFT' ? 'Editar' : 'Alterar (nova versão)'}
@@ -487,6 +508,15 @@ export function QuoteDetailDrawer({
               destructive
               pending={cancel.isPending}
               onConfirm={() => cancel.mutate()}
+            />
+            <ConfirmDialog
+              open={confirm === 'sale'}
+              onOpenChange={(o: boolean) => !o && setConfirm(null)}
+              title="Converter em venda?"
+              description={`Lança ${formatCurrencyBRL(quote.current.total)} como conta A RECEBER do cliente (não como pago) e baixa do estoque os produtos do orçamento. O recebimento é registrado depois, no financeiro. Só pode ser feito uma vez.`}
+              confirmLabel="Registrar venda"
+              pending={sale.isPending}
+              onConfirm={() => sale.mutate()}
             />
             <ConfirmDialog
               open={confirm === 'convert'}

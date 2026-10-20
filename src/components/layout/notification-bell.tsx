@@ -47,6 +47,7 @@ const ICONS: Record<NoticeKind, { icon: LucideIcon; className: string }> = {
   approvals: { icon: SparklesIcon, className: 'text-system-blue bg-system-blue/10' },
   tasks_due: { icon: ListChecksIcon, className: 'text-system-orange bg-system-orange/10' },
   quotes_waiting: { icon: FileTextIcon, className: 'text-system-indigo bg-system-indigo/10' },
+  task_reminder: { icon: BellIcon, className: 'text-system-orange bg-system-orange/10' },
 };
 
 // ---- Lido / dispensado, por pessoa, no navegador ------------------------------------------------

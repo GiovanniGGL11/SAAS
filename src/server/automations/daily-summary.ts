@@ -123,7 +123,11 @@ export async function computeDailySummary(
       to: new Date(now.getTime() + 2 * 86_400_000),
     }),
     prisma.task.findMany({
-      where: { companyId, status: 'OPEN', OR: [{ dueAt: null }, { dueAt: { lt: end } }] },
+      where: {
+          companyId,
+          status: { in: ['OPEN', 'IN_PROGRESS'] },
+          OR: [{ dueAt: null }, { dueAt: { lt: end } }],
+        },
       select: { id: true, title: true, dueAt: true },
       orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }],
       take: 20,
@@ -191,7 +195,7 @@ export async function computeDailySummary(
       items: quotes.slice(0, LIMIT).map((q) => ({
         label: `#${q.number} ${q.title}`,
         detail: q.client.name,
-        href: `/clientes/orcamentos?id=${q.id}`,
+        href: `/comercial?aba=orcamentos&id=${q.id}`,
       })),
     },
     {

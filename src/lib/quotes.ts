@@ -50,6 +50,8 @@ export const quoteInputSchema = quoteContentSchema.extend({
   clientId: z.string().min(1).max(64),
   title: z.string().trim().min(1, 'Dê um nome ao orçamento.').max(120),
   responsibleProfessionalId: z.string().max(64).nullish(),
+  /** Oportunidade comercial de origem (opcional). */
+  opportunityId: z.string().max(64).nullish(),
 });
 
 export type QuoteInput = z.infer<typeof quoteInputSchema>;

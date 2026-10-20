@@ -1,9 +1,9 @@
 'use server';
 
 import { z } from 'zod';
-import { clerkClient } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/db';
+import { listTeamMembers } from '@/server/team';
 import { toActionResult } from '@/server/action-result';
 import { UserError, parseId } from '@/server/errors';
 import { appBaseUrl } from '@/server/app-url';
@@ -332,23 +332,7 @@ export async function requestAppointmentFormsAction(rawAppointmentId: unknown) {
 
 // ---- Permissões (administrador) ----------------------------------------------------------------
 
-async function orgMembers(clerkOrgId: string) {
-  const client = await clerkClient();
-  const { data } = await client.organizations.getOrganizationMembershipList({
-    organizationId: clerkOrgId,
-    limit: 100,
-  });
-  return data
-    .filter((m) => m.publicUserData?.userId)
-    .map((m) => ({
-      userId: m.publicUserData!.userId,
-      name:
-        [m.publicUserData!.firstName, m.publicUserData!.lastName].filter(Boolean).join(' ') ||
-        m.publicUserData!.identifier,
-      email: m.publicUserData!.identifier,
-      role: m.role === 'org:admin' ? ('admin' as const) : ('member' as const),
-    }));
-}
+const orgMembers = listTeamMembers;
 
 export async function listFormPermissionsAction() {
   return toActionResult(async () => {

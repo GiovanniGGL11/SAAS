@@ -1,5 +1,6 @@
 'use client';
 
+import { CustomFieldsEditor } from '@/components/custom-fields/custom-fields-editor';
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -269,6 +270,9 @@ export function ServiceDrawer({
             />
 
             <ServiceSuppliesField value={supplies} onChange={setEditedSupplies} />
+
+            {/* Respostas salvas à parte (o serviço precisa existir antes). */}
+            {isEdit && <CustomFieldsEditor entity="service" recordId={service.id} />}
 
             {has('checklists') && (
               <label className="flex flex-col gap-1.5">

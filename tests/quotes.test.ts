@@ -245,7 +245,7 @@ describe('orçamentos', () => {
         expectedVersion: 1,
         input: eight(10),
       }),
-    ).rejects.toThrow(/já virou pacote/);
+    ).rejects.toThrow(/já foi convertido/);
     await expect(cancelQuote(f.company.id, 'u', quote.id)).rejects.toThrow(/convertido/);
   });
 

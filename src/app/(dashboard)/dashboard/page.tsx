@@ -34,8 +34,6 @@ import { TodayAgendaCard } from '@/components/dashboard/today-agenda-card';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { listAppointmentsInRange } from '@/server/data/appointments';
 import { addDays, getTodayInTz, startOfCalendarDateUtc } from '@/lib/time';
-import { hasFeature } from '@/server/billing/features';
-import { buildAiSession } from '@/server/ai/access';
 import { DailySummaryCard } from '@/components/dashboard/daily-summary-card';
 import { TasksCard } from '@/components/dashboard/tasks-card';
 
@@ -174,13 +172,11 @@ export default async function DashboardPage({
     />
   );
 
-  // Resumo do dia (Profissional em diante) e tarefas de acompanhamento: para toda a equipe.
-  const aiAvailable = buildAiSession({ company, userId: session.userId, isAdmin }).entitlements.ai
-    .available.assistant;
+  // "Meu dia" e tarefas: para toda a equipe, em todos os planos.
   const followUp = (
     <div className="grid grid-cols-1 items-start gap-4 md:gap-5 lg:grid-cols-2">
       <TasksCard />
-      {hasFeature(company, 'dailySummary') && <DailySummaryCard aiAvailable={aiAvailable} />}
+      <DailySummaryCard />
     </div>
   );
 

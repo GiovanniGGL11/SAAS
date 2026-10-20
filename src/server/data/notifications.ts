@@ -3,6 +3,7 @@ import { addDays, calendarDateToUtc, formatTimeInTz, getTodayInTz } from '@/lib/
 import { listLowStockProducts } from '@/server/data/stock';
 import { listUpcomingSupplyShortages } from '@/server/data/service-supplies';
 import { getPreferences } from '@/server/data/business-preferences';
+import { dueReminders } from '@/server/data/tasks';
 
 /*
   Avisos do sino, calculados na hora (sem tabela): o navegador pergunta a cada minuto. Cada
@@ -22,7 +23,8 @@ export type NoticeKind =
   | 'birthday'
   | 'approvals'
   | 'tasks_due'
-  | 'quotes_waiting';
+  | 'quotes_waiting'
+  | 'task_reminder';
 
 export type Notice = {
   id: string;
@@ -233,7 +235,9 @@ async function followUp(
         })
       : 0,
     prefs.notifyTasks
-      ? prisma.task.count({ where: { companyId, status: 'OPEN', dueAt: { lt: endOfToday } } })
+      ? prisma.task.count({
+          where: { companyId, status: { in: ['OPEN', 'IN_PROGRESS'] }, dueAt: { lt: endOfToday } },
+        })
       : 0,
     prefs.notifyQuotes
       ? prisma.quote.count({
@@ -246,6 +250,19 @@ async function followUp(
       : 0,
   ]);
   const notices: Notice[] = [];
+  // Lembretes internos de tarefas da própria pessoa (um aviso por lembrete).
+  if (viewer) {
+    for (const r of await dueReminders(companyId, viewer.userId, now)) {
+      notices.push({
+        id: `reminder:${r.id}:${r.remindAt.toISOString()}`,
+        kind: 'task_reminder',
+        title: 'Lembrete',
+        body: r.title,
+        href: `/atividades?tarefa=${r.id}`,
+        at: r.remindAt.toISOString(),
+      });
+    }
+  }
   if (approvals > 0) {
     notices.push({
       id: `approvals:${approvals}`,
@@ -261,7 +278,7 @@ async function followUp(
       kind: 'tasks_due',
       title: 'Tarefas para hoje',
       body: `${tasks} ${tasks === 1 ? 'tarefa vence' : 'tarefas vencem'} até hoje`,
-      href: '/dashboard#tarefas',
+      href: '/atividades?aba=tarefas',
     });
   }
   if (quotes > 0) {
@@ -270,7 +287,7 @@ async function followUp(
       kind: 'quotes_waiting',
       title: 'Orçamentos sem resposta',
       body: `${quotes} ${quotes === 1 ? 'orçamento enviado' : 'orçamentos enviados'} há mais de 3 dias`,
-      href: '/clientes/orcamentos',
+      href: '/comercial?aba=orcamentos',
     });
   }
   return notices;

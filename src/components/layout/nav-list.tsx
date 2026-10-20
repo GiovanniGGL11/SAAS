@@ -8,6 +8,7 @@ import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { navGroups, navItems } from '@/components/layout/nav-items';
 import { Badge } from '@/components/ui/badge';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 
 /**
  * Grouped navigation in the style of macOS sidebars: tinted icon chips, small
@@ -25,6 +26,10 @@ export function NavList({
   // A equipe (org:member) não vê as seções de gestão; o servidor também bloqueia, isto só limpa o menu.
   const { orgRole } = useAuth();
   const isAdmin = orgRole === 'org:admin';
+  const { has, data: plan } = usePlanFeatures();
+  // Enquanto o plano carrega, itens condicionados ficam fora (nada aparece "ativo" sem estar).
+  const allowed = (item: (typeof navItems)[number]) =>
+    !item.anyFeature || (!!plan && item.anyFeature.some((f) => has(f)));
 
   return (
     <nav className="flex flex-col gap-5">
@@ -34,7 +39,7 @@ export function NavList({
             {group}
           </div>
           {navItems
-            .filter((item) => item.group === group && (isAdmin || !item.adminOnly))
+            .filter((item) => item.group === group && (isAdmin || !item.adminOnly) && allowed(item))
             .map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;

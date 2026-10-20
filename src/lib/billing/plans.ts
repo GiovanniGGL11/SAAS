@@ -49,7 +49,23 @@ export type FeatureKey =
   /** Checklist por serviço na Visão do atendimento. */
   | 'checklists'
   /** Margem de contribuição por serviço (preço − materiais − comissão). */
-  | 'contributionMargin';
+  | 'contributionMargin'
+  /** Tarefas e lembretes internos (todos os planos). */
+  | 'tasks'
+  /** CRM de oportunidades (funil comercial). */
+  | 'crm'
+  /** Campos personalizados em clientes, serviços, oportunidades e serviços em andamento. */
+  | 'customFields'
+  /** Pesquisa de satisfação com resultados e tratamento de problemas. */
+  | 'surveys'
+  /** Programa de indicações com condição de recompensa. */
+  | 'referrals'
+  /** Gestão de serviços em andamento (várias etapas). */
+  | 'serviceTracking'
+  /** Automações configuráveis (gatilho → condições → ações). */
+  | 'automationRules'
+  /** Indicadores avançados e metas (conversão, aprovação, tempo por etapa, prazos). */
+  | 'advancedKpis';
 
 /** O que o plano INCLUI de IA. Incluir não basta: o recurso também precisa estar implementado (ver AI_IMPLEMENTED). */
 export type AiPlanEntitlements = {
@@ -141,6 +157,14 @@ const ESSENTIAL_FEATURES: Record<FeatureKey, boolean> = {
   automationResults: false,
   checklists: false,
   contributionMargin: false,
+  tasks: true,
+  crm: false,
+  customFields: false,
+  surveys: false,
+  referrals: false,
+  serviceTracking: false,
+  automationRules: false,
+  advancedKpis: false,
 };
 
 const FULL_FEATURES: Record<FeatureKey, boolean> = {
@@ -157,6 +181,10 @@ const FULL_FEATURES: Record<FeatureKey, boolean> = {
   assistedImport: true,
   dailySummary: true,
   checklists: true,
+  crm: true,
+  customFields: true,
+  surveys: true,
+  referrals: true,
 };
 
 /** Só no Pro: rotinas automáticas e análises que dependem delas. */
@@ -168,6 +196,9 @@ const PRO_FEATURES: Record<FeatureKey, boolean> = {
   packageRenewal: true,
   automationResults: true,
   contributionMargin: true,
+  serviceTracking: true,
+  automationRules: true,
+  advancedKpis: true,
 };
 
 export const PLANS: Plan[] = [
@@ -188,6 +219,7 @@ export const PLANS: Plan[] = [
       'Agenda e agendamento online',
       'Comanda, caixa e financeiro',
       'Clientes, fidelidade e estoque',
+      'Tarefas e lembretes internos',
       'Não inclui inteligência artificial',
     ],
   },
@@ -220,7 +252,8 @@ export const PLANS: Plan[] = [
       'Comissões, metas e relatórios',
       'WhatsApp automático e campanhas',
       'Pacotes, assinaturas e fichas',
-      'Orçamentos com link para o cliente aprovar',
+      'CRM de oportunidades e orçamentos com link para o cliente aprovar',
+      'Campos personalizados',
       'Lista de espera com convites e área do cliente completa',
       'Assistente de IA por texto, com sua aprovação antes de alterar dados',
     ],
