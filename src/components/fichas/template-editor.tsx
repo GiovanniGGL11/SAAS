@@ -362,6 +362,13 @@ export function TemplateEditor({
                     { value: 'staff', label: 'Só a equipe' },
                   ]}
                 />
+                <span className="text-label-secondary text-[12px]">
+                  {section.audience === 'staff'
+                    ? 'O cliente não vê esta seção.'
+                    : section.audience === 'client'
+                      ? 'Seção para o cliente responder.'
+                      : 'Aparece para a equipe e para o cliente.'}
+                </span>
               </div>
 
               <ol className="flex flex-col gap-3">
@@ -425,7 +432,10 @@ export function TemplateEditor({
                           ))}
                         </SelectContent>
                       </Select>
-                      <label className="ml-auto flex items-center gap-2 text-[13px]">
+                      <label
+                        className="ml-auto flex items-center gap-2 text-[13px]"
+                        title="Não deixa enviar a ficha sem responder esta pergunta"
+                      >
                         Obrigatória
                         <Switch
                           checked={question.required}
@@ -591,7 +601,7 @@ function Settings({
             onChange={(e) => update({ name: e.target.value })}
           />
         </Field>
-        <Field label="Tipo">
+        <Field label="Tipo" hint="Só organiza a lista de fichas; não muda o funcionamento.">
           <Select
             value={draft.type}
             onValueChange={(v: string) => update({ type: v as TemplateDraft['type'] })}
@@ -609,7 +619,11 @@ function Settings({
           </Select>
         </Field>
       </div>
-      <Field label="Descrição (para a equipe)" htmlFor="tpl-desc">
+      <Field
+        label="Descrição (para a equipe)"
+        htmlFor="tpl-desc"
+        hint="Lembrete interno do que esta ficha é. O cliente não vê."
+      >
         <Input
           id="tpl-desc"
           value={draft.description}
@@ -617,7 +631,11 @@ function Settings({
           onChange={(e) => update({ description: e.target.value })}
         />
       </Field>
-      <Field label="Instruções para quem responde" htmlFor="tpl-instr">
+      <Field
+        label="Instruções para quem responde"
+        htmlFor="tpl-instr"
+        hint="Aparece no topo da ficha, antes das perguntas."
+      >
         <Textarea
           id="tpl-instr"
           rows={2}
@@ -627,7 +645,7 @@ function Settings({
         />
       </Field>
       <div className="grid gap-4 md:grid-cols-3">
-        <Field label="Quem preenche">
+        <Field label="Quem preenche" hint={FILLER_HINT[draft.fillableBy]}>
           <Select
             value={draft.fillableBy}
             onValueChange={(v: string) => update({ fillableBy: v as TemplateDraft['fillableBy'] })}
@@ -644,7 +662,7 @@ function Settings({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Pedir de novo">
+        <Field label="Pedir de novo" hint={RENEWAL_HINT[draft.renewal]}>
           <Select
             value={draft.renewal}
             onValueChange={(v: string) => update({ renewal: v as TemplateDraft['renewal'] })}
@@ -661,7 +679,7 @@ function Settings({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Para iniciar o atendimento">
+        <Field label="Para iniciar o atendimento" hint={REQUIREMENT_HINT[draft.requirement]}>
           <Select
             value={draft.requirement}
             onValueChange={(v: string) =>
@@ -737,10 +755,13 @@ function Settings({
 function Field({
   label,
   htmlFor,
+  hint,
   children,
 }: {
   label: string;
   htmlFor?: string;
+  /** Explicação curta, mostrada abaixo do campo. */
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -753,9 +774,28 @@ function Field({
         <span className="text-[13px] font-medium">{label}</span>
       )}
       {children}
+      {hint && <p className="text-label-secondary text-[12px] leading-snug">{hint}</p>}
     </div>
   );
 }
+
+const FILLER_HINT = {
+  PROFESSIONAL: 'Só a equipe preenche, dentro do sistema.',
+  CLIENT: 'O cliente preenche sozinho pelo link que você envia.',
+  BOTH: 'A equipe preenche no atendimento ou o cliente responde pelo link.',
+} as const;
+
+const RENEWAL_HINT = {
+  EACH_VISIT: 'Uma ficha nova a cada atendimento.',
+  ONCE: 'O cliente responde uma vez; depois vale para sempre.',
+  AFTER_DAYS: 'Pede de novo quando passar o prazo que você definir.',
+} as const;
+
+const REQUIREMENT_HINT = {
+  NONE: 'O atendimento pode começar mesmo sem a ficha.',
+  SUBMITTED: 'Só inicia o atendimento depois que a ficha for enviada.',
+  REVIEWED: 'Só inicia depois que a equipe enviar e revisar a ficha.',
+} as const;
 
 function OptionsEditor({
   options,
