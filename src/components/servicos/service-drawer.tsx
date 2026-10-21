@@ -1,5 +1,14 @@
 'use client';
 
+import { PRICE_KINDS } from '@/lib/catalog';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { CustomFieldsEditor } from '@/components/custom-fields/custom-fields-editor';
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -63,6 +72,8 @@ export function ServiceDrawer({
       color: service?.color ?? PRESET_COLORS[0],
       commissionPercent: service?.commissionPercent ?? null,
       returnAfterDays: service?.returnAfterDays ?? null,
+      priceKind: (service?.priceKind ?? 'fixed') as 'fixed' | 'from' | 'on_request',
+      publicVisible: service?.publicVisible ?? true,
     },
   });
 
@@ -268,6 +279,44 @@ export function ServiceDrawer({
                 </FormItem>
               )}
             />
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="priceKind"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Como mostrar o preço</FormLabel>
+                    <Select value={field.value ?? 'fixed'} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.entries(PRICE_KINDS).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>
+                            {v}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="publicVisible"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between gap-3 pt-6">
+                    <FormLabel>Aparece no agendamento online</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <ServiceSuppliesField value={supplies} onChange={setEditedSupplies} />
 

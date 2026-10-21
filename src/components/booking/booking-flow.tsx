@@ -1,5 +1,6 @@
 'use client';
 
+import { priceLabel } from '@/lib/catalog';
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -12,7 +13,6 @@ import {
 
 import { cn } from '@/lib/utils';
 import { unwrapResult } from '@/lib/action-result';
-import { formatCurrencyBRL } from '@/lib/serialize';
 import { addDays, type CalendarDate } from '@/lib/time';
 import {
   dateKey,
@@ -42,6 +42,7 @@ type Service = {
   durationMinutes: number;
   price: number;
   description: string | null;
+  priceKind?: string;
 };
 type Professional = { id: string; name: string; color: string };
 export type BookingCompany = {
@@ -255,6 +256,7 @@ export function BookingFlow({
       <BookingSuccess
         booking={booked}
         company={company}
+        priceKind={service?.priceKind}
         onNewBooking={() => {
           setBooked(null);
           setSlot(null);
@@ -369,7 +371,7 @@ export function BookingFlow({
                         </span>
                         <span className="shrink-0 text-right">
                           <span className="block text-[15px] font-semibold tabular-nums">
-                            {formatCurrencyBRL(s.price)}
+                            {priceLabel(s.price, s.priceKind)}
                           </span>
                           <span className="text-label-secondary block text-[13px]">
                             {formatDuration(s.durationMinutes)}
@@ -654,7 +656,7 @@ export function BookingFlow({
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-[15px] font-medium">Valor total</span>
                   <span className="text-[20px] font-semibold tabular-nums">
-                    {formatCurrencyBRL(service.price)}
+                    {priceLabel(service.price, service.priceKind)}
                   </span>
                 </div>
                 <p className="text-label-secondary text-[13px] first-letter:uppercase">
@@ -725,7 +727,8 @@ export function BookingFlow({
                   <>
                     <span className="block truncate font-semibold">{service.name}</span>
                     <span className="text-label-secondary">
-                      {formatDuration(service.durationMinutes)} · {formatCurrencyBRL(service.price)}
+                      {formatDuration(service.durationMinutes)} ·{' '}
+                      {priceLabel(service.price, service.priceKind)}
                     </span>
                   </>
                 ) : (

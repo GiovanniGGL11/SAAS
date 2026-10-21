@@ -92,7 +92,7 @@ avaliações, com link para a origem. Valores só para administradores; filtro "
 | --- | --- |
 | `20261020090000_tasks_crm_custom_fields` | aplicada |
 | `20261020120000_jobs_referrals_rules` | aplicada |
-| `20261021090000_service_catalog` | **pendente** — aplicar com `npx prisma migrate deploy` antes de publicar o código que a usa |
+| `20261021090000_service_catalog` | aplicada |
 
 ## Integrações necessárias
 

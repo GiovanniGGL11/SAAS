@@ -92,8 +92,16 @@ export async function countBookableProfessionals(companyId: string): Promise<num
 export async function getBookingCatalog(companyId: string) {
   const [services, professionals] = await Promise.all([
     prisma.service.findMany({
-      where: { companyId, active: true },
-      select: { id: true, name: true, durationMinutes: true, price: true, description: true },
+      // Só itens autorizados para o link público; nunca custo, comissão ou dado interno.
+      where: { companyId, active: true, publicVisible: true },
+      select: {
+        id: true,
+        name: true,
+        durationMinutes: true,
+        price: true,
+        description: true,
+        priceKind: true,
+      },
       orderBy: { name: 'asc' },
     }),
     // Sem expediente cadastrado não há horário a oferecer: o profissional nem aparece no link.
@@ -313,6 +321,12 @@ export async function createPublicBooking(params: {
   if (params.startAt.getTime() < Date.now() + LEAD_MINUTES * 60_000) {
     throw new SlotUnavailableError();
   }
+  // Serviço interno (fora do catálogo público) não é reservado pelo link.
+  const publicService = await prisma.service.findFirst({
+    where: { id: params.serviceId, companyId: params.companyId, active: true, publicVisible: true },
+    select: { id: true },
+  });
+  if (!publicService) throw new UserError('Serviço indisponível.');
   // O pedido vem do navegador: só passa um horário que a própria lista de horários ofereceria
   // (dentro do expediente cadastrado, livre, com o profissional e o serviço da empresa).
   const offered = await listAvailableSlots({

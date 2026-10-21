@@ -206,6 +206,10 @@ model Service {
   returnAfterDays   Int?
   /// Checklist do atendimento (itens conferidos na Visão do atendimento). Vazio = sem checklist.
   checklistItems    String[]              @default([])
+  /// Catálogo: fixed (preço fixo) | from ("a partir de") | on_request ("sob consulta").
+  priceKind         String                @default("fixed")
+  /// Aparece no agendamento online (link público). Interno = só a equipe agenda.
+  publicVisible     Boolean               @default(true)
   appointmentItems  AppointmentItem[]
   packagePlans      PackagePlan[]
   clientPackages    ClientPackage[]

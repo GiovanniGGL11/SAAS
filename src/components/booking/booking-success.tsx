@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { CalendarPlusIcon, CheckCircle2Icon, MapPinIcon } from 'lucide-react';
 
-import { formatCurrencyBRL } from '@/lib/serialize';
+import { priceLabel } from '@/lib/catalog';
 import { formatTimeInTz, utcToCalendarDate } from '@/lib/time';
 import { formatDuration, longDate } from '@/lib/booking';
 import { Button } from '@/components/ui/button';
@@ -25,8 +25,11 @@ export function BookingSuccess({
   booking,
   company,
   onNewBooking,
+  priceKind,
 }: {
   booking: Booked;
+  /** Tipo de preço do serviço no catálogo ("a partir de", "sob consulta"). */
+  priceKind?: string;
   company: { name: string; timezone: string; address: string | null; mapUrl: string | null };
   onNewBooking: () => void;
 }) {
@@ -87,7 +90,7 @@ export function BookingSuccess({
             ['Serviço', booking.serviceName],
             ['Profissional', booking.professionalName],
             ['Duração', formatDuration(booking.durationMinutes)],
-            ['Valor', formatCurrencyBRL(booking.price)],
+            ['Valor', priceLabel(booking.price, priceKind)],
           ].map(([label, value]) => (
             <div key={label} className="flex justify-between gap-3 py-2.5">
               <dt className="text-label-secondary">{label}</dt>

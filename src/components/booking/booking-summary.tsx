@@ -4,7 +4,7 @@ import * as React from 'react';
 import { ChevronDownIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { formatCurrencyBRL } from '@/lib/serialize';
+import { priceLabel } from '@/lib/catalog';
 import {
   addMinutesToLabel,
   formatDuration,
@@ -15,7 +15,7 @@ import {
 } from '@/lib/booking';
 
 export type SummaryData = {
-  service: { name: string; durationMinutes: number; price: number } | null;
+  service: { name: string; durationMinutes: number; price: number; priceKind?: string } | null;
   /** Quem atende; "Primeiro disponível" enquanto o horário não define. */
   professionalName: string | null;
   date: DateParts | null;
@@ -97,7 +97,9 @@ export function BookingSummary({
       {service && (
         <Row
           label="Valor total"
-          value={<span className="tabular-nums">{formatCurrencyBRL(service.price)}</span>}
+          value={
+            <span className="tabular-nums">{priceLabel(service.price, service.priceKind)}</span>
+          }
         />
       )}
     </dl>

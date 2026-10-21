@@ -31,6 +31,10 @@ export const serviceInput = z.object({
     )
     .max(30)
     .optional(),
+  /** Catálogo: preço fixo, "a partir de" ou "sob consulta". */
+  priceKind: z.enum(['fixed', 'from', 'on_request']).optional(),
+  /** Aparece no agendamento online. */
+  publicVisible: z.boolean().optional(),
   /** Checklist conferido na Visão do atendimento (plano Profissional em diante). */
   checklistItems: z
     .array(z.string().trim().min(1).max(120))

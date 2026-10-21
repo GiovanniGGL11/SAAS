@@ -31,6 +31,8 @@ export type ServiceInput = {
   returnAfterDays?: number | null;
   /** `undefined` mantém o checklist atual. */
   checklistItems?: string[];
+  priceKind?: 'fixed' | 'from' | 'on_request';
+  publicVisible?: boolean;
 };
 
 export async function createService(companyId: string, data: ServiceInput): Promise<Service> {
@@ -46,6 +48,8 @@ export async function createService(companyId: string, data: ServiceInput): Prom
       commissionPercent: data.commissionPercent ?? null,
       returnAfterDays: data.returnAfterDays ?? null,
       checklistItems: data.checklistItems ?? [],
+      priceKind: data.priceKind ?? 'fixed',
+      publicVisible: data.publicVisible ?? true,
     },
   });
 }
@@ -67,6 +71,8 @@ export async function updateService(
       commissionPercent: data.commissionPercent ?? null,
       returnAfterDays: data.returnAfterDays ?? null,
       ...(data.checklistItems !== undefined ? { checklistItems: data.checklistItems } : {}),
+      ...(data.priceKind !== undefined ? { priceKind: data.priceKind } : {}),
+      ...(data.publicVisible !== undefined ? { publicVisible: data.publicVisible } : {}),
     },
   });
   if (result.count === 0) throw new UserError('Serviço não encontrado.');
