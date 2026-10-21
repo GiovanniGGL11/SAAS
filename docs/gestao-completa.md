@@ -17,6 +17,7 @@ A primeira rodada (orçamentos, portal, lista de espera, aprovações, rotinas) 
 | Modelos prontos de formulário | `STARTER_TEMPLATES` em `src/lib/forms/starter.ts` |
 | Regras de automação | Automações → Regras (gatilhos e ações em `src/server/automations/rules.ts`) |
 | Antecedência mínima e intervalo dos horários do link público | Configurações → Agendamento online (`bookingLeadMinutes`, `bookingSlotStep`; opções em `LEAD_MINUTES_OPTIONS`) |
+| Pagamento adiantado por PIX no link (sinal ou valor total, obrigatório ou escolha do cliente) | Configurações → Pagamento adiantado por PIX (`depositPercent`, `depositRequired`; exige a chave da Asaas do próprio negócio) |
 | Tipo de preço e visibilidade no agendamento online | Cadastro do serviço ("Como mostrar o preço", "Aparece no agendamento online"); rótulos em `src/lib/catalog.ts` |
 
 ## Recursos por plano
@@ -95,6 +96,7 @@ avaliações, com link para a origem. Valores só para administradores; filtro "
 | `20261020120000_jobs_referrals_rules` | aplicada |
 | `20261021090000_service_catalog` | aplicada |
 | `20261021120000_booking_lead_minutes` | aplicada |
+| `20261021150000_deposit_optional` | aplicada |
 
 ## Integrações necessárias
 

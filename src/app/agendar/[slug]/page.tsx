@@ -96,6 +96,7 @@ export default async function AgendarPage({ params }: { params: Promise<{ slug: 
             cancellationPolicy: company.cancellationPolicy,
             // Sinal por PIX: só quando o salão ligou e conectou a conta Asaas.
             depositPercent: company.asaasApiKey ? company.depositPercent : 0,
+            depositRequired: company.depositRequired,
           }}
           services={catalog.services}
           professionals={catalog.professionals}

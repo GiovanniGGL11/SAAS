@@ -59,7 +59,11 @@ export function BookingSuccess({
             tabIndex={-1}
             className="text-[24px] font-semibold tracking-[-0.01em] outline-none"
           >
-            {booking.deposit ? 'Falta só o sinal' : 'Horário reservado'}
+            {booking.deposit
+              ? booking.deposit.amount >= booking.price
+                ? 'Falta só o pagamento'
+                : 'Falta só o sinal'
+              : 'Horário reservado'}
           </h1>
           <p className="text-label-secondary text-[15px]">
             Seu horário já está na agenda de {company.name}.
@@ -70,6 +74,7 @@ export function BookingSuccess({
           <DepositPayment
             token={booking.token}
             deposit={booking.deposit}
+            full={booking.deposit.amount >= booking.price}
             timezone={company.timezone}
           />
         )}

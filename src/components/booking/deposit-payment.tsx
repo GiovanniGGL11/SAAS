@@ -16,9 +16,12 @@ import { getDepositStatusAction } from '@/server/actions/public-booking-actions'
 export function DepositPayment({
   token,
   deposit,
+  full = false,
   timezone,
 }: {
   token: string;
+  /** O PIX cobre o valor todo (pagamento antecipado), não só um sinal. */
+  full?: boolean;
   deposit: { amount: number; qrImage: string; copyPaste: string; expiresAt: string };
   timezone: string;
 }) {
@@ -41,8 +44,10 @@ export function DepositPayment({
       <div className="bg-system-green/10 flex items-center gap-3 rounded-xl p-4 text-[15px]">
         <CheckCircle2Icon className="text-system-green size-6 shrink-0" />
         <span>
-          <strong>Sinal de {formatCurrencyBRL(deposit.amount)} recebido.</strong> Seu horário está
-          confirmado.
+          <strong>
+            {full ? 'Pagamento' : 'Sinal'} de {formatCurrencyBRL(deposit.amount)} recebido.
+          </strong>{' '}
+          Seu horário está confirmado.
         </span>
       </div>
     );
@@ -50,7 +55,8 @@ export function DepositPayment({
   if (status === 'EXPIRED') {
     return (
       <div className="bg-system-red/10 rounded-xl p-4 text-[15px]">
-        O prazo para pagar o sinal terminou e o horário foi liberado. Faça uma nova reserva.
+        O prazo para pagar {full ? 'o valor' : 'o sinal'} terminou e o horário foi liberado. Faça
+        uma nova reserva.
       </div>
     );
   }
@@ -58,7 +64,8 @@ export function DepositPayment({
     <div className="border-foreground/[0.08] flex flex-col items-center gap-3 rounded-xl border p-4 text-center">
       <p className="text-[15px]">
         <strong>
-          Pague o sinal de {formatCurrencyBRL(deposit.amount)} por PIX até {expires}
+          Pague {full ? 'o valor de' : 'o sinal de'} {formatCurrencyBRL(deposit.amount)} por PIX até{' '}
+          {expires}
         </strong>{' '}
         para confirmar. Depois disso o horário é liberado.
       </p>

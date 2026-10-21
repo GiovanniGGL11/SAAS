@@ -6,6 +6,7 @@ import { recordAuditLog } from '@/server/data/audit';
 import { cancelAppointment } from '@/server/data/appointments';
 import { scheduleConfirmation } from '@/server/whatsapp/automation';
 import { formatTimeInTz, utcToCalendarDate } from '@/lib/time';
+import { depositAmountFor } from '@/lib/deposit';
 import {
   AsaasError,
   PAID_STATUSES,
@@ -21,15 +22,33 @@ import {
   descontado na comanda). Não pago no prazo, o horário volta a ficar livre.
 */
 
-/** Valor mínimo de cobrança na Asaas. */
-const MIN_DEPOSIT = 5;
+export { depositAmountFor };
 
-export type DepositConfig = { percent: number; holdMinutes: number; apiKey: string };
+export type DepositConfig = {
+  percent: number;
+  holdMinutes: number;
+  apiKey: string;
+  /** false: o cliente escolhe pagar agora (PIX) ou no atendimento. */
+  required: boolean;
+};
+
+/** Cobra adiantado neste agendamento? Obrigatório sempre cobra; opcional, só se o cliente pediu. */
+export function chargesDeposit(
+  config: DepositConfig | null,
+  payNow: boolean | undefined,
+): config is DepositConfig {
+  return config !== null && (config.required || payNow === true);
+}
 
 export async function getDepositConfig(companyId: string): Promise<DepositConfig | null> {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { asaasApiKey: true, depositPercent: true, depositHoldMinutes: true },
+    select: {
+      asaasApiKey: true,
+      depositPercent: true,
+      depositHoldMinutes: true,
+      depositRequired: true,
+    },
   });
   if (!company?.asaasApiKey || company.depositPercent <= 0) return null;
   try {
@@ -37,15 +56,11 @@ export async function getDepositConfig(companyId: string): Promise<DepositConfig
       percent: company.depositPercent,
       holdMinutes: company.depositHoldMinutes,
       apiKey: openSecret(company.asaasApiKey),
+      required: company.depositRequired,
     };
   } catch {
     return null;
   }
-}
-
-export function depositAmountFor(price: number, percent: number): number | null {
-  const amount = Math.round(price * percent) / 100;
-  return amount >= MIN_DEPOSIT ? amount : null;
 }
 
 export type DepositCharge = {

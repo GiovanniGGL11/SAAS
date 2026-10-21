@@ -7,6 +7,7 @@ import { sealSecret } from '@/server/secret-box';
 import { checkoutAppointment, createAppointment } from '@/server/data/appointments';
 import { computeCommissions } from '@/server/data/commissions';
 import {
+  chargesDeposit,
   createDeposit,
   depositAmountFor,
   getDepositConfig,
@@ -142,5 +143,48 @@ describe('sinal por PIX no agendamento online', () => {
       { status: 'CANCELED', depositStatus: 'EXPIRED' },
       { status: 'CONFIRMED', depositStatus: 'PAID' },
     ]);
+  });
+
+  it('pagamento antecipado opcional: só cobra se o cliente escolheu pagar agora', async () => {
+    // Padrão: obrigatório, como era antes (quem já usa o sinal não muda).
+    let config = (await getDepositConfig(companyId))!;
+    expect(config.required).toBe(true);
+    expect(chargesDeposit(config, undefined)).toBe(true);
+    expect(chargesDeposit(config, false)).toBe(true);
+
+    await prisma.company.update({ where: { id: companyId }, data: { depositRequired: false } });
+    config = (await getDepositConfig(companyId))!;
+    expect(config.required).toBe(false);
+    expect(chargesDeposit(config, undefined)).toBe(false);
+    expect(chargesDeposit(config, false)).toBe(false);
+    expect(chargesDeposit(config, true)).toBe(true);
+    // Sem Asaas conectada nunca cobra, mesmo que o pedido diga "pagar agora".
+    expect(chargesDeposit(null, true)).toBe(false);
+  });
+
+  it('valor total (100%): paga na hora, confirma e a comanda fecha sem nada a cobrar', async () => {
+    await prisma.company.update({
+      where: { id: companyId },
+      data: { depositPercent: 100, depositRequired: false },
+    });
+    const { appointment, deposit } = await book();
+    expect(deposit).toMatchObject({ amount: 50 }); // R$ 50 do serviço, tudo adiantado
+    expect(await markDepositPaid(companyId, appointment.id)).toBe(true);
+    const paid = await prisma.appointment.findUniqueOrThrow({ where: { id: appointment.id } });
+    expect([paid.status, paid.depositStatus]).toEqual(['CONFIRMED', 'PAID']);
+
+    const { total } = await checkoutAppointment({
+      companyId,
+      id: appointment.id,
+      paymentMethod: 'CASH',
+      updatedByUserId: 'u',
+    });
+    expect(total).toBe(0);
+    const entries = await prisma.transaction.findMany({
+      where: { companyId, appointmentId: appointment.id, status: 'PAID' },
+      select: { category: true, amount: true },
+    });
+    // Entrou R$ 50 uma vez só (o sinal); o atendimento não cobra de novo.
+    expect(entries.reduce((sum, t) => sum + Number(t.amount), 0)).toBe(50);
   });
 });

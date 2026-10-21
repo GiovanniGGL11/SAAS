@@ -13,6 +13,7 @@ import { scheduleGoogleSync } from '@/server/google/background';
 import { scheduleConfirmation } from '@/server/whatsapp/automation';
 import {
   asUserError,
+  chargesDeposit,
   createDeposit,
   getDepositConfig,
   refreshDeposit,
@@ -132,6 +133,8 @@ export async function createPublicBookingAction(input: unknown) {
           }),
         // Campo escondido: gente não preenche, robô preenche.
         website: z.string().max(0).optional(),
+        // Pagamento adiantado opcional: o cliente escolheu pagar agora por PIX.
+        payNow: z.boolean().optional(),
         cpf: z
           .string()
           .max(20)
@@ -142,9 +145,11 @@ export async function createPublicBookingAction(input: unknown) {
     await rateLimit('booking', 5, 10 * 60_000);
     const company = await getBookableCompany(parsed.slug);
     if (!company) throw new UserError('Agendamento online indisponível.');
-    const depositConfig = await getDepositConfig(company.id);
+    const configured = await getDepositConfig(company.id);
+    // Obrigatório: sempre cobra. Opcional: só se o cliente escolheu pagar agora.
+    const depositConfig = chargesDeposit(configured, parsed.payNow) ? configured : null;
     if (depositConfig && parsed.cpf?.length !== 11) {
-      throw new UserError('Informe seu CPF (11 dígitos) para gerar o PIX do sinal.');
+      throw new UserError('Informe seu CPF (11 dígitos) para gerar o PIX.');
     }
 
     let appointment;

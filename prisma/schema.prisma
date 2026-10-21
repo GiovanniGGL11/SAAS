@@ -56,6 +56,8 @@ model Company {
   asaasApiKey         String?
   depositPercent      Int                @default(0)
   depositHoldMinutes  Int                @default(30)
+  // true: o pagamento adiantado é obrigatório para reservar pelo link; false: o cliente escolhe pagar agora ou no atendimento.
+  depositRequired     Boolean            @default(true)
   // Autonomia da IA. Padrão: pedir aprovação. "Executar regras autorizadas" só vale no Pro.
   aiAutonomyMode      AiAutonomyMode     @default(APPROVAL)
   deletedAt           DateTime?

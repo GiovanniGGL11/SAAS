@@ -1,6 +1,8 @@
 'use client';
 
 import { priceLabel } from '@/lib/catalog';
+import { depositAmountFor } from '@/lib/deposit';
+import { formatCurrencyBRL } from '@/lib/serialize';
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -56,6 +58,8 @@ export type BookingCompany = {
   cancellationPolicy: string | null;
   /** % do serviço cobrado como sinal por PIX para confirmar (0 = sem sinal). */
   depositPercent: number;
+  /** false: o cliente escolhe pagar agora por PIX ou no atendimento. */
+  depositRequired: boolean;
 };
 type Booked = Extract<PublicBookingResult, { kind: 'booked' }>;
 /** O horário escolhido guarda o próprio dia: navegar por outra semana não o perde. */
@@ -112,7 +116,10 @@ export function BookingFlow({
   const [phone, setPhone] = React.useState('');
   const [website, setWebsite] = React.useState('');
   // Sinal por PIX: a Asaas exige CPF para gerar o PIX.
-  const needsDeposit = company.depositPercent > 0;
+  const hasDeposit = company.depositPercent > 0;
+  // Opcional: o cliente escolhe. Começa em "pagar agora", que é o que garante o horário.
+  const [payNow, setPayNow] = React.useState(true);
+  const needsDeposit = hasDeposit && (company.depositRequired || payNow);
   const [cpf, setCpf] = React.useState('');
   const cpfDigits = cpf.replace(/\D/g, '');
   const cpfError = needsDeposit && cpfDigits.length !== 11 ? 'Informe os 11 dígitos do CPF.' : null;
@@ -123,6 +130,7 @@ export function BookingFlow({
   const [booked, setBooked] = React.useState<Booked | null>(null);
 
   const service = services.find((s) => s.id === serviceId) ?? null;
+  const depositAmount = service ? depositAmountFor(service.price, company.depositPercent) : null;
   const professionalName = (id: string) => professionals.find((p) => p.id === id)?.name ?? null;
 
   // ---- Disponibilidade: a semana inteira numa chamada. A chave inclui a semana, então uma
@@ -212,6 +220,7 @@ export function BookingFlow({
         phone,
         website,
         cpf: needsDeposit ? cpfDigits : undefined,
+        payNow: hasDeposit && !company.depositRequired ? payNow : undefined,
       }).then(unwrapResult),
     onSuccess: (result) => {
       if (result.kind === 'conflict') {
@@ -589,11 +598,59 @@ export function BookingFlow({
                     className={fieldClass}
                   />
                 </Field>
+                {hasDeposit && !company.depositRequired && (
+                  <fieldset className="flex flex-col gap-2">
+                    <legend className="mb-1 text-[15px] font-medium">Como quer pagar?</legend>
+                    {[
+                      {
+                        value: true,
+                        title:
+                          company.depositPercent === 100
+                            ? 'Pagar agora por PIX'
+                            : `Pagar o sinal agora por PIX (${company.depositPercent}%)`,
+                        desc: depositAmount
+                          ? `${formatCurrencyBRL(depositAmount)} agora. O horário só fica garantido depois do pagamento.`
+                          : 'O horário só fica garantido depois do pagamento.',
+                      },
+                      {
+                        value: false,
+                        title: 'Pagar no atendimento',
+                        desc: 'Você reserva sem pagar agora.',
+                      },
+                    ].map((option) => (
+                      <label
+                        key={String(option.value)}
+                        className={cn(
+                          'flex cursor-pointer items-start gap-3 rounded-xl border p-3',
+                          payNow === option.value
+                            ? 'border-system-blue bg-system-blue/[0.06]'
+                            : 'border-foreground/[0.1]',
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="pay-mode"
+                          className="mt-1"
+                          checked={payNow === option.value}
+                          onChange={() => setPayNow(option.value)}
+                        />
+                        <span className="flex flex-col">
+                          <span className="text-[15px] font-medium">{option.title}</span>
+                          <span className="text-label-secondary text-[13px]">{option.desc}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
                 {needsDeposit && (
                   <Field
                     id="booking-cpf"
                     label="CPF"
-                    hint={`Para o PIX do sinal de ${company.depositPercent}%, que confirma o horário.`}
+                    hint={
+                      company.depositPercent === 100
+                        ? 'Para gerar o PIX do pagamento, que confirma o horário.'
+                        : `Para o PIX do sinal de ${company.depositPercent}%, que confirma o horário.`
+                    }
                     error={touched.phone && cpf ? cpfError : null}
                   >
                     <Input

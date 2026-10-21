@@ -14,7 +14,12 @@ export async function getDepositSettingsAction() {
   const { company } = await requireCompanyAdmin();
   const full = await prisma.company.findUniqueOrThrow({
     where: { id: company.id },
-    select: { asaasApiKey: true, depositPercent: true, depositHoldMinutes: true },
+    select: {
+      asaasApiKey: true,
+      depositPercent: true,
+      depositHoldMinutes: true,
+      depositRequired: true,
+    },
   });
   let environment: 'sandbox' | 'producao' | null = null;
   if (full.asaasApiKey) {
@@ -31,6 +36,7 @@ export async function getDepositSettingsAction() {
     environment,
     percent: full.depositPercent,
     holdMinutes: full.depositHoldMinutes,
+    required: full.depositRequired,
   };
 }
 
@@ -41,6 +47,7 @@ export async function saveDepositSettingsAction(input: unknown) {
         apiKey: z.string().trim().max(300).optional(),
         percent: z.number().int().min(0).max(100, 'Até 100%.'),
         holdMinutes: z.number().int().min(10, 'Mínimo de 10 minutos.').max(1440),
+        required: z.boolean().optional(),
       })
       .parse(input);
     const { company } = await requireCompanyAdmin();
@@ -66,6 +73,7 @@ export async function saveDepositSettingsAction(input: unknown) {
       data: {
         depositPercent: parsed.percent,
         depositHoldMinutes: parsed.holdMinutes,
+        ...(parsed.required !== undefined ? { depositRequired: parsed.required } : {}),
         ...(parsed.apiKey ? { asaasApiKey: sealSecret(parsed.apiKey) } : {}),
       },
     });
