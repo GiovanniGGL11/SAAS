@@ -15,8 +15,18 @@ import { createAppointment } from '@/server/data/appointments';
  */
 
 const ACTIVE = ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE'] as const;
-/** Antecedência mínima: ninguém marca para daqui a 5 minutos sem o salão saber. */
-const LEAD_MINUTES = 60;
+/**
+ * Antecedência mínima do link público (a empresa escolhe em Configurações → Agendamento online).
+ * Em minutos; 0 = pode marcar para agora. O padrão de 1 hora evita marcar para daqui a 5 minutos
+ * sem a equipe saber.
+ */
+export const LEAD_MINUTES_OPTIONS = [0, 30, 60, 120, 240, 1440] as const;
+export const DEFAULT_LEAD_MINUTES = 60;
+export function leadMinutesFor(setting: number | null | undefined): number {
+  return (LEAD_MINUTES_OPTIONS as readonly number[]).includes(setting ?? -1)
+    ? (setting as number)
+    : DEFAULT_LEAD_MINUTES;
+}
 /** Intervalos que a empresa pode escolher; 0 = pela duração do serviço. */
 export const SLOT_STEP_OPTIONS = [15, 30, 60, 0] as const;
 const DEFAULT_SLOT_STEP = 15;
@@ -151,7 +161,7 @@ export async function listAvailabilityRange(params: {
     }),
     prisma.company.findFirst({
       where: { id: params.companyId },
-      select: { bookingSlotStep: true },
+      select: { bookingSlotStep: true, bookingLeadMinutes: true },
     }),
   ]);
   if (!found) throw new UserError('Serviço indisponível.');
@@ -201,7 +211,7 @@ export async function listAvailabilityRange(params: {
     }),
   ]);
   const occupied = [...busy, ...blocks, ...held];
-  const earliest = Date.now() + LEAD_MINUTES * 60_000;
+  const earliest = Date.now() + leadMinutesFor(company?.bookingLeadMinutes) * 60_000;
   const durationMs = durationMinutes * 60_000;
   const result = new Map<string, PublicSlot[]>();
 
@@ -318,7 +328,14 @@ export async function createPublicBooking(params: {
     if (same) return same;
   }
 
-  if (params.startAt.getTime() < Date.now() + LEAD_MINUTES * 60_000) {
+  const leadSetting = await prisma.company.findFirst({
+    where: { id: params.companyId },
+    select: { bookingLeadMinutes: true },
+  });
+  if (
+    params.startAt.getTime() <
+    Date.now() + leadMinutesFor(leadSetting?.bookingLeadMinutes) * 60_000
+  ) {
     throw new SlotUnavailableError();
   }
   // Serviço interno (fora do catálogo público) não é reservado pelo link.

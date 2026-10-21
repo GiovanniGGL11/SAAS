@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { unwrapResult } from '@/lib/action-result';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
+  setBookingLeadMinutesAction,
   setBookingSlotStepAction,
   setOnlineBookingAction,
 } from '@/server/actions/public-booking-actions';
@@ -28,16 +29,37 @@ const STEP_HINT: Record<string, string> = {
   '0': 'Um serviço de 30 min oferece 09:00, 09:30…; um de 1h oferece 09:00, 10:00…',
 };
 
+const LEAD_OPTIONS = [
+  { value: '0', label: 'Sem antecedência' },
+  { value: '30', label: '30 min' },
+  { value: '60', label: '1 hora' },
+  { value: '120', label: '2 horas' },
+  { value: '240', label: '4 horas' },
+  { value: '1440', label: '1 dia' },
+];
+
+const LEAD_HINT: Record<string, string> = {
+  '0': 'O cliente pode marcar o próximo horário livre, mesmo para daqui a poucos minutos.',
+  '30': 'Só aparecem horários que começam daqui a 30 minutos ou mais.',
+  '60': 'Só aparecem horários que começam daqui a 1 hora ou mais.',
+  '120': 'Só aparecem horários que começam daqui a 2 horas ou mais.',
+  '240': 'Só aparecem horários que começam daqui a 4 horas ou mais.',
+  '1440': 'O cliente só marca para 24 horas depois do momento atual, ou mais.',
+};
+
 /** Liga o link público onde o cliente marca sozinho, e mostra o link para divulgar. */
 export function OnlineBookingCard({
   initialEnabled,
   initialSlotStep,
+  initialLeadMinutes,
   withoutSchedule,
   url,
 }: {
   initialEnabled: boolean;
   /** De quantos em quantos minutos o link oferece horários; 0 = pela duração do serviço. */
   initialSlotStep: number;
+  /** Antecedência mínima, em minutos, para marcar pelo link. */
+  initialLeadMinutes: number;
   /** Profissionais ativos sem expediente: ficam de fora do link até o horário ser definido. */
   withoutSchedule: string[];
   url: string;
@@ -62,6 +84,18 @@ export function OnlineBookingCard({
       if (previous) setSlotStep(previous);
     },
     onMutate: () => slotStep,
+  });
+
+  const [lead, setLead] = React.useState(String(initialLeadMinutes));
+  const leadMutation = useMutation({
+    mutationFn: (minutes: string) =>
+      setBookingLeadMinutesAction({ minutes: Number(minutes) }).then(unwrapResult),
+    onSuccess: () => toast.success('Antecedência mínima salva.'),
+    onError: (error: Error, _minutes, previous) => {
+      toast.error(error.message || 'Não foi possível salvar.');
+      if (previous) setLead(previous);
+    },
+    onMutate: () => lead,
   });
 
   return (
@@ -104,6 +138,20 @@ export function OnlineBookingCard({
         />
         <p className="text-label-secondary text-[12px]">
           {STEP_HINT[slotStep]} Sempre dentro do expediente de cada profissional.
+        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-[13px] font-medium">Antecedência mínima para marcar</span>
+        <SegmentedControl
+          value={lead}
+          onValueChange={(next: string) => {
+            setLead(next);
+            leadMutation.mutate(next);
+          }}
+          options={LEAD_OPTIONS}
+        />
+        <p className="text-label-secondary text-[12px]">
+          {LEAD_HINT[lead]} Vale para marcar e para remarcar pelo link.
         </p>
       </div>
       {enabled && (

@@ -28,6 +28,7 @@ import {
   getAppointmentForToken,
   getBookableCompany,
   BOOKING_DAYS_AHEAD,
+  LEAD_MINUTES_OPTIONS,
   SLOT_STEP_OPTIONS,
   SlotUnavailableError,
   listAvailabilityRange,
@@ -289,6 +290,26 @@ export async function setBookingSlotStepAction(input: unknown) {
     await prisma.company.update({ where: { id: company.id }, data: { bookingSlotStep: step } });
     revalidatePath('/configuracoes');
     return { step };
+  });
+}
+
+/** Configurações → Agendamento online: antecedência mínima para o cliente marcar pelo link. */
+export async function setBookingLeadMinutesAction(input: unknown) {
+  return toActionResult(async () => {
+    const { minutes } = z
+      .object({
+        minutes: z.number().refine((v) => (LEAD_MINUTES_OPTIONS as readonly number[]).includes(v), {
+          message: 'Escolha uma antecedência válida.',
+        }),
+      })
+      .parse(input);
+    const { company } = await requireCompanyAdmin();
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { bookingLeadMinutes: minutes },
+    });
+    revalidatePath('/configuracoes');
+    return { minutes };
   });
 }
 

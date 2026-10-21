@@ -183,4 +183,60 @@ describe('agendamento público: regras do novo fluxo', () => {
     const client = await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } });
     expect(client.name).toBe('Nome Do Cadastro');
   });
+
+  it('antecedência mínima escolhida pela empresa vale para listar e para reservar', async () => {
+    // Expediente o dia todo, todos os dias, para o resultado não depender do relógio do teste.
+    await prisma.professionalAvailability.deleteMany({
+      where: { professionalId: fixture.professional.id },
+    });
+    await prisma.professionalAvailability.createMany({
+      data: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+        weekday,
+        startTime: '00:00',
+        endTime: '23:59',
+        professionalId: fixture.professional.id,
+      })),
+    });
+    const setLead = (bookingLeadMinutes: number) =>
+      prisma.company.update({ where: { id: fixture.company.id }, data: { bookingLeadMinutes } });
+    const firstSlot = async () => {
+      const range = await listAvailabilityRange({
+        companyId: fixture.company.id,
+        timezone: tz,
+        serviceId: fixture.service.id,
+        from: getTodayInTz(tz),
+        days: 4,
+      });
+      const all = [...range.values()].flat().map((x) => new Date(x.startAt).getTime());
+      return Math.min(...all);
+    };
+    const hour = 3_600_000;
+
+    // Padrão de 1 hora (empresas que já existiam não mudam).
+    expect(
+      (await prisma.company.findUniqueOrThrow({ where: { id: fixture.company.id } }))
+        .bookingLeadMinutes,
+    ).toBe(60);
+    let first = await firstSlot();
+    expect(first).toBeGreaterThanOrEqual(Date.now() + hour - 1000);
+    expect(first).toBeLessThan(Date.now() + 2 * hour);
+
+    await setLead(0);
+    first = await firstSlot();
+    expect(first).toBeLessThan(Date.now() + hour);
+
+    await setLead(1440);
+    first = await firstSlot();
+    expect(first).toBeGreaterThanOrEqual(Date.now() + 24 * hour - 1000);
+    expect(first).toBeLessThan(Date.now() + 25 * hour + 1000);
+
+    // O servidor recusa reserva dentro da antecedência, mesmo que o pedido venha do navegador.
+    await expect(book(new Date(Date.now() + 2 * hour))).rejects.toBeInstanceOf(
+      SlotUnavailableError,
+    );
+    // Valor fora das opções cai no padrão em vez de abrir a agenda.
+    await setLead(7);
+    first = await firstSlot();
+    expect(first).toBeGreaterThanOrEqual(Date.now() + hour - 1000);
+  });
 });

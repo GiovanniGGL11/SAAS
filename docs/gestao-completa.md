@@ -16,6 +16,7 @@ A primeira rodada (orçamentos, portal, lista de espera, aprovações, rotinas) 
 | Campos personalizados | Configurações → Campos personalizados |
 | Modelos prontos de formulário | `STARTER_TEMPLATES` em `src/lib/forms/starter.ts` |
 | Regras de automação | Automações → Regras (gatilhos e ações em `src/server/automations/rules.ts`) |
+| Antecedência mínima e intervalo dos horários do link público | Configurações → Agendamento online (`bookingLeadMinutes`, `bookingSlotStep`; opções em `LEAD_MINUTES_OPTIONS`) |
 | Tipo de preço e visibilidade no agendamento online | Cadastro do serviço ("Como mostrar o preço", "Aparece no agendamento online"); rótulos em `src/lib/catalog.ts` |
 
 ## Recursos por plano
@@ -93,6 +94,7 @@ avaliações, com link para a origem. Valores só para administradores; filtro "
 | `20261020090000_tasks_crm_custom_fields` | aplicada |
 | `20261020120000_jobs_referrals_rules` | aplicada |
 | `20261021090000_service_catalog` | aplicada |
+| `20261021120000_booking_lead_minutes` | aplicada |
 
 ## Integrações necessárias
 
