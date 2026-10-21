@@ -15,6 +15,7 @@ import {
   createCampaign,
   getCampaign,
   getReviewSummary,
+  createReviewFollowUp,
   listCampaigns,
   listTopReferrers,
   markCampaignSent,
@@ -36,10 +37,11 @@ export async function submitReviewAction(input: unknown) {
         token: z.string().min(10).max(200),
         rating: z.number().int().min(1, 'Escolha de 1 a 5 estrelas.').max(5),
         comment: z.string().max(1000).optional(),
+        publicConsent: z.boolean().optional(),
       })
       .parse(input);
     await rateLimit('review', 10, 10 * 60_000);
-    await submitReview(parsed.token, parsed.rating, parsed.comment);
+    await submitReview(parsed.token, parsed.rating, parsed.comment, parsed.publicConsent ?? false);
   });
 }
 
@@ -56,6 +58,16 @@ export async function getReviewLinkAction(rawId: unknown) {
     const url = `${await appBaseUrl()}/avaliar/${signReviewToken(appointment.id)}`;
     const message = `Oi, ${appointment.client.name.split(' ')[0]}! Obrigado pela visita na ${company.name}. Como foi o seu ${appointment.serviceNameSnapshot}? Leva 10 segundos: ${url}`;
     return { url, whatsappUrl: whatsappLink(appointment.client.phone, message) };
+  });
+}
+
+/** Cria a tarefa de tratamento de uma avaliação (uma por avaliação). */
+export async function createReviewFollowUpAction(rawId: unknown) {
+  return toActionResult(async () => {
+    const id = parseId(rawId);
+    const { company, userId } = await requireCompanyAdmin();
+    const task = await createReviewFollowUp(company.id, userId, id);
+    return { taskId: task.id };
   });
 }
 

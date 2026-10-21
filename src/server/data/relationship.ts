@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
+import { createTask } from '@/server/data/tasks';
 import { prisma } from '@/lib/db';
 import { UserError } from '@/server/errors';
 import { listLapsedClients } from '@/server/data/clients';
@@ -60,7 +61,12 @@ export async function getReviewContext(token: string) {
   };
 }
 
-export async function submitReview(token: string, rating: number, comment?: string | null) {
+export async function submitReview(
+  token: string,
+  rating: number,
+  comment?: string | null,
+  publicConsent = false,
+) {
   const id = verifyReviewToken(token);
   if (!id) throw new UserError('Link inválido.');
   const appointment = await prisma.appointment.findFirst({
@@ -78,8 +84,33 @@ export async function submitReview(token: string, rating: number, comment?: stri
       professionalId: appointment.professionalId,
       rating,
       comment: comment?.trim() || null,
+      // Publicar o comentário só com autorização explícita do cliente.
+      publicConsent: Boolean(comment?.trim()) && publicConsent,
     },
   });
+}
+
+/**
+ * Tarefa para tratar um problema apontado numa avaliação (uma por avaliação). A equipe decide o
+ * que fazer; nada é enviado ao cliente automaticamente.
+ */
+export async function createReviewFollowUp(companyId: string, userId: string, reviewId: string) {
+  const review = await prisma.review.findFirst({
+    where: { id: reviewId, companyId },
+    include: { client: { select: { name: true } } },
+  });
+  if (!review) throw new UserError('Avaliação não encontrada.');
+  const { task } = await createTask(companyId, userId, {
+    title: `Tratar avaliação de ${review.client.name} (${review.rating}★)`,
+    details: review.comment ? `Comentário: "${review.comment}"` : null,
+    clientId: review.clientId,
+    appointmentId: review.appointmentId,
+    priority: review.rating <= 2 ? 'HIGH' : 'NORMAL',
+    dedupeKey: `review:${review.id}`,
+    dueAt: new Date(Date.now() + 86_400_000),
+  });
+  await prisma.review.update({ where: { id: review.id }, data: { followUpTaskId: task.id } });
+  return task;
 }
 
 export async function getReviewSummary(companyId: string, range?: { startAt: Date; endAt: Date }) {
@@ -124,6 +155,8 @@ export async function getReviewSummary(companyId: string, range?: { startAt: Dat
       id: r.id,
       rating: r.rating,
       comment: r.comment,
+      publicConsent: r.publicConsent,
+      followUpTaskId: r.followUpTaskId,
       createdAt: r.createdAt,
       clientId: r.client.id,
       clientName: r.client.name,

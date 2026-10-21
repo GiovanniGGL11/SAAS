@@ -9,12 +9,16 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { whatsappLink } from '@/lib/phone';
 import { listTopReferrersAction } from '@/server/actions/relationship-actions';
+import { ReferralProgram } from '@/components/campanhas/referral-program';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 
 /** Quem mais trouxe clientes novos — para agradecer e premiar. */
 export function ReferralsView() {
   const { data } = useQuery({ queryKey: ['referrers'], queryFn: () => listTopReferrersAction() });
+  const program = usePlanFeatures().has('referrals');
   return (
     <div className="flex flex-col gap-4">
+      {program && <ReferralProgram />}
       <p className="text-label-secondary max-w-2xl text-[14px]">
         Ao cadastrar um cliente novo, preencha &ldquo;Indicado por&rdquo;. Aqui aparece quem mais
         indica e quanto os indicados já gastaram. Uma boa prática do mercado: dar um cupom de

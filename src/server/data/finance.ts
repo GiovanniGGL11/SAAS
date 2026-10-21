@@ -407,7 +407,7 @@ export async function reverseIncomeFromAppointment(
 export async function getSoldDueReceived(companyId: string, range: { startAt: Date; endAt: Date }) {
   const inRange = { gte: range.startAt, lt: range.endAt };
   const now = new Date();
-  const [sold, received, receivedNoDate, due, overdue] = await Promise.all([
+  const [sold, received, receivedNoDate, due, overdue, canceled, quoted] = await Promise.all([
     prisma.transaction.aggregate({
       where: { companyId, type: 'INCOME', status: { not: 'CANCELED' }, createdAt: inRange },
       _sum: { amount: true },
@@ -430,6 +430,16 @@ export async function getSoldDueReceived(companyId: string, range: { startAt: Da
       where: { companyId, type: 'INCOME', status: 'PENDING', dueDate: { lt: now } },
       _sum: { amount: true },
     }),
+    // Estornado/cancelado no período (entradas que deixaram de valer).
+    prisma.transaction.aggregate({
+      where: { companyId, type: 'INCOME', status: 'CANCELED', updatedAt: inRange },
+      _sum: { amount: true },
+    }),
+    // Orçado: total da versão atual dos orçamentos enviados no período (não é venda).
+    prisma.$queryRaw<{ total: number | null }[]>`
+      SELECT COALESCE(SUM(v.total), 0)::float AS total
+      FROM "Quote" q JOIN "QuoteVersion" v ON v."quoteId" = q.id AND v.version = q."currentVersion"
+      WHERE q."companyId" = ${companyId} AND q."sentAt" >= ${range.startAt} AND q."sentAt" < ${range.endAt}`,
   ]);
   const n = (v: { _sum: { amount: unknown } }) => Number(v._sum.amount ?? 0);
   return {
@@ -438,5 +448,73 @@ export async function getSoldDueReceived(companyId: string, range: { startAt: Da
     due: n(due),
     dueCount: due._count,
     overdue: n(overdue),
+    /** A vencer = pendente que ainda não venceu (ou sem vencimento). */
+    upcoming: Math.round((n(due) - n(overdue)) * 100) / 100,
+    canceled: n(canceled),
+    quoted: Number(quoted[0]?.total ?? 0),
   };
+}
+
+/**
+ * Lança uma conta parcelada: N lançamentos PENDENTES "Descrição (1/N)…", com vencimento mensal
+ * (mesmo dia; se o mês não tiver o dia, o último dia) e os centavos distribuídos sem sobra.
+ * Nada é marcado como pago: cada parcela é recebida/paga quando acontecer.
+ */
+export async function createInstallments(
+  companyId: string,
+  userId: string,
+  input: {
+    type: 'INCOME' | 'EXPENSE';
+    description: string;
+    category?: string | null;
+    totalAmount: number;
+    count: number;
+    firstDueDate: Date;
+    clientId?: string | null;
+  },
+) {
+  if (!Number.isInteger(input.count) || input.count < 2 || input.count > 36) {
+    throw new UserError('Parcelas: de 2 a 36.');
+  }
+  const totalCents = Math.round(input.totalAmount * 100);
+  if (totalCents < input.count) throw new UserError('Valor pequeno demais para tantas parcelas.');
+  if (input.clientId) {
+    const client = await prisma.client.findFirst({
+      where: { id: input.clientId, companyId },
+      select: { id: true },
+    });
+    if (!client) throw new UserError('Cliente não encontrado.');
+  }
+  const base = Math.floor(totalCents / input.count);
+  const remainder = totalCents - base * input.count;
+  const description = input.description.trim().slice(0, 180);
+  const first = input.firstDueDate;
+  const data = Array.from({ length: input.count }, (_, i) => {
+    const y = first.getUTCFullYear();
+    const m = first.getUTCMonth() + i;
+    const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const due = new Date(
+      Date.UTC(
+        y,
+        m,
+        Math.min(first.getUTCDate(), lastDay),
+        first.getUTCHours(),
+        first.getUTCMinutes(),
+      ),
+    );
+    return {
+      companyId,
+      type: input.type,
+      status: 'PENDING' as const,
+      description: `${description} (${i + 1}/${input.count})`,
+      category: input.category || null,
+      amount: (base + (i === 0 ? remainder : 0)) / 100,
+      dueDate: due,
+      clientId: input.clientId ?? null,
+      notes: 'Parcela',
+      createdByUserId: userId,
+    };
+  });
+  await prisma.transaction.createMany({ data });
+  return { count: data.length };
 }

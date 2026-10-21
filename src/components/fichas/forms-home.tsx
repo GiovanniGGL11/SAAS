@@ -1,5 +1,6 @@
 'use client';
 
+import { STARTER_TEMPLATES } from '@/lib/forms/starter';
 import * as React from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,6 +43,7 @@ import {
 } from '@/components/fichas/labels';
 import {
   createStarterAnamnesisAction,
+  createStarterTemplateAction,
   duplicateTemplateAction,
   getFormsSettingsAction,
   getTemplateAction,
@@ -69,7 +71,7 @@ export function FormsHome({ timezone, initialTab }: { timezone: string; initialT
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Fichas e formulários"
-        description="Anamneses, avaliações e formulários por serviço, com histórico de cada envio."
+        description="Formulários, questionários, termos e checklists, com histórico de cada envio."
         actions={
           access?.canManage && tab === 'modelos' ? (
             <Button asChild>
@@ -119,6 +121,14 @@ function TemplatesTab({ canManage }: { canManage: boolean }) {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const fromStarter = useMutation({
+    mutationFn: (key: string) => createStarterTemplateAction(key).then(unwrapResult),
+    onSuccess: () => {
+      toast.success('Modelo criado. Revise e adapte antes de usar.');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const duplicate = useMutation({
     mutationFn: (id: string) => duplicateTemplateAction(id).then(unwrapResult),
     onSuccess: () => {
@@ -151,14 +161,25 @@ function TemplatesTab({ canManage }: { canManage: boolean }) {
           Mostrar arquivados
         </label>
         {canManage && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={starter.isPending}
-            onClick={() => starter.mutate()}
+          <Select
+            value=""
+            onValueChange={(key: string) =>
+              key === 'anamnese' ? starter.mutate() : fromStarter.mutate(key)
+            }
           >
-            <SparklesIcon /> Usar modelo inicial de anamnese
-          </Button>
+            <SelectTrigger className="w-64" aria-label="Começar de um modelo pronto">
+              <SparklesIcon className="size-4" />
+              <SelectValue placeholder="Começar de um modelo pronto" />
+            </SelectTrigger>
+            <SelectContent>
+              {STARTER_TEMPLATES.map((t) => (
+                <SelectItem key={t.key} value={t.key}>
+                  {t.name}
+                </SelectItem>
+              ))}
+              <SelectItem value="anamnese">Anamnese (saúde e estética)</SelectItem>
+            </SelectContent>
+          </Select>
         )}
       </div>
       <div className="bg-tile overflow-hidden rounded-[22px]">

@@ -7,7 +7,11 @@ import { parseId } from '@/server/errors';
 
 import { z } from 'zod';
 
-import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
+import {
+  isCompanyAdmin,
+  requireCompanyAdmin,
+  requireCurrentCompany,
+} from '@/server/auth/require-current-company';
 import {
   createClient,
   importClients,
@@ -204,5 +208,19 @@ export async function importClientsAction(input: unknown) {
       })),
     );
     return result;
+  });
+}
+
+/** Linha do tempo do cliente (valores só para quem vê o financeiro). */
+export async function getClientTimelineAction(rawId: unknown) {
+  return toActionResult(async () => {
+    const id = parseId(rawId);
+    const session = await requireCurrentCompany();
+    const { getClientTimeline } = await import('@/server/data/client-timeline');
+    const events = await getClientTimeline(session.company.id, id, {
+      isAdmin: isCompanyAdmin(session),
+    });
+    if (!events) throw new UserError('Cliente não encontrado.');
+    return events;
   });
 }

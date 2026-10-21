@@ -16,7 +16,9 @@ export default async function AtividadesPage({
       <PageHeader title="Atividades" description="O seu dia e as tarefas da equipe." />
       <ActivitiesShell
         timezone={company.timezone}
-        initialTab={aba === 'tarefas' || tarefa ? 'tarefas' : 'meu-dia'}
+        initialTab={
+          aba === 'servicos' ? 'servicos' : aba === 'tarefas' || tarefa ? 'tarefas' : 'meu-dia'
+        }
         initialTaskId={tarefa?.slice(0, 64)}
       />
     </div>

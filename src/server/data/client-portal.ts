@@ -16,6 +16,7 @@ import { recordAuditLog } from '@/server/data/audit';
 import { listClientPortalForms } from '@/server/data/forms';
 import { listClientQuotes } from '@/server/data/quotes';
 import { listClientOffers } from '@/server/data/waitlist';
+import { listClientJobs } from '@/server/data/jobs';
 import { sessionsDone } from '@/lib/packages';
 
 /**
@@ -339,7 +340,7 @@ export async function rescheduleOwnAppointment(
 export async function getPortalExtras(session: PortalSession) {
   const companyId = session.company.id;
   if (!(await companyHasFeature(companyId, 'clientPortal'))) return null;
-  const [packages, forms, quotes, offers, profile] = await Promise.all([
+  const [packages, forms, quotes, offers, profile, jobs, pending] = await Promise.all([
     prisma.clientPackage.findMany({
       where: { companyId, clientId: session.id, status: 'ACTIVE', recurring: false },
       select: {
@@ -371,6 +372,16 @@ export async function getPortalExtras(session: PortalSession) {
         state: true,
       },
     }),
+    (await companyHasFeature(companyId, 'serviceTracking'))
+      ? listClientJobs(companyId, session.id)
+      : Promise.resolve([]),
+    // Pendências de pagamento do próprio cliente: só descrição, valor e vencimento.
+    prisma.transaction.findMany({
+      where: { companyId, clientId: session.id, type: 'INCOME', status: 'PENDING' },
+      select: { id: true, description: true, amount: true, dueDate: true },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    }),
   ]);
   return {
     packages: packages.map((p) => {
@@ -391,6 +402,13 @@ export async function getPortalExtras(session: PortalSession) {
       startAt: o.startAt.toISOString(),
       expiresAt: o.expiresAt.toISOString(),
       service: o.entry.service.name,
+    })),
+    jobs,
+    pendingPayments: pending.map((p) => ({
+      id: p.id,
+      description: p.description,
+      amount: Number(p.amount),
+      dueDate: p.dueDate?.toISOString() ?? null,
     })),
     profile: {
       ...profile,

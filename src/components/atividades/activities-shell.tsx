@@ -5,8 +5,10 @@ import * as React from 'react';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TasksView } from '@/components/atividades/tasks-view';
 import { MyDayView } from '@/components/atividades/my-day-view';
+import { JobsView } from '@/components/atividades/jobs-view';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
 
-type Tab = 'meu-dia' | 'tarefas';
+type Tab = 'meu-dia' | 'tarefas' | 'servicos';
 
 /** Atividades: "Meu dia" (o que precisa de atenção) e a lista completa de tarefas. */
 export function ActivitiesShell({
@@ -19,6 +21,7 @@ export function ActivitiesShell({
   initialTaskId?: string;
 }) {
   const [tab, setTab] = React.useState<Tab>(initialTab);
+  const jobs = usePlanFeatures().has('serviceTracking');
   function change(next: Tab) {
     setTab(next);
     const url = new URL(window.location.href);
@@ -35,9 +38,12 @@ export function ActivitiesShell({
         options={[
           { value: 'meu-dia', label: 'Meu dia' },
           { value: 'tarefas', label: 'Tarefas' },
+          ...(jobs ? [{ value: 'servicos' as const, label: 'Serviços em andamento' }] : []),
         ]}
       />
-      {tab === 'meu-dia' ? (
+      {tab === 'servicos' && jobs ? (
+        <JobsView timezone={timezone} />
+      ) : tab === 'meu-dia' ? (
         <MyDayView timezone={timezone} />
       ) : (
         <TasksView timezone={timezone} initialTaskId={initialTaskId} />

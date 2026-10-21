@@ -31,6 +31,7 @@ import {
   STARTER_ANAMNESIS_INSTRUCTIONS,
   STARTER_ANAMNESIS_NAME,
   STARTER_ANAMNESIS_SCHEMA,
+  STARTER_TEMPLATES,
 } from '@/lib/forms/starter';
 import { entryInScope, requireAccess, type FormAccess } from '@/server/data/form-permissions';
 
@@ -305,6 +306,29 @@ export async function createStarterAnamnesis(companyId: string, userId: string) 
       renewalDays: 180,
       requirement: 'NONE',
       schema: STARTER_ANAMNESIS_SCHEMA,
+      serviceIds: [],
+    },
+    userId,
+  );
+}
+
+/** Modelo genérico pronto (cadastro, questionário, autorização...). Editável, sem serviços. */
+export async function createStarterTemplate(companyId: string, userId: string, key: string) {
+  const starter = STARTER_TEMPLATES.find((t) => t.key === key);
+  if (!starter) throw new UserError('Modelo não encontrado.');
+  return saveTemplate(
+    companyId,
+    null,
+    {
+      name: starter.name,
+      type: starter.type,
+      description: starter.description,
+      instructions: starter.instructions,
+      fillableBy: starter.fillableBy,
+      renewal: 'EACH_VISIT',
+      renewalDays: null,
+      requirement: 'NONE',
+      schema: starter.schema,
       serviceIds: [],
     },
     userId,

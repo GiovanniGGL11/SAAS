@@ -84,6 +84,7 @@ export async function getAutomationOverviewAction() {
         waitlistAutomation: hasFeature(company, 'waitlistAutomation'),
         dailySummaryAuto: hasFeature(company, 'dailySummaryAuto'),
         results: hasFeature(company, 'automationResults'),
+        rules: hasFeature(company, 'automationRules'),
       },
       autonomy: ai.autonomy.effective,
       autoExecutionAvailable: ai.entitlements.ai.available.autoExecution,

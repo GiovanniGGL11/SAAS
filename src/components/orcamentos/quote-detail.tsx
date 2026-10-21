@@ -27,6 +27,10 @@ import {
   cancelQuoteAction,
   convertQuoteToPackageAction,
   convertQuoteToSaleAction,
+} from '@/server/actions/quote-actions';
+import { convertQuoteToJobAction } from '@/server/actions/job-actions';
+import { usePlanFeatures } from '@/components/plan/use-plan-features';
+import {
   createQuoteFollowUpAction,
   duplicateQuoteAction,
   getQuoteAction,
@@ -86,7 +90,8 @@ export function QuoteDetailDrawer({
   const [approvalNote, setApprovalNote] = React.useState('');
   const [rejecting, setRejecting] = React.useState(false);
   const [reason, setReason] = React.useState('');
-  const [confirm, setConfirm] = React.useState<'cancel' | 'convert' | 'sale' | null>(null);
+  const [confirm, setConfirm] = React.useState<'cancel' | 'convert' | 'sale' | 'job' | null>(null);
+  const jobsEnabled = usePlanFeatures().has('serviceTracking');
   const [taskDue, setTaskDue] = React.useState('');
 
   const refresh = () => {
@@ -150,6 +155,15 @@ export function QuoteDetailDrawer({
       run(
         () => convertQuoteToSaleAction(quote!.id).then(unwrapResult),
         'Venda registrada como conta a receber (nada foi marcado como pago).',
+      ),
+    onSuccess: () => setConfirm(null),
+    onError: () => setConfirm(null),
+  });
+  const toJob = useMutation({
+    mutationFn: () =>
+      run(
+        () => convertQuoteToJobAction(quote!.id).then(unwrapResult),
+        'Serviço em andamento criado (em Atividades). Nada foi lançado no financeiro.',
       ),
     onSuccess: () => setConfirm(null),
     onError: () => setConfirm(null),
@@ -406,6 +420,11 @@ export function QuoteDetailDrawer({
                     Converter em venda
                   </Button>
                 )}
+                {status === 'APPROVED' && !quote.converted && jobsEnabled && (
+                  <Button size="sm" variant="outline" onClick={() => setConfirm('job')}>
+                    Virar serviço em andamento
+                  </Button>
+                )}
                 {editable && (
                   <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                     {status === 'DRAFT' ? 'Editar' : 'Alterar (nova versão)'}
@@ -508,6 +527,15 @@ export function QuoteDetailDrawer({
               destructive
               pending={cancel.isPending}
               onConfirm={() => cancel.mutate()}
+            />
+            <ConfirmDialog
+              open={confirm === 'job'}
+              onOpenChange={(o: boolean) => !o && setConfirm(null)}
+              title="Criar serviço em andamento?"
+              description="Cria o acompanhamento por etapas, com os itens do orçamento como checklist. Não lança cobrança nem pagamento. Só pode ser feito uma vez."
+              confirmLabel="Criar serviço"
+              pending={toJob.isPending}
+              onConfirm={() => toJob.mutate()}
             />
             <ConfirmDialog
               open={confirm === 'sale'}

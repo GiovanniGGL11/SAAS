@@ -1,9 +1,12 @@
 'use server';
 
+import { z } from 'zod';
+
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import { toActionResult } from '@/server/action-result';
 import { assertFeature } from '@/server/billing/features';
 import { listServiceMargins } from '@/server/data/service-margins';
+import { getAdvancedKpis } from '@/server/data/kpis';
 import { reportPresetInput } from '@/lib/validations/report';
 import { resolveReportRange } from '@/lib/report-range';
 import {
@@ -34,5 +37,15 @@ export async function getServiceMarginsAction() {
     const { company } = await requireCompanyAdmin();
     assertFeature(company, 'contributionMargin');
     return listServiceMargins(company.id);
+  });
+}
+
+/** Indicadores avançados (plano Pro). */
+export async function getAdvancedKpisAction(input: unknown) {
+  return toActionResult(async () => {
+    const { days } = z.object({ days: z.number().int().min(7).max(365) }).parse(input);
+    const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'advancedKpis');
+    return getAdvancedKpis(company.id, days);
   });
 }

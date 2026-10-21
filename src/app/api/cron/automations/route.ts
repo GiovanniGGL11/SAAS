@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db';
 import { runPackageRenewal } from '@/server/automations/package-renewal';
 import { runWaitlistAuto } from '@/server/automations/waitlist-auto';
 import { ensureAutomaticSummary } from '@/server/automations/daily-summary';
+import { runRule } from '@/server/automations/rules';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,19 @@ export async function GET(request: Request) {
     } catch (error) {
       results.push({ routine: auth.taskType, status: 'FAILED' });
       console.error('[cron automações]', auth.taskType, error);
+    }
+  }
+  // Automações configuráveis ativas (cada uma revalida plano, pausa e limite).
+  const rules = await prisma.automationRule.findMany({
+    where: { active: true, company: { deletedAt: null } },
+    select: { id: true, companyId: true },
+  });
+  for (const rule of rules) {
+    try {
+      results.push({ routine: 'rule', ...(await runRule(rule.companyId, rule.id, 'cron')) });
+    } catch (error) {
+      results.push({ routine: 'rule', status: 'FAILED' });
+      console.error('[cron automações] regra', rule.id, error);
     }
   }
   const summaries = await prisma.businessPreferences.findMany({

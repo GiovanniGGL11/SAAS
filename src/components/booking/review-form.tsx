@@ -26,23 +26,29 @@ export function ReviewForm({
   const [rating, setRating] = React.useState(existing?.rating ?? 0);
   const [hover, setHover] = React.useState(0);
   const [comment, setComment] = React.useState('');
+  const [consent, setConsent] = React.useState(false);
   const submit = useMutation({
     mutationFn: () =>
-      submitReviewAction({ token, rating, comment: comment || undefined }).then(unwrapResult),
+      submitReviewAction({
+        token,
+        rating,
+        comment: comment || undefined,
+        publicConsent: consent,
+      }).then(unwrapResult),
   });
   const done = !!existing || submit.isSuccess;
   const shown = hover || rating;
 
   if (done) {
-    const finalRating = existing?.rating ?? rating;
     return (
       <div className="flex flex-col gap-4">
         <p className="text-[17px] font-semibold">Obrigado pela avaliação!</p>
-        {/* Quem gostou muito é convidado a contar no Google também (a decisão é do cliente). */}
-        {finalRating >= 4 && googleReviewUrl && (
+        {/* O convite para o Google é o mesmo para qualquer nota (nunca filtrado pela avaliação). */}
+        {googleReviewUrl && (
           <>
             <p className="text-label-secondary text-[15px]">
-              Se puder, conte também no Google. Ajuda muito a {companyName} a ser encontrada.
+              Se quiser, conte também no Google. Sua opinião ajuda outras pessoas a conhecer a{' '}
+              {companyName}.
             </p>
             <Button asChild className="h-11">
               <a href={googleReviewUrl} target="_blank" rel="noreferrer">
@@ -99,6 +105,17 @@ export function ReviewForm({
         onChange={(e) => setComment(e.target.value)}
         maxLength={1000}
       />
+      {comment.trim() && (
+        <label className="text-label-secondary flex items-start gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          Pode mostrar meu comentário publicamente.
+        </label>
+      )}
       {submit.error && (
         <p className="text-destructive text-sm">{(submit.error as Error).message}</p>
       )}

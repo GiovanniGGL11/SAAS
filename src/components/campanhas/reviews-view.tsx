@@ -1,12 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { unwrapResult } from '@/lib/action-result';
 import { StarIcon } from 'lucide-react';
 
 import { Surface } from '@/components/layout/page';
 import { EmptyState } from '@/components/ui/empty-state';
-import { getReviewSummaryAction } from '@/server/actions/relationship-actions';
+import {
+  createReviewFollowUpAction,
+  getReviewSummaryAction,
+} from '@/server/actions/relationship-actions';
 
 function Stars({ value, size = 'size-3.5' }: { value: number; size?: string }) {
   return (
@@ -29,8 +35,8 @@ export function ReviewsView() {
     <div className="flex flex-col gap-4">
       <p className="text-label-secondary max-w-2xl text-[14px]">
         No atendimento concluído, o botão &ldquo;Pedir avaliação&rdquo; manda o link pelo WhatsApp.
-        Quem dá 4 ou 5 estrelas é convidado a avaliar também no Google (cadastre o link em
-        Configurações).
+        Depois de avaliar, todo cliente (qualquer nota) recebe o convite opcional para o Google.
+        Comentários só são públicos com autorização do cliente.
       </p>
       {!data || data.count === 0 ? (
         <Surface>
@@ -53,6 +59,11 @@ export function ReviewsView() {
             <span className="text-label-secondary text-[13px]">
               {data.count} {data.count === 1 ? 'avaliação' : 'avaliações'}
             </span>
+            {data.count < 10 && (
+              <span className="text-[12px] text-amber-800 dark:text-amber-300">
+                Poucas respostas: a média ainda pode mudar bastante.
+              </span>
+            )}
             <ul className="flex flex-col gap-1.5">
               {data.distribution.map((d) => (
                 <li key={d.rating} className="flex items-center gap-2 text-[12px]">
@@ -87,7 +98,15 @@ export function ReviewsView() {
                       {date.format(new Date(r.createdAt))}
                     </span>
                   </div>
-                  {r.comment && <p className="text-[14px]">&ldquo;{r.comment}&rdquo;</p>}
+                  {r.comment && (
+                    <p className="text-[14px]">
+                      &ldquo;{r.comment}&rdquo;
+                      <span className="text-label-secondary ml-2 text-[11px]">
+                        {r.publicConsent ? 'pode ser publicado' : 'não autorizado para publicação'}
+                      </span>
+                    </p>
+                  )}
+                  {r.rating <= 3 && <FollowUp reviewId={r.id} taskId={r.followUpTaskId} />}
                 </li>
               ))}
             </ul>
@@ -95,5 +114,39 @@ export function ReviewsView() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Nota baixa: abrir uma tarefa para a equipe tratar (uma por avaliação). */
+function FollowUp({ reviewId, taskId }: { reviewId: string; taskId: string | null }) {
+  const queryClient = useQueryClient();
+  const create = useMutation({
+    mutationFn: () => createReviewFollowUpAction(reviewId).then(unwrapResult),
+    onSuccess: () => {
+      toast.success('Tarefa criada em Atividades.');
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (taskId) {
+    return (
+      <Link
+        href={`/atividades?tarefa=${taskId}`}
+        className="text-system-blue self-start text-[12px] hover:underline"
+      >
+        Ver tarefa de tratamento
+      </Link>
+    );
+  }
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="self-start"
+      disabled={create.isPending}
+      onClick={() => create.mutate()}
+    >
+      Criar tarefa para tratar
+    </Button>
   );
 }

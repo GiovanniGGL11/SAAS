@@ -1,5 +1,6 @@
 'use client';
 
+import { ClientTimeline } from '@/components/clientes/client-timeline';
 import { CustomFieldsEditor } from '@/components/custom-fields/custom-fields-editor';
 import Link from 'next/link';
 
@@ -51,6 +52,7 @@ const TABS = [
   { value: 'pacotes', label: 'Pacotes e tratamentos' },
   { value: 'sessoes', label: 'Histórico das sessões' },
   { value: 'orcamentos', label: 'Orçamentos' },
+  { value: 'historico', label: 'Linha do tempo' },
 ] as const;
 type Tab = (typeof TABS)[number]['value'];
 
@@ -233,6 +235,7 @@ export function ClientDetail({
       )}
       {tab === 'pacotes' && <ClientPackagesTab clientId={clientId} timezone={timezone} />}
       {tab === 'sessoes' && <ClientSessionsTab clientId={clientId} timezone={timezone} />}
+      {tab === 'historico' && <ClientTimeline clientId={clientId} timezone={timezone} />}
       {tab === 'orcamentos' && quotesEnabled && (
         <QuotesView timezone={timezone} clientId={clientId} clientName={client.name} />
       )}

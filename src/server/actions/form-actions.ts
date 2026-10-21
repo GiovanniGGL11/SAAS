@@ -35,6 +35,7 @@ import {
   setTemplateArchived,
   submitEntry,
   setEntryReleasedToClient,
+  createStarterTemplate,
 } from '@/server/data/forms';
 
 /*
@@ -136,6 +137,16 @@ export async function createStarterAnamnesisAction() {
     const { company, access } = await requireFormAccess();
     requireAccess(access, 'canManage', 'gerenciar modelos');
     return createStarterAnamnesis(company.id, access.userId);
+  });
+}
+
+export async function createStarterTemplateAction(rawKey: unknown) {
+  return toActionResult(async () => {
+    const key = z.string().max(30).parse(rawKey);
+    const { company, access } = await requireFormAccess();
+    requireAccess(access, 'canManage', 'gerenciar modelos');
+    const template = await createStarterTemplate(company.id, access.userId, key);
+    return { id: template.id };
   });
 }
 

@@ -260,6 +260,47 @@ export function PortalExtrasSections({
         </Section>
       )}
 
+      {extras.jobs.length > 0 && (
+        <Section title="Serviços em andamento">
+          {extras.jobs.map((j) => (
+            <div key={j.id} className="bg-tile flex flex-col gap-1 rounded-[22px] p-4">
+              <div className="text-[15px] font-medium">{j.title}</div>
+              <div className="text-label-secondary text-[13px]">
+                {j.done ? 'Concluído' : `Etapa: ${j.stage}`}
+                {j.dueAt &&
+                  !j.done &&
+                  ` · previsão ${fmt(j.dueAt, timezone, { day: '2-digit', month: '2-digit' })}`}
+              </div>
+              {j.note && <p className="text-[14px]">{j.note}</p>}
+            </div>
+          ))}
+        </Section>
+      )}
+
+      {extras.pendingPayments.length > 0 && (
+        <Section title="Pagamentos em aberto">
+          <ul className="bg-tile divide-foreground/[0.06] divide-y overflow-hidden rounded-[22px]">
+            {extras.pendingPayments.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[15px]">{p.description}</div>
+                  {p.dueDate && (
+                    <div className="text-label-secondary text-[13px]">
+                      vence {fmt(p.dueDate, timezone, { day: '2-digit', month: '2-digit' })}
+                    </div>
+                  )}
+                </div>
+                <span className="text-[15px] tabular-nums">{formatCurrencyBRL(p.amount)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-label-secondary text-[12px]">
+            Para pagar, fale com o estabelecimento. O pagamento só aparece como feito depois que a
+            equipe registrar o recebimento.
+          </p>
+        </Section>
+      )}
+
       <ProfileSection profile={extras.profile} />
 
       <Drawer open={quote !== null} onOpenChange={(o: boolean) => !o && setQuote(null)}>

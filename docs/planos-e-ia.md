@@ -13,7 +13,7 @@ Referência para quem mantém o Atendafy. Valores comerciais são **provisórios
 | Valor provisório só para desenvolvimento | `DEV_PROVISIONAL_AI_UNITS` (nunca vale em produção) |
 | Tolerância de atraso | `PAST_DUE_GRACE_DAYS` |
 | O que de IA está construído de fato | `AI_IMPLEMENTED` (voz, automações com IA e WhatsApp com IA estão `false`; execução automática de rotinas autorizadas está `true`) |
-| Funcionalidades de gestão por plano (orçamentos, área do cliente, convites, importação, resumo do dia, rotinas, resultados, checklist, margem) | `FeatureKey` e as matrizes `ESSENTIAL_FEATURES` / `FULL_FEATURES` / `PRO_FEATURES` em `plans.ts`; conferidas no servidor por `src/server/billing/features.ts` |
+| Funcionalidades de gestão por plano (orçamentos, área do cliente, convites, importação, resumo do dia, rotinas, resultados, checklist, margem, tarefas, CRM, campos personalizados, pesquisas, indicações, serviços em andamento, regras de automação, indicadores avançados) | `FeatureKey` e as matrizes `ESSENTIAL_FEATURES` / `FULL_FEATURES` / `PRO_FEATURES` em `plans.ts`; conferidas no servidor por `src/server/billing/features.ts` |
 | Adicionais (WhatsApp com IA) | `ADD_ONS` |
 | Preço estimado do provedor (só para estimar custo) | `AI_PROVIDER_PRICING` |
 | Rotinas que podem receber execução automática | `AUTOMATABLE_TASKS` em `src/server/ai/autonomy.ts` (renovação de pacotes e lista de espera automática) |
@@ -59,3 +59,7 @@ Preços definitivos, franquias por plano e do teste, liberação da contrataçã
 ## Evolução operacional (orçamentos, portal, lista de espera, aprovações, rotinas)
 
 Detalhes por etapa, dependências e pendências: `docs/evolucao-operacional.md`.
+
+## Gestão completa (tarefas, comercial, serviços em andamento, indicações, regras, indicadores, catálogo)
+
+Recursos por plano, onde configurar, migrações e pendências: `docs/gestao-completa.md`.

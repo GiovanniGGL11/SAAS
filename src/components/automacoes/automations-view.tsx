@@ -1,5 +1,6 @@
 'use client';
 
+import { RulesSection } from '@/components/automacoes/rules-section';
 import * as React from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -114,6 +115,7 @@ export function AutomationsView() {
 
   if (!data) return <p className="text-label-secondary text-sm">Carregando…</p>;
   const anyRoutineInPlan = data.plan.packageRenewal || data.plan.waitlistAutomation;
+  const rulesEnabled = data.plan.rules;
 
   return (
     <div className="flex flex-col gap-4">
@@ -193,6 +195,8 @@ export function AutomationsView() {
           )}
         </>
       )}
+
+      {rulesEnabled && data.isAdmin && <RulesSection />}
 
       <Section title="Histórico de execuções" description="Inclui as puladas, com o motivo.">
         {data.runs.length === 0 ? (

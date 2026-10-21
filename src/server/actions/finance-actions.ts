@@ -12,6 +12,7 @@ import {
   markTransactionPaid,
   updateTransaction,
   getSoldDueReceived,
+  createInstallments,
 } from '@/server/data/finance';
 import { transactionInput } from '@/lib/validations/finance';
 import { serializeTransaction } from '@/lib/serialize';
@@ -239,5 +240,23 @@ export async function exportMonthCsvAction(input: unknown) {
       filename: `financeiro-${company.slug}-${month}.csv`,
       csv: await exportMonthCsv(company.id, company.timezone, month),
     };
+  });
+}
+
+/** Conta parcelada (a pagar ou a receber): N lançamentos pendentes com vencimento mensal. */
+export async function createInstallmentsAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = z
+      .object({
+        type: z.enum(['INCOME', 'EXPENSE']),
+        description: z.string().min(1).max(180),
+        category: z.string().max(100).nullish(),
+        totalAmount: z.number().positive().max(100_000_000),
+        count: z.number().int().min(2).max(36),
+        firstDueDate: z.coerce.date(),
+      })
+      .parse(input);
+    const { company, userId } = await requireCompanyAdmin();
+    return createInstallments(company.id, userId, parsed);
   });
 }

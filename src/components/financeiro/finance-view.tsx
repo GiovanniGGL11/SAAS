@@ -1,5 +1,6 @@
 'use client';
 
+import { InstallmentsDialog } from '@/components/financeiro/installments-dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 import * as React from 'react';
@@ -60,6 +61,7 @@ export function FinanceView() {
   );
   const [defaultType, setDefaultType] = React.useState<'INCOME' | 'EXPENSE'>('INCOME');
   const [preset, setPreset] = React.useState<ReportPreset>('last30');
+  const [installmentsOpen, setInstallmentsOpen] = React.useState(false);
   const [filter, setFilter] = React.useState<'all' | 'income' | 'expense' | 'pending'>('all');
   const [search, setSearch] = React.useState('');
   const [nowRef] = React.useState(() => Date.now());
@@ -129,6 +131,9 @@ export function FinanceView() {
           options={REPORT_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
         />
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setInstallmentsOpen(true)}>
+            Parcelado
+          </Button>
           <Button variant="outline" onClick={() => openCreate('EXPENSE')}>
             <ArrowUpRightIcon className="text-system-red size-4" />
             Nova saída
@@ -193,7 +198,14 @@ export function FinanceView() {
       )}
 
       {sdr && (
-        <div className="bg-tile grid grid-cols-3 gap-2 rounded-[22px] p-4 text-[13px]">
+        <div className="bg-tile grid grid-cols-2 gap-3 rounded-[22px] p-4 text-[13px] sm:grid-cols-3 lg:grid-cols-6">
+          <div>
+            <div className="text-label-secondary">Orçado no período</div>
+            <div className="text-[17px] font-semibold tabular-nums">
+              {formatCurrencyBRL(sdr.quoted)}
+            </div>
+            <div className="text-label-secondary text-[11px]">propostas enviadas (não é venda)</div>
+          </div>
           <div>
             <div className="text-label-secondary">Vendido no período</div>
             <div className="text-[17px] font-semibold tabular-nums">
@@ -207,13 +219,24 @@ export function FinanceView() {
             </div>
           </div>
           <div>
-            <div className="text-label-secondary">A receber hoje</div>
+            <div className="text-label-secondary">A vencer</div>
             <div className="text-[17px] font-semibold tabular-nums">
-              {formatCurrencyBRL(sdr.due)}
+              {formatCurrencyBRL(sdr.upcoming)}
             </div>
-            {sdr.overdue > 0 && (
-              <div className="text-system-red">{formatCurrencyBRL(sdr.overdue)} vencido</div>
-            )}
+          </div>
+          <div>
+            <div className="text-label-secondary">Vencido</div>
+            <div
+              className={`text-[17px] font-semibold tabular-nums ${sdr.overdue > 0 ? 'text-system-red' : ''}`}
+            >
+              {formatCurrencyBRL(sdr.overdue)}
+            </div>
+          </div>
+          <div>
+            <div className="text-label-secondary">Estornado/cancelado</div>
+            <div className="text-[17px] font-semibold tabular-nums">
+              {formatCurrencyBRL(sdr.canceled)}
+            </div>
           </div>
         </div>
       )}
@@ -445,6 +468,8 @@ export function FinanceView() {
           </>
         )}
       </Surface>
+
+      <InstallmentsDialog open={installmentsOpen} onOpenChange={setInstallmentsOpen} />
 
       <TransactionDrawer
         open={drawerOpen}
