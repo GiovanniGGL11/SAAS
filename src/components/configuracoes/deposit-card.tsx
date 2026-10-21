@@ -41,8 +41,8 @@ export function DepositCard() {
     onSuccess: () => {
       toast.success(
         Number(percentValue) > 0
-          ? 'Sinal por PIX ligado no agendamento online.'
-          : 'Configuração salva.',
+          ? 'Pagamento adiantado ligado no agendamento online.'
+          : 'Salvo, mas continua desligado: com 0% nada é cobrado no link.',
       );
       setApiKey('');
       refresh();
@@ -71,6 +71,36 @@ export function DepositCard() {
           cobrar o atendimento.
         </p>
       </div>
+      {data && (
+        <p
+          className={`rounded-xl px-4 py-3 text-[13px] ${
+            data.connected && data.percent > 0
+              ? 'bg-system-green/10'
+              : 'bg-[#ff9f0a]/12 text-[#8a4b00] dark:text-[#ffb340]'
+          }`}
+        >
+          {!data.connected ? (
+            <>
+              <span className="font-semibold">Ainda não aparece para o cliente:</span> falta
+              conectar a conta Asaas do seu negócio (é nela que o PIX cai). Cole a chave de API
+              abaixo.
+            </>
+          ) : data.percent <= 0 ? (
+            <>
+              <span className="font-semibold">Ainda não aparece para o cliente:</span> escolha
+              quanto cobrar (30%, 50% ou valor total) e salve.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">Ligado no link de agendamento:</span> cobra{' '}
+              {data.percent === 100 ? 'o valor total' : `${data.percent}%`};{' '}
+              {data.required
+                ? 'o pagamento é obrigatório para reservar.'
+                : 'o cliente escolhe pagar agora por PIX ou no atendimento.'}
+            </>
+          )}
+        </p>
+      )}
       <form
         className="grid gap-2 sm:grid-cols-[1fr_120px_140px]"
         onSubmit={(e) => {
