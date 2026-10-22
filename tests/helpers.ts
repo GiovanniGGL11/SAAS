@@ -45,6 +45,17 @@ export async function createTestCompany(label: string) {
 }
 
 export async function deleteTestCompany(companyId: string) {
+  // Trava: os testes rodam no mesmo banco da produção; só apaga empresa criada por createTestCompany.
+  const target = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { clerkOrgId: true, slug: true },
+  });
+  if (!target) return;
+  if (!target.clerkOrgId.startsWith('test_org_') || !target.slug.startsWith('test-company-')) {
+    throw new Error(
+      `deleteTestCompany recusou apagar uma empresa que não é de teste (${companyId}).`,
+    );
+  }
   await prisma.googleCalendarConnection.deleteMany({ where: { companyId } });
   await prisma.auditLog.deleteMany({ where: { companyId } });
   await prisma.automationRule.deleteMany({ where: { companyId } });

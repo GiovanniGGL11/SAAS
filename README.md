@@ -18,7 +18,7 @@ SaaS multi-tenant de agendamentos para barbearias, salões, clínicas de estéti
 - **Shadcn/UI**, estilo `radix-nova` (Radix UI) — o estilo padrão atual do CLI (`base-nova`) usa `@base-ui/react` em vez de Radix e tem componentes incompletos no registry (ex: `form` é um stub vazio em todos os estilos no momento); pinado explicitamente para `-b radix` por estabilidade
 - **Prisma `^7.8.0`** + PostgreSQL (Supabase) — Prisma 7 exige driver adapters; `DATABASE_URL`/`DIRECT_URL` vivem em `prisma.config.ts`, não no `schema.prisma`; o client da app usa `@prisma/adapter-pg` (ver `src/lib/db.ts`)
 - **Clerk `^7.7.1`** (auth + Organizations = tenants). API de tema mudou nesta major: `appearance.baseTheme` → `appearance.theme` (ver `src/components/clerk-provider.tsx`). `/sign-in` e `/sign-up` são telas **100% customizadas** (não usam `<SignIn/>`/`<SignUp/>` do Clerk) — ver seção "Auth customizado" abaixo antes de mexer nelas
-- `next-themes` (dark/light), `motion` (sucessor do framer-motion), `lucide-react`
+- Tema claro/escuro próprio (`src/components/theme-provider.tsx`, sem dependência externa), `motion` (sucessor do framer-motion), `lucide-react`
 - `@dnd-kit/core` (drag-and-drop da agenda), `@tanstack/react-query`
 - `react-hook-form` + `zod` + `@hookform/resolvers`, `cmdk` (combobox de busca)
 - `vitest` (testes)
