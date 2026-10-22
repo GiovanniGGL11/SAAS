@@ -5,6 +5,7 @@ import { CustomFieldsEditor } from '@/components/custom-fields/custom-fields-edi
 import Link from 'next/link';
 
 import * as React from 'react';
+import { useAuth } from '@clerk/nextjs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDaysIcon, MapPinIcon, StarIcon, PencilIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -36,6 +37,7 @@ import {
   setClientVipAction,
 } from '@/server/actions/client-actions';
 import { setClientMarketingOptOutAction } from '@/server/actions/marketing-actions';
+import { ClientPrivacy } from '@/components/clientes/client-privacy';
 import { STATUS_LABELS } from '@/components/agenda/status';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
@@ -85,6 +87,8 @@ export function ClientDetail({
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   // Orçamentos só aparecem no plano que inclui (o servidor confere de novo).
   const quotesEnabled = usePlanFeatures().has('quotes');
+  // LGPD (exportar/anonimizar): só administradores; o servidor confere de novo.
+  const isAdmin = useAuth().orgRole === 'org:admin';
 
   const { data } = useQuery({
     queryKey: ['client-detail', clientId],
@@ -416,6 +420,7 @@ export function ClientDetail({
               </Table>
             </div>
           </div>
+          {isAdmin && <ClientPrivacy clientId={clientId} clientName={client.name} />}
         </>
       )}
 
