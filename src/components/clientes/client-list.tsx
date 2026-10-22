@@ -35,7 +35,12 @@ import {
   matchesSearch,
 } from '@/components/layout/list-controls';
 import { ClientDrawer } from '@/components/clientes/client-drawer';
+import {
+  CustomFieldFilter,
+  type FieldCriterion,
+} from '@/components/custom-fields/custom-field-filter';
 import { listClientsAction, setClientActiveAction } from '@/server/actions/client-actions';
+import { filterRecordsByFieldAction } from '@/server/actions/custom-field-actions';
 import type { Client } from '@/generated/prisma/client';
 
 export type ClientFilter = 'active' | 'vip' | 'lapsed' | 'birthdays' | 'new' | 'archived' | 'all';
@@ -69,6 +74,17 @@ export function ClientList({
   const assistedImport = planFeatures.has('assistedImport');
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<ClientFilter>(initialFilter);
+  // Filtro por campo personalizado (Profissional+): o servidor devolve quem atende.
+  const [fieldCriterion, setFieldCriterion] = React.useState<FieldCriterion | null>(null);
+  const { data: fieldMatch } = useQuery({
+    queryKey: ['field-filter', fieldCriterion],
+    queryFn: () => filterRecordsByFieldAction(fieldCriterion).then(unwrapResult),
+    enabled: fieldCriterion !== null,
+  });
+  const fieldIds = React.useMemo(
+    () => (fieldCriterion && fieldMatch ? new Set(fieldMatch.ids) : null),
+    [fieldCriterion, fieldMatch],
+  );
   const lapsedSet = React.useMemo(() => new Set(lapsedIds), [lapsedIds]);
   // Mês atual no fuso da empresa e o corte de "novo" (cadastrado nos últimos 30 dias).
   const [{ month, newSince }] = React.useState(() => ({
@@ -108,6 +124,10 @@ export function ClientList({
     if (filter === 'lapsed' && !lapsedSet.has(client.id)) return false;
     if (filter === 'birthdays' && (!client.active || !isBirthdayMonth(client))) return false;
     if (filter === 'new' && !isNew(client)) return false;
+    if (fieldIds && fieldMatch) {
+      const has = fieldIds.has(client.id);
+      if (fieldMatch.exclude ? has : !has) return false;
+    }
     return matchesSearch(search, client.name, client.phone, client.email);
   });
 
@@ -163,6 +183,9 @@ export function ClientList({
           ]}
         />
       </ListToolbar>
+      {planFeatures.has('customFields') && (
+        <CustomFieldFilter entity="client" onChange={setFieldCriterion} />
+      )}
 
       <Surface>
         {filtered.length === 0 ? (

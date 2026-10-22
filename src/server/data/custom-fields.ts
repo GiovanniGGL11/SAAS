@@ -5,10 +5,12 @@ import { Prisma } from '@/generated/prisma/client';
 import {
   CUSTOM_FIELD_TYPES,
   isSelect,
+  matchesFieldFilter,
   normalizeValue,
   type CustomFieldEntity,
   type CustomFieldType,
   type FieldDefinition,
+  type FieldFilter,
   type FieldOption,
 } from '@/lib/custom-fields';
 import { UserError } from '@/server/errors';
@@ -287,4 +289,36 @@ export async function setValues(
     });
   }
   return { changed: changed.length };
+}
+
+/**
+ * Registros que atendem a um filtro por campo. Só campos ativos e visíveis para a pessoa (campo
+ * "só administradores" não filtra para a equipe). Em "sem resposta" devolve quem TEM resposta e
+ * `exclude: true` — a lista tira esses (quem nunca respondeu não tem linha guardada).
+ */
+export async function findRecordsByField(
+  companyId: string,
+  entity: CustomFieldEntity,
+  viewer: FieldViewer,
+  fieldId: string,
+  filter: FieldFilter,
+): Promise<{ ids: string[]; exclude: boolean }> {
+  const field = (await listFields(companyId, entity, viewer)).find((f) => f.id === fieldId);
+  if (!field) throw new UserError('Campo não encontrado.');
+  const rows = await prisma.customFieldValue.findMany({
+    where: { companyId, fieldId },
+    select: { recordId: true, value: true },
+  });
+  if (filter.kind === 'empty') {
+    return {
+      ids: rows
+        .filter((r) => matchesFieldFilter(field, r.value, { kind: 'filled' }))
+        .map((r) => r.recordId),
+      exclude: true,
+    };
+  }
+  return {
+    ids: rows.filter((r) => matchesFieldFilter(field, r.value, filter)).map((r) => r.recordId),
+    exclude: false,
+  };
 }

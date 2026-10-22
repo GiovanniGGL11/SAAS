@@ -11,6 +11,7 @@ import {
 } from '@/server/auth/require-current-company';
 import { assertFeature, hasFeature } from '@/server/billing/features';
 import {
+  findRecordsByField,
   getValues,
   listFields,
   reorderFields,
@@ -113,6 +114,46 @@ export async function setFieldValuesAction(input: unknown) {
       parsed.recordId,
       { userId: session.userId, isAdmin: isCompanyAdmin(session) },
       parsed.values,
+    );
+  });
+}
+
+const fieldFilter = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('filled') }),
+  z.object({ kind: z.literal('empty') }),
+  z.object({ kind: z.literal('text'), text: z.string().trim().min(1).max(200) }),
+  z.object({ kind: z.literal('boolean'), value: z.boolean() }),
+  z.object({ kind: z.literal('option'), optionId: z.string().min(1).max(64) }),
+  z.object({
+    kind: z.literal('number'),
+    min: z.number().finite().optional(),
+    max: z.number().finite().optional(),
+  }),
+  z.object({
+    kind: z.literal('date'),
+    from: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  }),
+]);
+
+/** Filtra uma lista (clientes, serviços, oportunidades) pela resposta de um campo personalizado. */
+export async function filterRecordsByFieldAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = z.object({ entity, fieldId: id, filter: fieldFilter }).parse(input);
+    const session = await requireCurrentCompany();
+    assertFeature(session.company, 'customFields');
+    return findRecordsByField(
+      session.company.id,
+      parsed.entity,
+      { userId: session.userId, isAdmin: isCompanyAdmin(session) },
+      parsed.fieldId,
+      parsed.filter,
     );
   });
 }

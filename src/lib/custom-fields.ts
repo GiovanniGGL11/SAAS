@@ -141,3 +141,60 @@ export function displayValue(field: FieldDefinition, value: unknown): string {
       return String(value);
   }
 }
+
+/**
+ * Filtro de lista por um campo personalizado. "filled"/"empty" valem para qualquer tipo; os demais
+ * dependem do tipo do campo (texto contém, sim/não, opção, faixa de número ou de data).
+ */
+export type FieldFilter =
+  | { kind: 'filled' }
+  | { kind: 'empty' }
+  | { kind: 'text'; text: string }
+  | { kind: 'boolean'; value: boolean }
+  | { kind: 'option'; optionId: string }
+  | { kind: 'number'; min?: number; max?: number }
+  | { kind: 'date'; from?: string; to?: string };
+
+const fold = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+/** A resposta guardada atende ao filtro? ("empty" é tratado por quem chama: é a ausência.) */
+export function matchesFieldFilter(
+  field: FieldDefinition,
+  value: unknown,
+  filter: FieldFilter,
+): boolean {
+  if (filter.kind === 'empty') return isEmpty(value);
+  if (isEmpty(value)) return false;
+  switch (filter.kind) {
+    case 'filled':
+      return true;
+    case 'text':
+      return (
+        (field.type === 'short_text' || field.type === 'long_text') &&
+        fold(String(value)).includes(fold(filter.text.trim()))
+      );
+    case 'boolean':
+      return field.type === 'boolean' && value === filter.value;
+    case 'option':
+      return field.type === 'multi_select'
+        ? Array.isArray(value) && value.includes(filter.optionId)
+        : field.type === 'single_select' && value === filter.optionId;
+    case 'number': {
+      if (field.type !== 'number') return false;
+      const n = Number(value);
+      return (
+        (filter.min === undefined || n >= filter.min) &&
+        (filter.max === undefined || n <= filter.max)
+      );
+    }
+    case 'date': {
+      if (field.type !== 'date') return false;
+      const d = String(value);
+      return (!filter.from || d >= filter.from) && (!filter.to || d <= filter.to);
+    }
+  }
+}
