@@ -119,6 +119,7 @@ model Company {
   jobEvents                 JobEvent[]
   referrals                 Referral[]
   automationRules           AutomationRule[]
+  periodGoals               PeriodGoal[]
 }
 
 model WebhookEvent {
@@ -2116,4 +2117,22 @@ model AutomationRule {
   updatedAt       DateTime  @updatedAt
 
   @@index([companyId, active])
+}
+
+/// Meta de um indicador para um mês (Pro). Um alvo por indicador e mês; o realizado é calculado.
+model PeriodGoal {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  /// received | appointments_done | new_clients | quotes_approved
+  metric          String
+  /// Mês no fuso da empresa, "AAAA-MM".
+  month           String
+  target          Decimal  @db.Decimal(12, 2)
+  updatedByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, metric, month])
+  @@index([companyId, month])
 }

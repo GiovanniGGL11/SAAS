@@ -7,6 +7,14 @@ import { toActionResult } from '@/server/action-result';
 import { assertFeature } from '@/server/billing/features';
 import { listServiceMargins } from '@/server/data/service-margins';
 import { getAdvancedKpis } from '@/server/data/kpis';
+import {
+  GOAL_METRIC_KEYS,
+  copyPeriodGoals,
+  currentMonth,
+  getPeriodGoals,
+  setPeriodGoal,
+  shiftMonth,
+} from '@/server/data/period-goals';
 import { reportPresetInput } from '@/lib/validations/report';
 import { resolveReportRange } from '@/lib/report-range';
 import {
@@ -47,5 +55,45 @@ export async function getAdvancedKpisAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
     assertFeature(company, 'advancedKpis');
     return getAdvancedKpis(company.id, days);
+  });
+}
+
+const monthInput = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mês inválido.');
+
+/** Metas por período (Pro): o mês pedido, ou o mês atual no fuso da empresa. */
+export async function getPeriodGoalsAction(input: unknown) {
+  return toActionResult(async () => {
+    const { month } = z.object({ month: monthInput.optional() }).parse(input);
+    const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'advancedKpis');
+    return getPeriodGoals(company.id, company.timezone, month ?? currentMonth(company.timezone));
+  });
+}
+
+export async function setPeriodGoalAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = z
+      .object({
+        metric: z.enum(GOAL_METRIC_KEYS as [string, ...string[]]),
+        month: monthInput,
+        target: z.number().positive('A meta precisa ser maior que zero.').max(1e10).nullable(),
+      })
+      .parse(input);
+    const { company, userId } = await requireCompanyAdmin();
+    assertFeature(company, 'advancedKpis');
+    await setPeriodGoal(company.id, userId, {
+      ...parsed,
+      metric: parsed.metric as (typeof GOAL_METRIC_KEYS)[number],
+    });
+  });
+}
+
+/** Copia as metas do mês anterior para este (as que já existem aqui ficam como estão). */
+export async function copyPreviousGoalsAction(input: unknown) {
+  return toActionResult(async () => {
+    const { month } = z.object({ month: monthInput }).parse(input);
+    const { company, userId } = await requireCompanyAdmin();
+    assertFeature(company, 'advancedKpis');
+    return copyPeriodGoals(company.id, userId, shiftMonth(month, -1), month);
   });
 }

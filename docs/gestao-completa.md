@@ -97,19 +97,28 @@ avaliações, com link para a origem. Valores só para administradores; filtro "
 | `20261021090000_service_catalog` | aplicada |
 | `20261021120000_booking_lead_minutes` | aplicada |
 | `20261021150000_deposit_optional` | aplicada |
+| `20261022090000_period_goals` | aplicada |
 
 ## Integrações necessárias
 
 - **Central de comunicação:** precisa de recebimento de mensagens do WhatsApp (webhook de entrada). Não existe; nenhuma tela simula conversas.
 - **Anexos e imagens do catálogo:** precisam de armazenamento de arquivos. Não existe.
-- **Agendamento das regras:** `CRON_SECRET` e o agendador chamando `/api/cron/automations`.
+- **Agendamento das rotinas:** o `vercel.json` já chama `/api/cron/reminders` e `/api/cron/automations` todo dia, mas em produção falta a variável `CRON_SECRET` (sem ela as duas rotas respondem 503 e nada roda).
 - **IA:** créditos do provedor e franquias por plano (`docs/planos-e-ia.md`).
 - **Cobrança:** Asaas. Nada foi ativado nesta entrega.
+
+### Metas por período (Pro — Relatórios)
+Um alvo por mês para Recebido, Atendimentos concluídos, Clientes novos e Orçamentos aprovados; o realizado vem dos registros e a projeção (só no mês em andamento) é o ritmo atual até o fim do mês. "Copiar metas do mês anterior" não sobrescreve metas já definidas. As metas antigas (faturamento do mês no painel e meta por profissional) continuam como estavam.
+
+### Filtro por campo personalizado (Clientes)
+"Filtrar por campo": texto contém, sim/não, opção, faixa de número ou data, preenchido e sem resposta. Filtrado no servidor; campo "só administradores" não filtra para a equipe.
+
+### Aviso de horário incomum (Profissionais → Expediente)
+Começar antes das 06:00 ou terminar depois das 22:00 pergunta "tem certeza?". Não impede: confirmando, salva.
 
 ## Pendências
 
 - Central de comunicação e anexos (dependem das integrações acima).
 - Assistente por voz.
 - Imagens no catálogo público.
-- Filtros e relatórios por campo personalizado.
-- Metas por período além das metas que já existem.
+- Filtro por campo personalizado nas listas de serviços e oportunidades (clientes já tem) e relatórios por campo.

@@ -48,6 +48,7 @@ export async function deleteTestCompany(companyId: string) {
   await prisma.googleCalendarConnection.deleteMany({ where: { companyId } });
   await prisma.auditLog.deleteMany({ where: { companyId } });
   await prisma.automationRule.deleteMany({ where: { companyId } });
+  await prisma.periodGoal.deleteMany({ where: { companyId } });
   await prisma.referral.deleteMany({ where: { companyId } });
   await prisma.taskComment.deleteMany({ where: { companyId } });
   await prisma.task.deleteMany({ where: { companyId } });

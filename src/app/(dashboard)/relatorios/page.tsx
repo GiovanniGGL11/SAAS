@@ -4,6 +4,7 @@ import { hasFeature } from '@/server/billing/features';
 import { ReportView } from '@/components/relatorios/report-view';
 import { ServiceMarginsCard } from '@/components/relatorios/service-margins-card';
 import { AdvancedKpis } from '@/components/relatorios/advanced-kpis';
+import { PeriodGoals } from '@/components/relatorios/period-goals';
 
 export default async function RelatoriosPage() {
   const { company } = await requireAdminPage();
@@ -12,6 +13,7 @@ export default async function RelatoriosPage() {
   return (
     <div className="flex flex-col gap-5">
       <ReportView initialData={initialData} />
+      {hasFeature(company, 'advancedKpis') && <PeriodGoals />}
       {hasFeature(company, 'advancedKpis') && <AdvancedKpis />}
       {hasFeature(company, 'contributionMargin') && <ServiceMarginsCard />}
     </div>
