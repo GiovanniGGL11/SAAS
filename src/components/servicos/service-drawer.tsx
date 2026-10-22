@@ -72,6 +72,7 @@ export function ServiceDrawer({
       color: service?.color ?? PRESET_COLORS[0],
       commissionPercent: service?.commissionPercent ?? null,
       returnAfterDays: service?.returnAfterDays ?? null,
+      bufferMinutes: service?.bufferMinutes ?? 0,
       priceKind: (service?.priceKind ?? 'fixed') as 'fixed' | 'from' | 'on_request',
       publicVisible: service?.publicVisible ?? true,
     },
@@ -224,6 +225,34 @@ export function ServiceDrawer({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="bufferMinutes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Intervalo de preparo depois (minutos)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={120}
+                      step={5}
+                      placeholder="0"
+                      {...field}
+                      value={(field.value as number) ?? 0}
+                      onChange={(e) => field.onChange(e.target.value === '' ? 0 : e.target.value)}
+                    />
+                  </FormControl>
+                  <p className="text-label-secondary text-[12px]">
+                    Tempo para limpar ou preparar depois deste serviço. A agenda e o link de
+                    agendamento não encaixam ninguém nesse intervalo; o cliente vê só a duração.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

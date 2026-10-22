@@ -6,6 +6,7 @@ import { normalizePhone } from '@/lib/phone';
 import { validateBookingName, validateBookingPhone } from '@/lib/booking';
 import { addDays, calendarDateToUtc, utcToCalendarDate, type CalendarDate } from '@/lib/time';
 import { UserError } from '@/server/errors';
+import { MAX_BUFFER_MINUTES, clashesWithBuffer } from '@/lib/buffer';
 import { createAppointment } from '@/server/data/appointments';
 
 /**
@@ -157,7 +158,7 @@ export async function listAvailabilityRange(params: {
   const [found, company] = await Promise.all([
     prisma.service.findFirst({
       where: { id: params.serviceId, companyId: params.companyId, active: true },
-      select: { durationMinutes: true },
+      select: { durationMinutes: true, bufferMinutes: true },
     }),
     prisma.company.findFirst({
       where: { id: params.companyId },
@@ -188,10 +189,11 @@ export async function listAvailabilityRange(params: {
         professionalId: { in: ids },
         status: { in: [...ACTIVE] },
         startAt: { lt: rangeEnd },
-        endAt: { gt: rangeStart },
+        // O preparo de quem termina antes do dia pode avançar sobre ele.
+        endAt: { gt: new Date(rangeStart.getTime() - MAX_BUFFER_MINUTES * 60_000) },
         ...(params.reschedule ? { id: { not: params.reschedule.appointmentId } } : {}),
       },
-      select: { professionalId: true, startAt: true, endAt: true },
+      select: { professionalId: true, startAt: true, endAt: true, bufferMinutes: true },
     }),
     prisma.scheduleBlock.findMany({
       where: { professionalId: { in: ids }, startAt: { lt: rangeEnd }, endAt: { gt: rangeStart } },
@@ -210,7 +212,8 @@ export async function listAvailabilityRange(params: {
       select: { professionalId: true, startAt: true, endAt: true },
     }),
   ]);
-  const occupied = [...busy, ...blocks, ...held];
+  // Bloqueios e convites não têm preparo; atendimentos trazem o seu.
+  const occupied = [...busy, ...[...blocks, ...held].map((o) => ({ ...o, bufferMinutes: 0 }))];
   const earliest = Date.now() + leadMinutesFor(company?.bookingLeadMinutes) * 60_000;
   const durationMs = durationMinutes * 60_000;
   const result = new Map<string, PublicSlot[]>();
@@ -236,12 +239,13 @@ export async function listAvailabilityRange(params: {
         ) {
           const startAt = calendarDateToUtc(date, m, params.timezone);
           if (startAt.getTime() < earliest || byTime.has(startAt.getTime())) continue;
-          const endAt = startAt.getTime() + durationMs;
+          const self = {
+            startAt,
+            endAt: new Date(startAt.getTime() + durationMs),
+            bufferMinutes: found.bufferMinutes,
+          };
           const clash = occupied.some(
-            (o) =>
-              o.professionalId === professional.id &&
-              o.startAt.getTime() < endAt &&
-              o.endAt.getTime() > startAt.getTime(),
+            (o) => o.professionalId === professional.id && clashesWithBuffer(self, o),
           );
           if (clash) continue;
           byTime.set(startAt.getTime(), {

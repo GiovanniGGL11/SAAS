@@ -50,7 +50,9 @@ export type WaitlistInput = {
 
 const entryInclude = {
   client: { select: { id: true, name: true, phone: true } },
-  service: { select: { id: true, name: true, color: true, durationMinutes: true } },
+  service: {
+    select: { id: true, name: true, color: true, durationMinutes: true, bufferMinutes: true },
+  },
   professional: { select: { id: true, name: true } },
   offers: {
     where: { status: 'PENDING' },
@@ -500,6 +502,7 @@ export async function createWaitlistOffer(params: {
           professionalId: params.professionalId,
           startAt: params.startAt,
           endAt,
+          bufferMinutes: entry.service.bufferMinutes,
         },
         tx,
       );

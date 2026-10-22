@@ -29,6 +29,7 @@ export type ServiceInput = {
   color: string;
   commissionPercent?: number | null;
   returnAfterDays?: number | null;
+  bufferMinutes?: number;
   /** `undefined` mantém o checklist atual. */
   checklistItems?: string[];
   priceKind?: 'fixed' | 'from' | 'on_request';
@@ -47,6 +48,7 @@ export async function createService(companyId: string, data: ServiceInput): Prom
       color: data.color,
       commissionPercent: data.commissionPercent ?? null,
       returnAfterDays: data.returnAfterDays ?? null,
+      bufferMinutes: data.bufferMinutes ?? 0,
       checklistItems: data.checklistItems ?? [],
       priceKind: data.priceKind ?? 'fixed',
       publicVisible: data.publicVisible ?? true,
@@ -70,6 +72,7 @@ export async function updateService(
       color: data.color,
       commissionPercent: data.commissionPercent ?? null,
       returnAfterDays: data.returnAfterDays ?? null,
+      ...(data.bufferMinutes !== undefined ? { bufferMinutes: data.bufferMinutes } : {}),
       ...(data.checklistItems !== undefined ? { checklistItems: data.checklistItems } : {}),
       ...(data.priceKind !== undefined ? { priceKind: data.priceKind } : {}),
       ...(data.publicVisible !== undefined ? { publicVisible: data.publicVisible } : {}),

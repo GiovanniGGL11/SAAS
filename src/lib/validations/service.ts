@@ -9,6 +9,13 @@ export const serviceInput = z.object({
   color: z.string().min(1, 'Selecione uma cor'),
   /** Comissão própria do serviço (%); vazio = vale a regra do profissional. */
   commissionPercent: z.coerce.number().min(0).max(100, 'Até 100%').nullable().optional(),
+  /** Preparo/limpeza depois do atendimento: a agenda não encaixa ninguém nesse tempo. */
+  bufferMinutes: z.coerce
+    .number({ message: 'Informe os minutos' })
+    .int('Use minutos inteiros')
+    .min(0, 'Não pode ser negativo')
+    .max(120, 'Até 120 minutos')
+    .optional(),
   /** Em quantos dias sugerir o retorno do cliente; vazio = sem sugestão. */
   returnAfterDays: z.coerce
     .number({ message: 'Informe um número de dias' })

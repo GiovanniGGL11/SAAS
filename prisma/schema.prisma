@@ -199,6 +199,8 @@ model Service {
   description     String?
   category        String?
   durationMinutes Int
+  /// Intervalo de preparo/limpeza depois do atendimento (0–120 min); a agenda não encaixa ninguém nele.
+  bufferMinutes   Int      @default(0)
   price           Decimal  @db.Decimal(10, 2)
   color           String
   active          Boolean  @default(true)
@@ -309,6 +311,8 @@ model Appointment {
   // Snapshot at creation time so edits to Service later don't rewrite history.
   serviceNameSnapshot     String
   durationMinutesSnapshot Int
+  /// Intervalo de preparo copiado do serviço ao marcar (o maior, se forem vários).
+  bufferMinutes           Int      @default(0)
   priceSnapshot           Decimal @db.Decimal(10, 2)
 
   notes String?

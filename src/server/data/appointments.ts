@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { MAX_BUFFER_MINUTES, clashesWithBuffer } from '@/lib/buffer';
 import { recordAuditLog } from '@/server/data/audit';
 import {
   createIncomeFromAppointment,
@@ -93,6 +94,8 @@ async function resolveServices(
       serviceNameSnapshot: ordered.map((s) => s.name).join(' + '),
       durationMinutesSnapshot: duration,
       priceSnapshot: price,
+      // Preparo depois do atendimento: o maior dos serviços combinados.
+      bufferMinutes: Math.max(0, ...ordered.map((s) => s.bufferMinutes)),
     },
     items:
       ordered.length > 1
@@ -163,21 +166,26 @@ export async function assertNoConflict(
     excludeAppointmentId?: string;
     /** Convite da lista de espera que está sendo aceito: a reserva dele não conta como conflito. */
     allowOfferId?: string;
+    /** Preparo depois deste atendimento (o dos vizinhos vem do banco). */
+    bufferMinutes?: number;
   },
   db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  const overlappingAppointment = await db.appointment.findFirst({
+  // Vizinhos que podem encostar, contando o preparo de cada um; o choque é conferido abaixo.
+  const ownBufferMs = (params.bufferMinutes ?? 0) * 60_000;
+  const neighbours = await db.appointment.findMany({
     where: {
       companyId: params.companyId,
       professionalId: params.professionalId,
       status: { in: ACTIVE_STATUSES },
-      startAt: { lt: params.endAt },
-      endAt: { gt: params.startAt },
+      startAt: { lt: new Date(params.endAt.getTime() + ownBufferMs) },
+      endAt: { gt: new Date(params.startAt.getTime() - MAX_BUFFER_MINUTES * 60_000) },
       ...(params.excludeAppointmentId ? { id: { not: params.excludeAppointmentId } } : {}),
     },
-    select: { id: true },
+    select: { startAt: true, endAt: true, bufferMinutes: true },
   });
-  if (overlappingAppointment) {
+  const self = { startAt: params.startAt, endAt: params.endAt, bufferMinutes: params.bufferMinutes };
+  if (neighbours.some((n) => clashesWithBuffer(self, n))) {
     throw new AppointmentConflictError('overlap');
   }
 
@@ -254,6 +262,7 @@ export async function createAppointment(params: {
         startAt: params.startAt,
         endAt,
         allowOfferId: params.waitlistOfferId,
+        bufferMinutes: resolved.snapshots.bufferMinutes,
       },
       tx,
     );
@@ -332,6 +341,7 @@ export async function moveAppointment(params: {
         startAt: params.startAt,
         endAt,
         excludeAppointmentId: existing.id,
+        bufferMinutes: existing.bufferMinutes,
       },
       tx,
     );
@@ -499,6 +509,7 @@ export async function updateAppointmentDetails(params: {
             startAt: current.startAt,
             endAt,
             excludeAppointmentId: current.id,
+            bufferMinutes: resolved.snapshots.bufferMinutes,
           },
           tx,
         );
@@ -993,7 +1004,7 @@ export async function findNextAvailableSlot(params: {
 }): Promise<{ startAt: Date; professionalId: string } | null> {
   const service = await prisma.service.findFirst({
     where: { id: params.serviceId, companyId: params.companyId },
-    select: { durationMinutes: true },
+    select: { durationMinutes: true, bufferMinutes: true },
   });
   if (!service) throw new ForeignEntityMismatchError('service');
 
@@ -1023,9 +1034,9 @@ export async function findNextAvailableSlot(params: {
         professionalId: { in: ids },
         status: { in: ACTIVE_STATUSES },
         startAt: { lt: horizonEnd },
-        endAt: { gt: params.from },
+        endAt: { gt: new Date(params.from.getTime() - MAX_BUFFER_MINUTES * 60_000) },
       },
-      select: { professionalId: true, startAt: true, endAt: true },
+      select: { professionalId: true, startAt: true, endAt: true, bufferMinutes: true },
     }),
     prisma.scheduleBlock.findMany({
       where: {
@@ -1036,7 +1047,8 @@ export async function findNextAvailableSlot(params: {
       select: { professionalId: true, startAt: true, endAt: true },
     }),
   ]);
-  const occupied = [...busy, ...blocks];
+  // Bloqueios não têm preparo; atendimentos trazem o seu.
+  const occupied = [...busy, ...blocks.map((b) => ({ ...b, bufferMinutes: 0 }))];
   const durationMs = service.durationMinutes * 60_000;
   const firstDay = utcToCalendarDate(params.from, params.timezone);
 
@@ -1065,11 +1077,9 @@ export async function findNextAvailableSlot(params: {
           if (startAt.getTime() < params.from.getTime()) continue;
           if (best && startAt.getTime() >= best.startAt.getTime()) break;
           const endAt = new Date(startAt.getTime() + durationMs);
+          const self = { startAt, endAt, bufferMinutes: service.bufferMinutes };
           const clash = occupied.some(
-            (o) =>
-              o.professionalId === professional.id &&
-              o.startAt.getTime() < endAt.getTime() &&
-              o.endAt.getTime() > startAt.getTime(),
+            (o) => o.professionalId === professional.id && clashesWithBuffer(self, o),
           );
           if (!clash) {
             best = { startAt, professionalId: professional.id };
@@ -1113,6 +1123,7 @@ export async function resizeAppointment(params: {
         startAt: existing.startAt,
         endAt: params.endAt,
         excludeAppointmentId: existing.id,
+        bufferMinutes: existing.bufferMinutes,
       },
       tx,
     );

@@ -98,6 +98,8 @@ avaliações, com link para a origem. Valores só para administradores; filtro "
 | `20261021120000_booking_lead_minutes` | aplicada |
 | `20261021150000_deposit_optional` | aplicada |
 | `20261022090000_period_goals` | aplicada |
+| `20261022120000_marketing_opt_out` | aplicada |
+| `20261022150000_service_buffer` | aplicada |
 
 ## Integrações necessárias
 
@@ -118,6 +120,18 @@ Botão de microfone no assistente: a fala vira texto na caixa (reconhecimento do
 
 ### Aviso de horário incomum (Profissionais → Expediente)
 Começar antes das 06:00 ou terminar depois das 22:00 pergunta "tem certeza?". Não impede: confirmando, salva.
+
+### Consentimento de marketing (LGPD)
+Promoções — campanhas (manual e automática) e parabéns de aniversário — levam no fim o link `/descadastrar/[token]` (assinado). Quem sai fica fora, inclusive de campanha já criada; a equipe também registra na ficha ("Recebe promoções"). Confirmação, lembrete, avaliação e convite da lista de espera continuam (são mensagens de serviço). Tudo na auditoria.
+
+### Direitos do titular (LGPD — ficha do cliente, administradores)
+"Exportar dados" baixa um JSON com tudo o que o sistema guarda sobre a pessoa. "Anonimizar cliente" apaga identificação, campos personalizados, observações e mensagens e revoga links do portal e das fichas; mantém o financeiro (obrigação fiscal); fichas só saem com a opção marcada (prontuário). Exige digitar ANONIMIZAR, recusa com horário futuro marcado e não repete.
+
+### Intervalo de preparo (Serviços)
+"Intervalo de preparo depois" (0–120 min) por serviço, copiado para o atendimento ao marcar (o maior, se forem vários). Agenda, mover/redimensionar, link público, próximo horário livre e convites da lista de espera não encaixam ninguém nesse tempo; o cliente continua vendo só a duração. Vale entre atendimentos (bloqueios não mudam).
+
+### Testes e banco
+Os testes usam o mesmo banco da produção: `deleteTestCompany` só apaga empresa criada pelos testes e a rotina diária de WhatsApp aceita uma empresa só (`onlyCompanyId`). O ideal continua sendo um banco exclusivo para testes.
 
 ## Pendências
 
