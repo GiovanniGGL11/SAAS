@@ -125,5 +125,6 @@ export async function deleteTestCompany(companyId: string) {
   await prisma.client.deleteMany({ where: { companyId } });
   await prisma.service.deleteMany({ where: { companyId } });
   await prisma.professional.deleteMany({ where: { companyId } });
+  await prisma.coupon.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } });
 }
