@@ -204,7 +204,7 @@ function NewCampaignDialog({
             </select>
             <span className="text-label-secondary text-[12px]">
               {preview
-                ? `${preview.withPhone} ${preview.withPhone === 1 ? 'cliente' : 'clientes'} com WhatsApp${preview.total > preview.withPhone ? ` (${preview.total - preview.withPhone} sem telefone)` : ''}${preview.sample.length ? `: ${preview.sample.join(', ')}${preview.withPhone > preview.sample.length ? '…' : ''}` : ''}`
+                ? `${preview.withPhone} ${preview.withPhone === 1 ? 'cliente' : 'clientes'} com WhatsApp${preview.total > preview.withPhone ? ` (${preview.total - preview.withPhone} sem telefone)` : ''}${preview.sample.length ? `: ${preview.sample.join(', ')}${preview.withPhone > preview.sample.length ? '…' : ''}` : ''}${preview.optedOut ? `. ${preview.optedOut} não ${preview.optedOut === 1 ? 'quer' : 'querem'} receber promoções e ${preview.optedOut === 1 ? 'fica' : 'ficam'} de fora.` : ''}`
                 : 'Contando...'}
             </span>
           </label>
@@ -256,6 +256,8 @@ function CampaignDialog({ id, onClose }: { id: string; onClose: () => void }) {
     },
   });
   const sent = data?.recipients.filter((r) => r.sentAt).length ?? 0;
+  // Quem pediu para sair depois de a campanha ser criada não recebe.
+  const eligible = data?.recipients.filter((r) => !r.optedOut || r.sentAt).length ?? 0;
   const auto = useMutation({
     mutationFn: () => sendCampaignAutomaticallyAction(id).then(unwrapResult),
     onSuccess: ({ queued }) => {
@@ -278,7 +280,7 @@ function CampaignDialog({ id, onClose }: { id: string; onClose: () => void }) {
           <DialogTitle>{data?.name ?? 'Campanha'}</DialogTitle>
           <DialogDescription>
             {data
-              ? `${sent} de ${data.recipients.length} enviadas. Cada botão abre o WhatsApp com a mensagem pronta.`
+              ? `${sent} de ${eligible} enviadas. Cada botão abre o WhatsApp com a mensagem pronta, já com o link para a pessoa sair da lista.`
               : 'Carregando...'}
           </DialogDescription>
         </DialogHeader>
@@ -294,6 +296,10 @@ function CampaignDialog({ id, onClose }: { id: string; onClose: () => void }) {
                   {r.sentAt ? (
                     <span className="text-delta-good flex items-center gap-1 text-[12px] font-semibold">
                       <CheckIcon className="size-3.5" /> Enviada
+                    </span>
+                  ) : r.optedOut ? (
+                    <span className="text-label-secondary text-[12px]">
+                      Não quer receber promoções
                     </span>
                   ) : r.whatsappUrl ? (
                     <Button size="sm" variant="outline" asChild>
@@ -319,7 +325,7 @@ function CampaignDialog({ id, onClose }: { id: string; onClose: () => void }) {
           <Button variant="ghost" onClick={onClose}>
             Fechar
           </Button>
-          {data && sent < data.recipients.length && (
+          {data && sent < eligible && (
             <Button variant="outline" disabled={auto.isPending} onClick={() => auto.mutate()}>
               Enviar todos automaticamente
             </Button>

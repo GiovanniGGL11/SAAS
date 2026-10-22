@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { UserError } from '@/server/errors';
 import { listLapsedClients } from '@/server/data/clients';
 import { getTodayInTz } from '@/lib/time';
+import { optOutUrl, optedOutIds, withOptOutFooter } from '@/server/data/marketing-consent';
 
 /*
   Relacionamento: avaliação depois do atendimento, mensagens para segmentos de clientes e
@@ -177,7 +178,17 @@ export const SEGMENTS = {
 } as const;
 export type Segment = keyof typeof SEGMENTS;
 
+/** Clientes do segmento que aceitam promoções (quem pediu para sair fica de fora). */
 export async function segmentClients(companyId: string, segment: Segment, timezone: string) {
+  const [clients, optedOut] = await Promise.all([
+    segmentAllClients(companyId, segment, timezone),
+    optedOutIds(companyId),
+  ]);
+  return clients.filter((c) => !optedOut.has(c.id));
+}
+
+/** Todos do segmento, inclusive quem não quer promoções (para mostrar quantos ficaram de fora). */
+export async function segmentAllClients(companyId: string, segment: Segment, timezone: string) {
   const base = { companyId, active: true };
   const select = { id: true, name: true, phone: true } as const;
   switch (segment) {
@@ -277,12 +288,15 @@ export function personalize(message: string, name: string, couponCode?: string |
   return message.replaceAll('{nome}', name.split(' ')[0]).replaceAll('{cupom}', couponCode ?? '');
 }
 
-export async function getCampaign(companyId: string, id: string) {
+/** `baseUrl` presente: o texto já leva o link para sair (obrigatório em mensagem de marketing). */
+export async function getCampaign(companyId: string, id: string, baseUrl?: string) {
   const campaign = await prisma.campaign.findFirst({
     where: { id, companyId },
     include: {
       recipients: {
-        include: { client: { select: { id: true, name: true, phone: true } } },
+        include: {
+          client: { select: { id: true, name: true, phone: true, marketingOptOutAt: true } },
+        },
         orderBy: { client: { name: 'asc' } },
       },
     },
@@ -299,7 +313,14 @@ export async function getCampaign(companyId: string, id: string) {
       name: r.client.name,
       phone: r.client.phone,
       sentAt: r.sentAt,
-      text: personalize(campaign.message, r.client.name, campaign.couponCode),
+      // Saiu depois da campanha criada: não recebe mais.
+      optedOut: r.client.marketingOptOutAt !== null,
+      text: baseUrl
+        ? withOptOutFooter(
+            personalize(campaign.message, r.client.name, campaign.couponCode),
+            optOutUrl(baseUrl, r.client.id),
+          )
+        : personalize(campaign.message, r.client.name, campaign.couponCode),
     })),
   };
 }

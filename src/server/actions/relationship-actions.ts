@@ -19,6 +19,7 @@ import {
   listCampaigns,
   listTopReferrers,
   markCampaignSent,
+  segmentAllClients,
   segmentClients,
   signReviewToken,
   submitReview,
@@ -104,11 +105,16 @@ export async function setGoogleReviewUrlAction(input: unknown) {
 export async function previewSegmentAction(input: unknown) {
   const parsed = z.object({ segment }).parse(input);
   const { company } = await requireCompanyAdmin();
-  const clients = await segmentClients(company.id, parsed.segment, company.timezone);
+  const [clients, all] = await Promise.all([
+    segmentClients(company.id, parsed.segment, company.timezone),
+    segmentAllClients(company.id, parsed.segment, company.timezone),
+  ]);
   const withPhone = clients.filter((c) => (c.phone ?? '').replace(/\D/g, '').length >= 10);
   return {
     total: clients.length,
     withPhone: withPhone.length,
+    // Pediram para não receber promoções: não entram na campanha.
+    optedOut: all.length - clients.length,
     sample: withPhone.slice(0, 5).map((c) => c.name),
   };
 }
@@ -142,12 +148,12 @@ export async function listCampaignsAction() {
 export async function getCampaignAction(rawId: unknown) {
   const id = parseId(rawId);
   const { company } = await requireCompanyAdmin();
-  const campaign = await getCampaign(company.id, id);
+  const campaign = await getCampaign(company.id, id, await appBaseUrl());
   return {
     ...campaign,
     recipients: campaign.recipients.map((r) => ({
       ...r,
-      whatsappUrl: whatsappLink(r.phone, r.text),
+      whatsappUrl: r.optedOut ? null : whatsappLink(r.phone, r.text),
     })),
   };
 }

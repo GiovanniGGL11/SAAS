@@ -8,6 +8,7 @@ import { buildConfirmationMessage } from '@/server/confirmation-message';
 import { buildReminderMessage } from '@/server/data/reminders';
 import { signAppointmentToken } from '@/server/data/public-booking';
 import { signReviewToken } from '@/server/data/relationship';
+import { optOutUrl, withOptOutFooter } from '@/server/data/marketing-consent';
 import { appBaseUrl } from '@/server/app-url';
 import { addDays, startOfCalendarDateUtc, utcToCalendarDate } from '@/lib/time';
 
@@ -171,9 +172,12 @@ export type DailyWhatsappResult = {
 export async function runDailyWhatsapp(
   baseUrl: string,
   now = new Date(),
+  /** Só esta empresa (testes: o banco é compartilhado e nunca deve tocar empresa real). */
+  onlyCompanyId?: string,
 ): Promise<DailyWhatsappResult> {
   const companies = await prisma.company.findMany({
     where: {
+      ...(onlyCompanyId ? { id: onlyCompanyId } : {}),
       deletedAt: null,
       zapiInstanceId: { not: null },
       zapiToken: { not: null },
@@ -239,6 +243,7 @@ export async function runDailyWhatsapp(
       const clients = await prisma.$queryRaw<{ id: string; name: string; phone: string | null }[]>`
         SELECT id, name, phone FROM "Client"
         WHERE "companyId" = ${company.id} AND active = true AND "birthDate" IS NOT NULL AND phone IS NOT NULL
+          AND "marketingOptOutAt" IS NULL
           AND EXTRACT(MONTH FROM "birthDate") = ${today.month}
           AND EXTRACT(DAY FROM "birthDate") = ${today.day}
         LIMIT 200`;
@@ -248,7 +253,10 @@ export async function runDailyWhatsapp(
           kind: 'BIRTHDAY',
           dedupeKey: `birthday:${client.id}:${today.year}`,
           phone: client.phone,
-          text: `Feliz aniversário, ${client.name.split(' ')[0]}! 🎉 Toda a equipe da ${company.name} deseja um dia incrível. Quando quiser se dar um presente, é só chamar.`,
+          text: withOptOutFooter(
+            `Feliz aniversário, ${client.name.split(' ')[0]}! 🎉 Toda a equipe da ${company.name} deseja um dia incrível. Quando quiser se dar um presente, é só chamar.`,
+            optOutUrl(baseUrl, client.id),
+          ),
           clientId: client.id,
           config,
         });
@@ -284,19 +292,27 @@ export function scheduleCampaignSend(
       include: {
         recipients: {
           where: { sentAt: null },
-          include: { client: { select: { id: true, name: true, phone: true } } },
+          include: {
+            client: { select: { id: true, name: true, phone: true, marketingOptOutAt: true } },
+          },
           take: 60,
         },
       },
     });
     if (!campaign) return;
+    const baseUrl = await appBaseUrl();
     for (const recipient of campaign.recipients) {
+      // Pediu para não receber promoções (mesmo depois de a campanha ser criada): pula.
+      if (recipient.client.marketingOptOutAt) continue;
       const outcome = await sendOnce({
         companyId,
         kind: 'CAMPAIGN',
         dedupeKey: `campaign:${campaignId}:${recipient.clientId}`,
         phone: recipient.client.phone,
-        text: personalize(campaign.message, recipient.client.name, campaign.couponCode),
+        text: withOptOutFooter(
+          personalize(campaign.message, recipient.client.name, campaign.couponCode),
+          optOutUrl(baseUrl, recipient.clientId),
+        ),
         clientId: recipient.clientId,
         config,
       });

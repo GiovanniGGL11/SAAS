@@ -35,6 +35,7 @@ import {
   setClientActiveAction,
   setClientVipAction,
 } from '@/server/actions/client-actions';
+import { setClientMarketingOptOutAction } from '@/server/actions/marketing-actions';
 import { STATUS_LABELS } from '@/components/agenda/status';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { formatTimeInTz } from '@/lib/time';
@@ -93,7 +94,11 @@ export function ClientDetail({
 
   // Estrela e "Ativo" mudam na tela na hora; se o servidor recusar, voltam ao que eram.
   const detailKey = ['client-detail', clientId];
-  function patchClient(patch: { isVip?: boolean; active?: boolean }) {
+  function patchClient(patch: {
+    isVip?: boolean;
+    active?: boolean;
+    marketingOptOutAt?: Date | null;
+  }) {
     return optimisticUpdate<ClientDetailData>(queryClient, detailKey, (current) => ({
       ...current,
       client: { ...current.client, ...patch },
@@ -124,6 +129,20 @@ export function ClientDetail({
       setClientActiveAction({ id: clientId, active }).then(unwrapResult),
     onMutate: async (active) => ({ rollback: await patchClient({ active }) }),
     onError: (error: Error, _active, context) => {
+      context?.rollback();
+      toast.error(error.message || 'Não foi possível atualizar.');
+    },
+    onSettled: settle,
+  });
+
+  // LGPD: "não quer receber promoções" (campanhas e aniversário). Lembretes continuam.
+  const toggleMarketing = useMutation({
+    mutationFn: (receives: boolean) =>
+      setClientMarketingOptOutAction({ clientId, optedOut: !receives }).then(unwrapResult),
+    onMutate: async (receives) => ({
+      rollback: await patchClient({ marketingOptOutAt: receives ? null : new Date() }),
+    }),
+    onError: (error: Error, _v, context) => {
       context?.rollback();
       toast.error(error.message || 'Não foi possível atualizar.');
     },
@@ -167,6 +186,7 @@ export function ClientDetail({
               stats.isInactive && <Badge variant="outline">Sem visita há mais de 60 dias</Badge>
             )}
             {!client.active && <Badge variant="outline">Arquivado</Badge>}
+            {client.marketingOptOutAt && <Badge variant="outline">Não quer promoções</Badge>}
           </div>
           <p className="text-muted-foreground text-sm">
             {client.phone ? formatPhone(client.phone) : '—'}{' '}
@@ -200,6 +220,17 @@ export function ClientDetail({
             <Switch
               checked={client.active}
               onCheckedChange={(v: boolean) => toggleActive.mutate(v)}
+            />
+          </div>
+          <div
+            className="mr-1 flex items-center gap-2"
+            title="Campanhas e parabéns de aniversário. Confirmações e lembretes continuam."
+          >
+            <span className="text-muted-foreground text-xs">Recebe promoções</span>
+            <Switch
+              checked={!client.marketingOptOutAt}
+              onCheckedChange={(v: boolean) => toggleMarketing.mutate(v)}
+              aria-label="Recebe promoções"
             />
           </div>
           {whatsappLink(client.phone) && (

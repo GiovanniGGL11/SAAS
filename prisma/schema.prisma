@@ -247,6 +247,11 @@ model Client {
   state         String?
   isVip         Boolean   @default(false)
   active        Boolean   @default(true)
+  // LGPD: preenchido quando o cliente não quer receber promoções (campanhas, aniversário).
+  // Mensagens de serviço (confirmação, lembrete, avaliação) continuam.
+  marketingOptOutAt DateTime?
+  /// "client" (pelo link da mensagem) ou o id de quem registrou na equipe.
+  marketingOptOutBy String?
   // Signed into the personal client-area link; bumping it revokes every link sent before.
   portalVersion Int       @default(1)
   // Quem indicou este cliente (programa de indicação).

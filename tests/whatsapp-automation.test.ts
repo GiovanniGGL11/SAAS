@@ -122,8 +122,8 @@ describe('WhatsApp automático (Z-API)', () => {
       },
     });
     // Duas execuções do cron (ex.: a Vercel repetindo a chamada): cada mensagem sai uma vez só.
-    await runDailyWhatsapp('https://app.test');
-    await runDailyWhatsapp('https://app.test');
+    await runDailyWhatsapp('https://app.test', new Date(), companyId);
+    await runDailyWhatsapp('https://app.test', new Date(), companyId);
     const rows = await prisma.whatsappMessage.findMany({
       where: { companyId },
       orderBy: { kind: 'asc' },

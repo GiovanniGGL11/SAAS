@@ -162,7 +162,12 @@ export async function sendCampaignAutomaticallyAction(rawId: unknown) {
     if (!(await getZapiConfig(company.id)))
       throw new UserError('Conecte a Z-API em Configurações para enviar automático.');
     const pending = await prisma.campaignRecipient.count({
-      where: { campaignId, sentAt: null, campaign: { companyId: company.id } },
+      where: {
+        campaignId,
+        sentAt: null,
+        campaign: { companyId: company.id },
+        client: { marketingOptOutAt: null },
+      },
     });
     if (pending === 0) throw new UserError('Todas as mensagens desta campanha já foram enviadas.');
     scheduleCampaignSend(company.id, campaignId, personalize);
