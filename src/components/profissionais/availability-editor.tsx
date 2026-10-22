@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { unwrapResult } from '@/lib/action-result';
+import { unusualIntervals } from '@/lib/availability';
 import {
   getProfessionalAvailabilityAction,
   setProfessionalAvailabilityAction,
@@ -55,6 +56,8 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
   });
 
   const [week, setWeek] = React.useState<Week | null>(null);
+  // Horários incomuns que a pessoa já confirmou ("sim, é isso mesmo"); não pergunta de novo.
+  const [confirmed, setConfirmed] = React.useState<string[]>([]);
   const loaded = query.data;
   // Inicializa uma vez com o que veio do banco; sem expediente cadastrado, sugere seg–sex 9h–18h.
   if (loaded && week === null) {
@@ -65,6 +68,8 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
       for (const a of loaded) next[a.weekday].push({ startTime: a.startTime, endTime: a.endTime });
     }
     setWeek(next);
+    // O que já estava salvo não volta a perguntar.
+    setConfirmed(unusualIntervals(next).map((u) => u.key));
   }
 
   const save = useMutation({
@@ -94,11 +99,18 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
 
   if (!week) return <Skeleton className="h-64 w-full rounded-2xl" />;
 
+  const unconfirmed = (w: Week) => unusualIntervals(w).filter((u) => !confirmed.includes(u.key));
+
   const change = (next: Week) => {
     setWeek(next);
     pending.current = next;
     if (timer.current) clearTimeout(timer.current);
     if (isInvalid(next)) return;
+    // Horário incomum: não salva sozinho; espera a pessoa confirmar (ou corrigir).
+    if (unconfirmed(next).length) {
+      pending.current = null;
+      return;
+    }
     timer.current = setTimeout(() => {
       pending.current = null;
       save.mutate(next);
@@ -107,6 +119,7 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
   const update = (weekday: number, intervals: Interval[]) =>
     change({ ...week, [weekday]: intervals });
   const invalid = isInvalid(week);
+  const toConfirm = invalid ? [] : unconfirmed(week);
 
   return (
     <section className="flex flex-col gap-3">
@@ -220,6 +233,46 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
           );
         })}
       </div>
+
+      {toConfirm.length > 0 && (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-xl bg-[#ff9f0a]/12 px-4 py-3 text-[13px] text-[#8a4b00] dark:text-[#ffb340]"
+        >
+          <p>
+            <span className="font-semibold">Horário incomum — tem certeza?</span>{' '}
+            {toConfirm
+              .map(
+                (u) =>
+                  `${WEEKDAYS[u.weekday]}: ${u.startTime} às ${u.endTime}` +
+                  (u.reason === 'early'
+                    ? ' (começa de madrugada)'
+                    : u.reason === 'late'
+                      ? ' (termina tarde da noite)'
+                      : ' (madrugada e noite)'),
+              )
+              .join('; ')}
+            . Os clientes vão poder marcar nesses horários pelo link.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setConfirmed((c) => [...c, ...toConfirm.map((u) => u.key)]);
+                if (timer.current) clearTimeout(timer.current);
+                pending.current = null;
+                save.mutate(week);
+              }}
+            >
+              Sim, está certo
+            </Button>
+            <span className="text-[12px]">
+              Ou corrija o horário acima. Até confirmar, não é salvo.
+            </span>
+          </div>
+        </div>
+      )}
 
       <p aria-live="polite" className="flex items-center gap-1.5 text-xs">
         {invalid ? (
