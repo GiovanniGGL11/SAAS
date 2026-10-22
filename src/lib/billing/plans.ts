@@ -351,7 +351,8 @@ export const DEV_PROVISIONAL_AI_UNITS = 100;
 export const AI_IMPLEMENTED = {
   assistant: true,
   assistedActions: true,
-  voice: false,
+  // Ditado pelo reconhecimento de fala do navegador: vira texto na caixa; quem envia é a pessoa.
+  voice: true,
   aiAutomations: false,
   // Rotinas autorizadas reais: renovação de pacotes e lista de espera (sem chamar o modelo).
   autoExecution: true,

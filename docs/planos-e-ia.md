@@ -12,7 +12,7 @@ Referência para quem mantém o Atendafy. Valores comerciais são **provisórios
 | Franquia do teste grátis e plano-base do teste | `TRIAL_GRANT` |
 | Valor provisório só para desenvolvimento | `DEV_PROVISIONAL_AI_UNITS` (nunca vale em produção) |
 | Tolerância de atraso | `PAST_DUE_GRACE_DAYS` |
-| O que de IA está construído de fato | `AI_IMPLEMENTED` (voz, automações com IA e WhatsApp com IA estão `false`; execução automática de rotinas autorizadas está `true`) |
+| O que de IA está construído de fato | `AI_IMPLEMENTED` (voz é ditado pelo navegador; automações com IA e WhatsApp com IA estão `false`; execução automática de rotinas autorizadas está `true`) |
 | Funcionalidades de gestão por plano (orçamentos, área do cliente, convites, importação, resumo do dia, rotinas, resultados, checklist, margem, tarefas, CRM, campos personalizados, pesquisas, indicações, serviços em andamento, regras de automação, indicadores avançados) | `FeatureKey` e as matrizes `ESSENTIAL_FEATURES` / `FULL_FEATURES` / `PRO_FEATURES` em `plans.ts`; conferidas no servidor por `src/server/billing/features.ts` |
 | Adicionais (WhatsApp com IA) | `ADD_ONS` |
 | Preço estimado do provedor (só para estimar custo) | `AI_PROVIDER_PRICING` |

@@ -10,6 +10,7 @@ import {
   CheckIcon,
   LockIcon,
   Loader2Icon,
+  MicIcon,
   MicOffIcon,
   RotateCcwIcon,
   SparklesIcon,
@@ -31,6 +32,7 @@ import {
   getAssistantProposalsAction,
   sendAssistantMessageAction,
 } from '@/server/actions/assistant-actions';
+import { useDictation } from '@/components/assistant/use-dictation';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -198,6 +200,13 @@ function AssistantChat({
   const [entries, setEntries] = React.useState<ChatEntry[]>(() => loadHistory(key));
   const [draft, setDraft] = React.useState(prefill ?? '');
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  // Ditado: cada frase reconhecida entra no fim do texto; nada é enviado sozinho.
+  const dictation = useDictation((text) =>
+    setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)),
+  );
+  const voiceUnavailable = !status.voice
+    ? (status.voiceMessage ?? 'indisponível no seu plano.')
+    : 'seu navegador não reconhece voz (use Chrome, Edge ou Safari).';
 
   React.useEffect(() => saveHistory(key, entries), [key, entries]);
   React.useEffect(() => {
@@ -401,17 +410,32 @@ function AssistantChat({
               aria-label="Mensagem para o assistente"
               className="bg-foreground/[0.05] focus-visible:ring-ring/50 field-sizing-content max-h-32 min-h-10 flex-1 resize-none rounded-[20px] px-4 py-2 text-base outline-none focus-visible:ring-3 md:text-sm"
             />
-            {/* Voz: o botão só aparece desabilitado e explica por quê — nada de gravação simulada. */}
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              disabled
-              aria-label={status.voiceMessage ?? 'Comandos de voz'}
-              title={status.voiceMessage ?? 'Comandos de voz'}
-            >
-              <MicOffIcon />
-            </Button>
+            {/* Voz: ditado vira texto na caixa; sem plano ou sem suporte, o botão explica por quê. */}
+            {status.voice && dictation.supported ? (
+              <Button
+                type="button"
+                size="icon"
+                variant={dictation.listening ? 'default' : 'outline'}
+                className={cn(dictation.listening && 'animate-pulse')}
+                aria-pressed={dictation.listening}
+                aria-label={dictation.listening ? 'Parar de ouvir' : 'Falar a mensagem'}
+                title={dictation.listening ? 'Parar de ouvir' : 'Falar a mensagem'}
+                onClick={() => (dictation.listening ? dictation.stop() : dictation.start())}
+              >
+                <MicIcon />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                disabled
+                aria-label={voiceUnavailable}
+                title={voiceUnavailable}
+              >
+                <MicOffIcon />
+              </Button>
+            )}
             <Button
               type="submit"
               size="icon"
@@ -421,10 +445,17 @@ function AssistantChat({
               <ArrowUpIcon />
             </Button>
           </div>
-          {!status.voice && (
-            <p className="text-label-secondary px-2 text-[11px]">
-              Comandos de voz: {status.voiceMessage}
+          {dictation.listening ? (
+            <p className="text-system-blue px-2 text-[11px]">
+              Ouvindo… fale e toque no microfone para parar. O texto aparece na caixa para você
+              conferir antes de enviar.
             </p>
+          ) : dictation.error ? (
+            <p className="text-destructive px-2 text-[11px]">{dictation.error}</p>
+          ) : (
+            !(status.voice && dictation.supported) && (
+              <p className="text-label-secondary px-2 text-[11px]">Voz: {voiceUnavailable}</p>
+            )
           )}
         </form>
       )}

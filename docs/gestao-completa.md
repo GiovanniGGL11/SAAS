@@ -113,12 +113,14 @@ Um alvo por mês para Recebido, Atendimentos concluídos, Clientes novos e Orça
 ### Filtro por campo personalizado (Clientes)
 "Filtrar por campo": texto contém, sim/não, opção, faixa de número ou data, preenchido e sem resposta. Filtrado no servidor; campo "só administradores" não filtra para a equipe.
 
+### Assistente por voz (ditado)
+Botão de microfone no assistente: a fala vira texto na caixa (reconhecimento do próprio navegador — Chrome, Edge ou Safari; no Chrome o áudio passa pelo serviço de voz do Google). Nada é enviado sozinho e as ações continuam pedindo aprovação. Vale nos planos com assistente.
+
 ### Aviso de horário incomum (Profissionais → Expediente)
 Começar antes das 06:00 ou terminar depois das 22:00 pergunta "tem certeza?". Não impede: confirmando, salva.
 
 ## Pendências
 
 - Central de comunicação e anexos (dependem das integrações acima).
-- Assistente por voz.
 - Imagens no catálogo público.
 - Filtro por campo personalizado nas listas de serviços e oportunidades (clientes já tem) e relatórios por campo.

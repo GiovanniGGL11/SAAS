@@ -73,8 +73,10 @@ describe('direitos efetivos', () => {
     const dev = resolve({ plan: 'profissional' });
     expect(dev.ai.available.assistant).toBe(true);
     expect(dev.ai.provisionalUnits).toBe(true);
-    expect(dev.ai.available.voice).toBe(false);
-    expect(dev.ai.reasons.voice).toBe('not_implemented');
+    // Voz (ditado) vem junto com o assistente; em produção, sem franquia, fica bloqueada também.
+    expect(dev.ai.available.voice).toBe(true);
+    expect(prod.ai.available.voice).toBe(false);
+    expect(prod.ai.reasons.voice).toBe('quota_not_configured');
     expect(dev.ai.available.autoExecution).toBe(false);
     expect(dev.ai.reasons.autoExecution).toBe('not_in_plan');
   });
