@@ -277,6 +277,7 @@ export async function setOnlineBookingAction(input: unknown) {
     }
     await setOnlineBookingEnabled(company.clerkOrgId, enabled);
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
     return { enabled };
   });
 }
@@ -294,6 +295,7 @@ export async function setBookingSlotStepAction(input: unknown) {
     const { company } = await requireCompanyAdmin();
     await prisma.company.update({ where: { id: company.id }, data: { bookingSlotStep: step } });
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
     return { step };
   });
 }
@@ -314,6 +316,7 @@ export async function setBookingLeadMinutesAction(input: unknown) {
       data: { bookingLeadMinutes: minutes },
     });
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
     return { minutes };
   });
 }

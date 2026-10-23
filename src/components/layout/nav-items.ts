@@ -18,6 +18,7 @@ import {
   CreditCard,
   ListChecks,
   Handshake,
+  Link2,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -47,6 +48,14 @@ export const navItems: NavItem[] = [
     group: 'Visão geral',
   },
   { label: 'Agenda', href: '/agenda', icon: CalendarDays, color: '#ff3b30', group: 'Visão geral' },
+  {
+    label: 'Link do cliente',
+    href: '/link-do-cliente',
+    icon: Link2,
+    color: '#0a84ff',
+    group: 'Visão geral',
+    adminOnly: true,
+  },
   {
     label: 'Atividades',
     href: '/atividades',

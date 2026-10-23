@@ -22,6 +22,7 @@ export async function updateCompanyTimezoneAction(input: unknown) {
 
     await updateCompanyTimezone(company.id, parsed.timezone);
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
     revalidatePath('/agenda');
     revalidatePath('/dashboard');
   });
@@ -34,6 +35,7 @@ export async function updateCompanyWhatsappAction(input: unknown) {
 
     const saved = await updateCompanyWhatsapp(company.id, whatsapp || null);
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
     return { whatsapp: saved };
   });
 }
@@ -45,6 +47,7 @@ export async function updateCompanyPublicProfileAction(input: unknown) {
 
     await updateCompanyPublicProfile(company.id, parsed);
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
     revalidatePath(`/agendar/${company.slug}`);
     return parsed;
   });

@@ -1,7 +1,10 @@
 'use server';
 
+import { z } from 'zod';
+
+import { prisma } from '@/lib/db';
 import { toActionResult } from '@/server/action-result';
-import { parseId } from '@/server/errors';
+import { UserError, parseId } from '@/server/errors';
 
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
@@ -95,4 +98,28 @@ export async function getServiceSuppliesAction(rawId: unknown) {
   const id = parseId(rawId);
   const { company } = await requireCurrentCompany();
   return listServiceSupplies(company.id, id);
+}
+
+/** Link do cliente: liga/desliga o serviço no agendamento online, sem abrir o cadastro. */
+export async function setServicePublicVisibleAction(input: unknown) {
+  return toActionResult(async () => {
+    const parsed = z
+      .object({ id: z.string().min(1).max(64), publicVisible: z.boolean() })
+      .parse(input);
+    const { userId, company } = await requireCompanyAdmin();
+    const result = await prisma.service.updateMany({
+      where: { id: parsed.id, companyId: company.id },
+      data: { publicVisible: parsed.publicVisible },
+    });
+    if (result.count === 0) throw new UserError('Serviço não encontrado.');
+    await recordAuditLog({
+      companyId: company.id,
+      entityType: 'Service',
+      entityId: parsed.id,
+      action: 'updated',
+      userId,
+      metadata: { source: 'app', publicVisible: parsed.publicVisible },
+    });
+    return { publicVisible: parsed.publicVisible };
+  });
 }

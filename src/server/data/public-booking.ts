@@ -11,13 +11,13 @@ import { createAppointment } from '@/server/data/appointments';
 
 /**
  * Agendamento online: a página pública /agendar/[slug] onde o cliente escolhe serviço, profissional
- * e horário sozinho. Ligado/desligado pela empresa em Configurações — guardado nos metadados da
+ * e horário sozinho. Ligado/desligado pela empresa em Link do cliente — guardado nos metadados da
  * organização no Clerk, sem coluna nova no banco.
  */
 
 const ACTIVE = ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS', 'DONE'] as const;
 /**
- * Antecedência mínima do link público (a empresa escolhe em Configurações → Agendamento online).
+ * Antecedência mínima do link público (a empresa escolhe em Link do cliente → Agendamento).
  * Em minutos; 0 = pode marcar para agora. O padrão de 1 hora evita marcar para daqui a 5 minutos
  * sem a equipe saber.
  */

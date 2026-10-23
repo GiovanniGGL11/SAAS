@@ -16,9 +16,9 @@ A primeira rodada (orçamentos, portal, lista de espera, aprovações, rotinas) 
 | Campos personalizados | Configurações → Campos personalizados |
 | Modelos prontos de formulário | `STARTER_TEMPLATES` em `src/lib/forms/starter.ts` |
 | Regras de automação | Automações → Regras (gatilhos e ações em `src/server/automations/rules.ts`) |
-| Antecedência mínima e intervalo dos horários do link público | Configurações → Agendamento online (`bookingLeadMinutes`, `bookingSlotStep`; opções em `LEAD_MINUTES_OPTIONS`) |
-| Pagamento adiantado por PIX no link (sinal ou valor total, obrigatório ou escolha do cliente) | Configurações → Pagamento adiantado por PIX (`depositPercent`, `depositRequired`; exige a chave da Asaas do próprio negócio) |
-| Tipo de preço e visibilidade no agendamento online | Cadastro do serviço ("Como mostrar o preço", "Aparece no agendamento online"); rótulos em `src/lib/catalog.ts` |
+| Antecedência mínima e intervalo dos horários do link público | Link do cliente → Agendamento (`bookingLeadMinutes`, `bookingSlotStep`; opções em `LEAD_MINUTES_OPTIONS`) |
+| Pagamento adiantado por PIX no link (sinal ou valor total, obrigatório ou escolha do cliente) | Link do cliente → Pagamento (`depositPercent`, `depositRequired`; exige a chave da Asaas do próprio negócio) |
+| Tipo de preço e visibilidade no agendamento online | Link do cliente → Serviços no link (liga/desliga) e cadastro do serviço ("Como mostrar o preço", "Aparece no agendamento online"); rótulos em `src/lib/catalog.ts` |
 
 ## Recursos por plano
 
@@ -132,6 +132,9 @@ Promoções — campanhas (manual e automática) e parabéns de aniversário —
 
 ### Testes e banco
 Os testes usam o mesmo banco da produção: `deleteTestCompany` só apaga empresa criada pelos testes e a rotina diária de WhatsApp aceita uma empresa só (`onlyCompanyId`). O ideal continua sendo um banco exclusivo para testes.
+
+### Link do cliente (menu lateral, administradores)
+Página única com tudo o que o cliente vê: visão geral (link, copiar, abrir, enviar pelo WhatsApp, QR code para imprimir e a lista "Pronto para divulgar?"), Agendamento (ligar, intervalo, antecedência), Serviços no link (liga/desliga por serviço), Página (endereço, Instagram, política), Pagamento (PIX), Área do cliente e Avaliações. Esses cartões saíram de Configurações, que agora tem um atalho para cá.
 
 ## Pendências
 

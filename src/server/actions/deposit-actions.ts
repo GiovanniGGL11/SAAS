@@ -78,6 +78,7 @@ export async function saveDepositSettingsAction(input: unknown) {
       },
     });
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
   });
 }
 
@@ -89,5 +90,6 @@ export async function removeDepositKeyAction() {
       data: { asaasApiKey: null, depositPercent: 0 },
     });
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
   });
 }

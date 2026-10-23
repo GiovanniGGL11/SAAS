@@ -97,6 +97,7 @@ export async function setGoogleReviewUrlAction(input: unknown) {
       data: { googleReviewUrl: url || null },
     });
     revalidatePath('/configuracoes');
+    revalidatePath('/link-do-cliente');
   });
 }
 
