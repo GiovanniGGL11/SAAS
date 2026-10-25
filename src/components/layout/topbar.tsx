@@ -20,6 +20,14 @@ export function Topbar() {
             hidePersonal
             afterSelectOrganizationUrl="/dashboard"
             afterCreateOrganizationUrl="/dashboard"
+            appearance={{
+              elements: {
+                // Logo do negócio em destaque na barra (o padrão do Clerk é bem pequeno).
+                organizationPreviewAvatarBox__organizationSwitcherTrigger: 'size-8 rounded-lg',
+                organizationPreviewMainIdentifier__organizationSwitcherTrigger:
+                  'text-[15px] font-semibold',
+              },
+            }}
           />
         </div>
       </div>
