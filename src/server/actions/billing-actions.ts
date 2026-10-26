@@ -7,6 +7,8 @@ import { toActionResult } from '@/server/action-result';
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import {
   cancelCompanySubscription,
+  changeSubscriptionPlan,
+  listInvoices,
   pendingInvoiceUrl,
   startSubscription,
 } from '@/server/billing/subscription';
@@ -41,6 +43,24 @@ export async function getInvoiceUrlAction() {
   return toActionResult(async () => {
     const { company } = await requireCompanyAdmin();
     return { url: await pendingInvoiceUrl(company) };
+  });
+}
+
+export async function changePlanAction(input: unknown) {
+  return toActionResult(async () => {
+    const { planId } = z
+      .object({ planId: z.enum(['essencial', 'profissional', 'pro', 'rede']) })
+      .parse(input);
+    const { company } = await requireCompanyAdmin();
+    await changeSubscriptionPlan(company, planId);
+    revalidatePath('/assinatura');
+  });
+}
+
+export async function listInvoicesAction() {
+  return toActionResult(async () => {
+    const { company } = await requireCompanyAdmin();
+    return listInvoices(company);
   });
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { CheckIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,7 +17,9 @@ import { cn } from '@/lib/utils';
 import type { SubscriptionState } from '@/server/billing/subscription';
 import {
   cancelSubscriptionAction,
+  changePlanAction,
   getInvoiceUrlAction,
+  listInvoicesAction,
   startSubscriptionAction,
 } from '@/server/actions/billing-actions';
 
@@ -28,6 +30,17 @@ const STATUS: Record<string, string> = {
   ACTIVE: 'Assinatura ativa',
   PAST_DUE: 'Pagamento atrasado',
   CANCELED: 'Assinatura cancelada',
+};
+
+const INVOICE_STATUS: Record<string, string> = {
+  PENDING: 'Em aberto',
+  OVERDUE: 'Vencida',
+  RECEIVED: 'Paga',
+  CONFIRMED: 'Paga',
+  RECEIVED_IN_CASH: 'Paga',
+  REFUNDED: 'Estornada',
+  REFUND_REQUESTED: 'Estorno pedido',
+  CHARGEBACK_REQUESTED: 'Contestada',
 };
 
 /** Planos do Atendafy, teste grátis e pagamento pela Asaas (PIX, boleto ou cartão). */
@@ -61,6 +74,21 @@ export function SubscriptionView({ state, companyName }: { state: State; company
     mutationFn: () => getInvoiceUrlAction().then(unwrapResult),
     onSuccess: ({ url }) =>
       url ? (window.location.href = url) : toast.info('Nenhuma cobrança em aberto agora.'),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const active = state.hasSubscription && state.status !== 'CANCELED';
+  const invoices = useQuery({
+    queryKey: ['billing-invoices'],
+    queryFn: () => listInvoicesAction().then(unwrapResult),
+    enabled: state.hasSubscription && state.configured,
+  });
+  const change = useMutation({
+    mutationFn: () => changePlanAction({ planId: selected }).then(unwrapResult),
+    onSuccess: () => {
+      toast.success(`Plano trocado para ${selectedPlan.name}. Vale a partir da próxima cobrança.`);
+      invoices.refetch();
+      router.refresh();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const cancel = useMutation({
@@ -123,7 +151,7 @@ export function SubscriptionView({ state, companyName }: { state: State; company
         </p>
       )}
 
-      {(!state.hasSubscription || state.status === 'CANCELED') && (
+      {(!state.hasSubscription || active) && (
         <>
           <div className="grid gap-4 md:grid-cols-3">
             {offered.map((plan) => (
@@ -142,10 +170,16 @@ export function SubscriptionView({ state, companyName }: { state: State; company
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[17px] font-semibold">{plan.name}</span>
-                  {plan.id === 'profissional' && (
-                    <span className="bg-system-blue rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
-                      Mais escolhido
+                  {active && plan.id === state.plan ? (
+                    <span className="bg-system-green rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
+                      Plano atual
                     </span>
+                  ) : (
+                    plan.id === 'profissional' && (
+                      <span className="bg-system-blue rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
+                        Mais escolhido
+                      </span>
+                    )
                   )}
                 </div>
                 <div>
@@ -202,7 +236,19 @@ export function SubscriptionView({ state, companyName }: { state: State; company
             ))}
           </div>
 
-          {state.configured && (
+          {active && selected !== state.plan && (
+            <Button
+              className="self-start"
+              disabled={change.isPending || !selectedPlan.checkoutEnabled}
+              onClick={() => change.mutate()}
+            >
+              {change.isPending
+                ? 'Trocando...'
+                : `Trocar para ${selectedPlan.name} — ${formatCurrencyBRL(planPrice(selectedPlan))}/mês`}
+            </Button>
+          )}
+
+          {state.configured && !active && (
             <form
               className="bg-tile flex flex-col gap-3 rounded-[22px] p-5"
               onSubmit={(e) => {
@@ -252,6 +298,33 @@ export function SubscriptionView({ state, companyName }: { state: State; company
             </form>
           )}
         </>
+      )}
+
+      {state.hasSubscription && (invoices.data?.length ?? 0) > 0 && (
+        <section className="bg-tile flex flex-col gap-2 rounded-[22px] p-5">
+          <h2 className="text-[17px] font-semibold">Cobranças</h2>
+          <ul className="divide-foreground/[0.06] flex flex-col divide-y text-[14px]">
+            {invoices.data!.map((invoice) => (
+              <li key={invoice.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2">
+                <span className="w-24">{invoice.dueDate.split('-').reverse().join('/')}</span>
+                <span className="w-24 font-medium">{formatCurrencyBRL(invoice.value)}</span>
+                <span className="text-label-secondary flex-1">
+                  {INVOICE_STATUS[invoice.status] ?? invoice.status}
+                </span>
+                <a
+                  href={invoice.invoiceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-system-blue"
+                >
+                  {invoice.status === 'PENDING' || invoice.status === 'OVERDUE'
+                    ? 'Pagar'
+                    : 'Ver fatura'}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <ConfirmDialog
