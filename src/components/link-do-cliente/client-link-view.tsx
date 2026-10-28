@@ -205,11 +205,11 @@ function Overview({ data, goTo }: { data: ClientLinkData; goTo: (t: ClientLinkTa
     },
     {
       ok: data.deposit.connected && data.deposit.percent > 0,
-      label: 'Pagamento adiantado por PIX',
+      label: 'Como você recebe (pelo sistema ou na hora)',
       hint:
         data.deposit.connected && data.deposit.percent > 0
           ? `${data.deposit.percent === 100 ? 'Valor total' : `${data.deposit.percent}%`}, ${data.deposit.required ? 'obrigatório' : 'o cliente escolhe'}.`
-          : 'Reduz faltas: o cliente paga uma parte (ou tudo) ao marcar.',
+          : 'Hoje o cliente paga na hora do atendimento. Ative o PIX pela Asaas para cobrar ao marcar e reduzir faltas.',
       tab: 'pagamento',
       optional: true,
     },
