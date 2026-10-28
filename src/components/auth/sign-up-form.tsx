@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { SignUpOAuthButtons } from '@/components/auth/oauth-buttons';
-import { getClerkErrorMessage } from '@/lib/clerk-errors';
+import { PASSWORD_MIN_LENGTH, getClerkErrorMessage, isUnknownParamError } from '@/lib/clerk-errors';
 
 export function SignUpForm() {
   const { signUp } = useSignUp();
@@ -29,12 +29,22 @@ export function SignUpForm() {
     setError(undefined);
     setSubmitting(true);
     try {
-      const { error } = await signUp.password({
+      if (password.length < PASSWORD_MIN_LENGTH) {
+        setError(`A senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`);
+        return;
+      }
+      // Nome e sobrenome só são aceitos se estiverem ativos no Clerk (Dashboard → Configure →
+      // Account settings → Name). Sem isso o Clerk recusa o cadastro inteiro ("first_name is not a
+      // valid parameter"), então tentamos com o nome e, se for recusado, seguimos sem ele.
+      const names = { firstName: firstName.trim(), lastName: lastName.trim() };
+      let { error } = await signUp.password({
         emailAddress: email,
         password,
-        firstName,
-        lastName,
+        ...(names.firstName || names.lastName ? names : {}),
       });
+      if (isUnknownParamError(error)) {
+        ({ error } = await signUp.password({ emailAddress: email, password }));
+      }
       if (error) {
         setError(getClerkErrorMessage(error));
         return;
@@ -124,7 +134,6 @@ export function SignUpForm() {
             <Input
               id="firstName"
               autoComplete="given-name"
-              required
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
             />
@@ -134,7 +143,6 @@ export function SignUpForm() {
             <Input
               id="lastName"
               autoComplete="family-name"
-              required
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
             />
@@ -158,11 +166,13 @@ export function SignUpForm() {
             type="password"
             autoComplete="new-password"
             required
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <p className="text-muted-foreground text-xs">Mínimo de 8 caracteres.</p>
+          <p className="text-muted-foreground text-xs">
+            Mínimo de {PASSWORD_MIN_LENGTH} caracteres. Uma frase longa funciona bem.
+          </p>
         </div>
         {error && <p className="text-destructive text-sm">{error}</p>}
         {captchaSlot}
