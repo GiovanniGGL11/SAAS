@@ -41,7 +41,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
                 status: 'PENDING',
                 invoiceUrl: 'https://asaas/i/1',
                 dueDate: '2030-01-01',
-                value: 149.9,
+                value: 74.9,
               },
             ],
           });
@@ -104,7 +104,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
     expect(sub.key).toBe('$aact_hmlg_chave_de_teste');
     expect(sub.body).toMatchObject({
       customer: 'cus_1',
-      value: 149.9,
+      value: 74.9,
       cycle: 'MONTHLY',
       billingType: 'UNDEFINED',
       externalReference: company.id,
@@ -213,7 +213,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
     await changeSubscriptionPlan(company, 'essencial');
     const put = calls.find((c) => c.method === 'PUT')!;
     expect(put.url).toBe(`https://api-sandbox.asaas.com/v3/subscriptions/sub_${id}`);
-    expect(put.body).toMatchObject({ value: 79.9, updatePendingPayments: true });
+    expect(put.body).toMatchObject({ value: 39.9, updatePendingPayments: true });
     expect((await prisma.company.findUniqueOrThrow({ where: { id } })).plan).toBe('essencial');
   });
 });

@@ -205,7 +205,7 @@ export const PLANS: Plan[] = [
   {
     id: 'essencial',
     name: 'Básico',
-    priceCents: 7990,
+    priceCents: 3990,
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
@@ -226,7 +226,7 @@ export const PLANS: Plan[] = [
   {
     id: 'profissional',
     name: 'Profissional',
-    priceCents: 14990,
+    priceCents: 7490,
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
@@ -261,7 +261,7 @@ export const PLANS: Plan[] = [
   {
     id: 'pro',
     name: 'Pro',
-    priceCents: 29990,
+    priceCents: 14990,
     currency: 'BRL',
     offered: true,
     // Preço ainda não publicado na Asaas: a contratação fica fechada até a decisão final.
@@ -298,7 +298,7 @@ export const PLANS: Plan[] = [
     // (com aprovação, sem execução automática). Migrar para Pro exige decisão comercial.
     id: 'rede',
     name: 'Rede',
-    priceCents: 29990,
+    priceCents: 14990,
     currency: 'BRL',
     offered: false,
     checkoutEnabled: false,
