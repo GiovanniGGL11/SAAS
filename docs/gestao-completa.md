@@ -100,6 +100,7 @@ avaliações, com link para a origem. Valores só para administradores; filtro "
 | `20261022090000_period_goals` | aplicada |
 | `20261022120000_marketing_opt_out` | aplicada |
 | `20261022150000_service_buffer` | aplicada |
+| `20261030090000_service_professionals` | aplicada |
 
 ## Integrações necessárias
 
@@ -135,6 +136,9 @@ Os testes usam o mesmo banco da produção: `deleteTestCompany` só apaga empres
 
 ### Link do cliente (menu lateral, administradores)
 Página única com tudo o que o cliente vê: visão geral (link, copiar, abrir, enviar pelo WhatsApp, QR code para imprimir e a lista "Pronto para divulgar?"), Agendamento (ligar, intervalo, antecedência), Serviços no link (liga/desliga por serviço), Página (endereço, Instagram, política), Pagamento (PIX), Área do cliente e Avaliações. Esses cartões saíram de Configurações, que agora tem um atalho para cá.
+
+### Quem faz cada serviço e preço por profissional (Serviços)
+No cadastro do serviço, com mais de um profissional: "Todos, mesmo preço" (padrão, como sempre) ou "Escolher profissionais e preços" — marca quem faz e, se quiser, um preço próprio para cada um (vazio = preço do serviço). O atendimento grava o preço de quem atende; a agenda e o link só oferecem quem faz o serviço; marcar ou mover para quem não faz é recusado. No link, cada profissional mostra o seu preço e "primeiro disponível" mostra "a partir de" quando os preços variam. Mover um atendimento mantém o preço combinado.
 
 ## Pendências
 

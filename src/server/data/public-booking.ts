@@ -7,6 +7,7 @@ import { validateBookingName, validateBookingPhone } from '@/lib/booking';
 import { addDays, calendarDateToUtc, utcToCalendarDate, type CalendarDate } from '@/lib/time';
 import { UserError } from '@/server/errors';
 import { MAX_BUFFER_MINUTES, clashesWithBuffer } from '@/lib/buffer';
+import { doesService, getStaffing } from '@/server/data/service-professionals';
 import { createAppointment } from '@/server/data/appointments';
 
 /**
@@ -122,8 +123,24 @@ export async function getBookingCatalog(companyId: string) {
       orderBy: { name: 'asc' },
     }),
   ]);
+  // Quem faz cada serviço e por quanto (só o que o cliente precisa ver para escolher).
+  const staffing = await getStaffing(
+    prisma,
+    companyId,
+    services.map((s) => s.id),
+  );
   return {
-    services: services.map((s) => ({ ...s, price: Number(s.price) })),
+    services: services.map((s) => {
+      const st = staffing.get(s.id);
+      return {
+        ...s,
+        price: Number(s.price),
+        /** `null` = todos fazem. */
+        professionalIds: st?.professionalIds ?? null,
+        /** Preço próprio de cada profissional (quem não tem usa o do serviço). */
+        prices: st?.prices ?? {},
+      };
+    }),
     professionals,
   };
 }
@@ -171,14 +188,21 @@ export async function listAvailabilityRange(params: {
   // 0 = pela duração do serviço (30 min → 09:00, 09:30…; 1h → 09:00, 10:00…).
   const stepMinutes = slotStepFor(company?.bookingSlotStep ?? DEFAULT_SLOT_STEP, durationMinutes);
 
-  const professionals = await prisma.professional.findMany({
-    where: {
-      companyId: params.companyId,
-      active: true,
-      ...(params.professionalId ? { id: params.professionalId } : {}),
-    },
-    select: { id: true, availabilities: true },
-  });
+  const [allProfessionals, staffing] = await Promise.all([
+    prisma.professional.findMany({
+      where: {
+        companyId: params.companyId,
+        active: true,
+        ...(params.professionalId ? { id: params.professionalId } : {}),
+      },
+      select: { id: true, availabilities: true },
+    }),
+    getStaffing(prisma, params.companyId, [params.serviceId]),
+  ]);
+  // Só quem faz o serviço oferece horário.
+  const professionals = allProfessionals.filter((p) =>
+    doesService(staffing.get(params.serviceId), p.id),
+  );
   const rangeStart = calendarDateToUtc(params.from, 0, params.timezone);
   const rangeEnd = calendarDateToUtc(addDays(params.from, params.days), 0, params.timezone);
   const ids = professionals.map((p) => p.id);

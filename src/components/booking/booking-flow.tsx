@@ -45,6 +45,10 @@ type Service = {
   price: number;
   description: string | null;
   priceKind?: string;
+  /** Quem faz o serviço; `null`/ausente = todos. */
+  professionalIds?: string[] | null;
+  /** Preço próprio de cada profissional (quem não tem usa `price`). */
+  prices?: Record<string, number>;
 };
 type Professional = { id: string; name: string; color: string };
 export type BookingCompany = {
@@ -130,7 +134,28 @@ export function BookingFlow({
   const [booked, setBooked] = React.useState<Booked | null>(null);
 
   const service = services.find((s) => s.id === serviceId) ?? null;
-  const depositAmount = service ? depositAmountFor(service.price, company.depositPercent) : null;
+  // Só quem faz o serviço escolhido aparece; sem serviço escolhido, todos.
+  const eligibleFor = (s: Service | null) =>
+    s?.professionalIds
+      ? professionals.filter((p) => s.professionalIds!.includes(p.id))
+      : professionals;
+  const eligible = eligibleFor(service);
+  // Preço com quem vai atender; com "primeiro disponível", o menor ("a partir de") se variar.
+  const shownPrice = (s: Service, proId: string | null) => {
+    if (proId && proId !== ANY) return { price: s.prices?.[proId] ?? s.price, kind: s.priceKind };
+    const all = eligibleFor(s).map((p) => s.prices?.[p.id] ?? s.price);
+    if (!all.length) return { price: s.price, kind: s.priceKind };
+    const min = Math.min(...all);
+    const varies = Math.max(...all) !== min;
+    return {
+      price: min,
+      kind: varies && s.priceKind !== 'on_request' ? 'from' : s.priceKind,
+    };
+  };
+  const attendingId = slot?.professionalId ?? professionalId;
+  const effective = service ? shownPrice(service, attendingId) : null;
+  const depositAmount =
+    service && effective ? depositAmountFor(effective.price, company.depositPercent) : null;
   const professionalName = (id: string) => professionals.find((p) => p.id === id)?.name ?? null;
 
   // ---- Disponibilidade: a semana inteira numa chamada. A chave inclui a semana, então uma
@@ -185,6 +210,16 @@ export function BookingFlow({
       );
     }
     setServiceId(id);
+    const nextEligible = eligibleFor(next ?? null);
+    if (nextEligible.length === 1) setProfessionalId(nextEligible[0].id);
+    else if (
+      professionalId &&
+      professionalId !== ANY &&
+      !nextEligible.some((p) => p.id === professionalId)
+    ) {
+      setProfessionalId(null);
+      setSlot(null);
+    }
   }
 
   function chooseProfessional(id: string) {
@@ -280,7 +315,10 @@ export function BookingFlow({
   }
 
   const summary: SummaryData = {
-    service,
+    service:
+      service && effective
+        ? { ...service, price: effective.price, priceKind: effective.kind }
+        : null,
     professionalName: slot
       ? professionalName(slot.professionalId)
       : professionalId === ANY
@@ -380,7 +418,10 @@ export function BookingFlow({
                         </span>
                         <span className="shrink-0 text-right">
                           <span className="block text-[15px] font-semibold tabular-nums">
-                            {priceLabel(s.price, s.priceKind)}
+                            {(() => {
+                              const shown = shownPrice(s, null);
+                              return priceLabel(shown.price, shown.kind);
+                            })()}
                           </span>
                           <span className="text-label-secondary block text-[13px]">
                             {formatDuration(s.durationMinutes)}
@@ -394,12 +435,15 @@ export function BookingFlow({
 
               <div className="flex flex-col gap-2">
                 <h3 className="text-[15px] font-semibold">Profissional</h3>
-                {professionals.length === 1 ? (
+                {eligible.length === 0 ? (
+                  <p className="text-label-secondary text-[14px]">
+                    Nenhum profissional faz este serviço pelo link no momento.
+                  </p>
+                ) : eligible.length === 1 ? (
                   <div className="border-foreground/[0.1] flex items-center gap-3 rounded-xl border p-4">
-                    <Initial name={professionals[0].name} color={professionals[0].color} />
+                    <Initial name={eligible[0].name} color={eligible[0].color} />
                     <span className="text-[15px]">
-                      Atendimento com{' '}
-                      <strong className="font-semibold">{professionals[0].name}</strong>
+                      Atendimento com <strong className="font-semibold">{eligible[0].name}</strong>
                     </span>
                   </div>
                 ) : (
@@ -408,39 +452,42 @@ export function BookingFlow({
                     aria-label="Profissional"
                     className="grid gap-2 sm:grid-cols-2"
                   >
-                    {[{ id: ANY, name: 'Primeiro disponível', color: '' }, ...professionals].map(
-                      (p) => {
-                        const checked = p.id === professionalId;
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={checked}
-                            onClick={() => chooseProfessional(p.id)}
-                            className={cn(
-                              'flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
-                              checked
-                                ? 'border-system-blue bg-system-blue/[0.05]'
-                                : 'border-foreground/[0.1] hover:border-foreground/[0.25]',
-                            )}
-                          >
-                            <RadioDot checked={checked} />
-                            {p.id !== ANY && <Initial name={p.name} color={p.color} />}
-                            <span className="min-w-0">
-                              <span className="block truncate text-[15px] font-medium">
-                                {p.name}
+                    {[{ id: ANY, name: 'Primeiro disponível', color: '' }, ...eligible].map((p) => {
+                      const checked = p.id === professionalId;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={checked}
+                          onClick={() => chooseProfessional(p.id)}
+                          className={cn(
+                            'flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+                            checked
+                              ? 'border-system-blue bg-system-blue/[0.05]'
+                              : 'border-foreground/[0.1] hover:border-foreground/[0.25]',
+                          )}
+                        >
+                          <RadioDot checked={checked} />
+                          {p.id !== ANY && <Initial name={p.name} color={p.color} />}
+                          <span className="min-w-0">
+                            <span className="block truncate text-[15px] font-medium">{p.name}</span>
+                            {p.id === ANY ? (
+                              <span className="text-label-secondary block text-[13px]">
+                                Mostra todos os horários livres
                               </span>
-                              {p.id === ANY && (
-                                <span className="text-label-secondary block text-[13px]">
-                                  Mostra todos os horários livres
+                            ) : (
+                              service &&
+                              service.prices?.[p.id] !== undefined && (
+                                <span className="text-label-secondary block text-[13px] tabular-nums">
+                                  {priceLabel(service.prices[p.id], service.priceKind)}
                                 </span>
-                              )}
-                            </span>
-                          </button>
-                        );
-                      },
-                    )}
+                              )
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -1,4 +1,10 @@
 import { prisma } from '@/lib/db';
+import {
+  ProfessionalNotForServiceError,
+  doesService,
+  getStaffing,
+  priceWith,
+} from '@/server/data/service-professionals';
 import { MAX_BUFFER_MINUTES, clashesWithBuffer } from '@/lib/buffer';
 import { recordAuditLog } from '@/server/data/audit';
 import {
@@ -79,14 +85,25 @@ async function resolveServices(
   db: Prisma.TransactionClient | typeof prisma,
   companyId: string,
   serviceIds: string[],
+  /** Quem vai atender: confere se faz cada serviço e usa o preço próprio dele, se houver. */
+  professionalId?: string,
 ) {
   const unique = [...new Set(serviceIds)];
-  const services = await db.service.findMany({ where: { companyId, id: { in: unique } } });
+  const [services, staffing] = await Promise.all([
+    db.service.findMany({ where: { companyId, id: { in: unique } } }),
+    getStaffing(db, companyId, unique),
+  ]);
   if (services.length !== unique.length) throw new ForeignEntityMismatchError('service');
   const byId = new Map(services.map((s) => [s.id, s]));
   const ordered = serviceIds.map((id) => byId.get(id)!);
+  if (professionalId) {
+    const notDone = ordered.find((s) => !doesService(staffing.get(s.id), professionalId));
+    if (notDone) throw new ProfessionalNotForServiceError(notDone.name);
+  }
+  const priceOf = (s: (typeof ordered)[number]) =>
+    priceWith(s.price, staffing.get(s.id), professionalId);
   const duration = ordered.reduce((sum, s) => sum + s.durationMinutes, 0);
-  const price = ordered.reduce((sum, s) => sum.add(s.price), new PrismaNamespace.Decimal(0));
+  const price = ordered.reduce((sum, s) => sum.add(priceOf(s)), new PrismaNamespace.Decimal(0));
   return {
     main: ordered[0],
     snapshots: {
@@ -104,7 +121,7 @@ async function resolveServices(
             position,
             nameSnapshot: s.name,
             durationMinutes: s.durationMinutes,
-            priceSnapshot: s.price,
+            priceSnapshot: priceOf(s),
           }))
         : [],
   };
@@ -239,10 +256,12 @@ export async function createAppointment(params: {
     prisma.professional.findFirst({
       where: { id: params.professionalId, companyId: params.companyId },
     }),
-    resolveServices(prisma, params.companyId, [
-      params.serviceId,
-      ...(params.extraServiceIds ?? []),
-    ]),
+    resolveServices(
+      prisma,
+      params.companyId,
+      [params.serviceId, ...(params.extraServiceIds ?? [])],
+      params.professionalId,
+    ),
   ]);
   if (!client) throw new ForeignEntityMismatchError('client');
   if (!professional) throw new ForeignEntityMismatchError('professional');
@@ -324,6 +343,21 @@ export async function moveAppointment(params: {
       select: { id: true },
     });
     if (!professional) throw new ForeignEntityMismatchError('professional');
+    // O novo profissional precisa fazer todos os serviços do atendimento. O preço combinado fica.
+    const items = await prisma.appointmentItem.findMany({
+      where: { appointmentId: existing.id },
+      select: { serviceId: true, nameSnapshot: true },
+    });
+    const services = items.length
+      ? items.map((i) => ({ id: i.serviceId, name: i.nameSnapshot }))
+      : [{ id: existing.serviceId, name: existing.serviceNameSnapshot }];
+    const staffing = await getStaffing(
+      prisma,
+      params.companyId,
+      services.map((s) => s.id),
+    );
+    const notDone = services.find((s) => !doesService(staffing.get(s.id), professionalId));
+    if (notDone) throw new ProfessionalNotForServiceError(notDone.name);
   }
 
   // Duration is preserved from the existing appointment — moving only
@@ -497,7 +531,12 @@ export async function updateAppointmentDetails(params: {
       ).map((i) => i.serviceId);
       const before = currentIds.length ? currentIds : [current.serviceId];
       if (before.join(',') !== params.serviceIds.join(',')) {
-        const resolved = await resolveServices(tx, params.companyId, params.serviceIds);
+        const resolved = await resolveServices(
+          tx,
+          params.companyId,
+          params.serviceIds,
+          current.professionalId,
+        );
         const endAt = new Date(
           current.startAt.getTime() + resolved.snapshots.durationMinutesSnapshot * 60_000,
         );

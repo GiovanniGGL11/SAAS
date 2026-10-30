@@ -38,6 +38,23 @@ export const serviceInput = z.object({
     )
     .max(30)
     .optional(),
+  /**
+   * Quem faz o serviço e por quanto. Ausente = mantém; lista vazia = todos fazem pelo preço do
+   * serviço; preço vazio = preço do serviço.
+   */
+  professionals: z
+    .array(
+      z.object({
+        professionalId: z.string().min(1).max(64),
+        price: z.coerce
+          .number({ message: 'Informe o preço' })
+          .min(0, 'Preço não pode ser negativo')
+          .max(1_000_000)
+          .nullable(),
+      }),
+    )
+    .max(200)
+    .optional(),
   /** Catálogo: preço fixo, "a partir de" ou "sob consulta". */
   priceKind: z.enum(['fixed', 'from', 'on_request']).optional(),
   /** Aparece no agendamento online. */

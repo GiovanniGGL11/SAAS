@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -45,6 +45,7 @@ import {
   utcToMinutesSinceMidnight,
 } from '@/lib/time';
 import { formatCurrencyBRL } from '@/lib/serialize';
+import { getServiceStaffingAction } from '@/server/actions/service-actions';
 import type { SerializedProfessional, SerializedService } from '@/lib/serialize';
 import type { Client } from '@/generated/prisma/client';
 
@@ -267,10 +268,24 @@ export function CreateAppointmentDrawer({
     label: c.name,
     description: c.phone ?? undefined,
   }));
-  const professionalOptions: ComboboxOption[] = professionals.map((p) => ({
-    value: p.id,
-    label: p.name,
-  }));
+  // Quem faz o serviço escolhido (e por quanto). Sem serviço, ou serviço sem lista, todos.
+  const { data: staffing } = useQuery({
+    queryKey: ['service-staffing', watchedServiceId],
+    queryFn: () => getServiceStaffingAction({ serviceId: watchedServiceId }).then(unwrapResult),
+    enabled: open && Boolean(watchedServiceId),
+    staleTime: 60_000,
+  });
+  const allowedIds = watchedServiceId ? staffing?.staffing.professionalIds : null;
+  const professionalOptions: ComboboxOption[] = professionals
+    .filter((p) => !allowedIds || allowedIds.includes(p.id))
+    .map((p) => {
+      const own = staffing?.staffing.prices[p.id];
+      return {
+        value: p.id,
+        label: p.name,
+        description: own !== undefined ? formatCurrencyBRL(own) : undefined,
+      };
+    });
   const serviceOptions: ComboboxOption[] = services.map((s) => ({
     value: s.id,
     label: s.name,

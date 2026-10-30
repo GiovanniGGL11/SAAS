@@ -12,7 +12,7 @@ import {
 import { CustomFieldsEditor } from '@/components/custom-fields/custom-fields-editor';
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
@@ -45,6 +45,7 @@ import {
   updateServiceAction,
 } from '@/server/actions/service-actions';
 import { ServiceSuppliesField, type SupplyRow } from '@/components/servicos/service-supplies-field';
+import { ServiceStaffField, type StaffEntry } from '@/components/servicos/service-staff-field';
 import { serviceInput, type ServiceFormInput } from '@/lib/validations/service';
 import { usePlanFeatures } from '@/components/plan/use-plan-features';
 import type { SerializedService } from '@/lib/serialize';
@@ -78,6 +79,9 @@ export function ServiceDrawer({
     },
   });
 
+  // Preço digitado agora: sugestão nos preços por profissional.
+  const watchedPrice = useWatch({ control: form.control, name: 'price' });
+
   // Materiais: o que já está salvo (ao editar) e o que a pessoa mudou nesta abertura.
   const { data: savedSupplies } = useQuery({
     queryKey: ['service-supplies', service?.id],
@@ -85,6 +89,8 @@ export function ServiceDrawer({
     enabled: open && isEdit,
   });
   const [editedSupplies, setEditedSupplies] = React.useState<SupplyRow[] | null>(null);
+  // Quem faz e por quanto: `null` = a pessoa não mexeu (mantém o que está salvo).
+  const [editedStaff, setEditedStaff] = React.useState<StaffEntry[] | null>(null);
   // Checklist: um item por linha; `null` = a pessoa não mexeu (ao editar, mantém o atual).
   const { has } = usePlanFeatures();
   const [editedChecklist, setEditedChecklist] = React.useState<string | null>(null);
@@ -104,6 +110,7 @@ export function ServiceDrawer({
             : supplies
                 .filter((row) => row.productId)
                 .map((row) => ({ productId: row.productId, quantity: Number(row.quantity) || 0 })),
+        professionals: editedStaff ?? undefined,
         checklistItems:
           editedChecklist === null
             ? undefined
@@ -125,7 +132,9 @@ export function ServiceDrawer({
       toast.success(isEdit ? 'Serviço atualizado.' : 'Serviço criado.');
       queryClient.invalidateQueries({ queryKey: ['services'] });
       queryClient.invalidateQueries({ queryKey: ['service-supplies'] });
+      queryClient.invalidateQueries({ queryKey: ['service-staffing'] });
       setEditedSupplies(null);
+      setEditedStaff(null);
       setEditedChecklist(null);
       onOpenChange(false);
     },
@@ -139,6 +148,7 @@ export function ServiceDrawer({
       onOpenChange={(next) => {
         if (!next) {
           setEditedSupplies(null);
+          setEditedStaff(null);
           setEditedChecklist(null);
         }
         onOpenChange(next);
@@ -348,6 +358,14 @@ export function ServiceDrawer({
             </div>
 
             <ServiceSuppliesField value={supplies} onChange={setEditedSupplies} />
+
+            <ServiceStaffField
+              key={`${service?.id ?? 'novo'}-${open}`}
+              open={open}
+              serviceId={service?.id ?? null}
+              servicePrice={Number(watchedPrice) || 0}
+              onChange={setEditedStaff}
+            />
 
             {/* Respostas salvas à parte (o serviço precisa existir antes). */}
             {isEdit && <CustomFieldsEditor entity="service" recordId={service.id} />}

@@ -40,7 +40,16 @@ describe('catálogo: tipo de preço e visibilidade no agendamento online', () =>
     });
     // Nada interno no que vai para o navegador.
     expect(Object.keys(catalog.services[0]).sort()).toEqual(
-      ['description', 'durationMinutes', 'id', 'name', 'price', 'priceKind'].sort(),
+      [
+        'description',
+        'durationMinutes',
+        'id',
+        'name',
+        'price',
+        'priceKind',
+        'prices',
+        'professionalIds',
+      ].sort(),
     );
 
     await expect(

@@ -22,6 +22,12 @@ import {
   listServiceSupplies,
   setServiceSupplies,
 } from '@/server/data/service-supplies';
+import {
+  assertStaffing,
+  listServiceStaffing,
+  saveServiceStaffing,
+  type Staffing,
+} from '@/server/data/service-professionals';
 
 export async function listServicesAction() {
   const { company } = await requireCurrentCompany();
@@ -34,12 +40,14 @@ export async function createServiceAction(input: unknown) {
     const parsed = serviceInput.parse(input);
     const { userId, company } = await requireCompanyAdmin();
 
-    const { supplies, ...fields } = parsed;
+    const { supplies, professionals, ...fields } = parsed;
     if (fields.checklistItems?.length) assertFeature(company, 'checklists');
-    // Confere o estoque antes de criar o serviço (nada fica pela metade).
+    // Confere estoque e profissionais antes de criar o serviço (nada fica pela metade).
     await assertSupplies(company.id, supplies ?? []);
+    await assertStaffing(company.id, professionals ?? []);
     const service = await createService(company.id, fields);
     if (supplies?.length) await setServiceSupplies(company.id, service.id, supplies);
+    if (professionals?.length) await saveServiceStaffing(company.id, service.id, professionals);
     await recordAuditLog({
       companyId: company.id,
       entityType: 'Service',
@@ -58,12 +66,16 @@ export async function updateServiceAction(rawId: unknown, input: unknown) {
     const parsed = serviceInput.parse(input);
     const { userId, company } = await requireCompanyAdmin();
 
-    const { supplies, ...fields } = parsed;
+    const { supplies, professionals, ...fields } = parsed;
     if (fields.checklistItems?.length) assertFeature(company, 'checklists');
     await assertSupplies(company.id, supplies ?? []);
+    await assertStaffing(company.id, professionals ?? []);
     const service = await updateService(company.id, id, fields);
     // `undefined` mantém a lista atual; lista vazia limpa (o serviço deixa de consumir estoque).
     if (supplies !== undefined) await setServiceSupplies(company.id, service.id, supplies);
+    // Profissionais: `undefined` mantém; lista vazia = todos fazem pelo preço do serviço.
+    if (professionals !== undefined)
+      await saveServiceStaffing(company.id, service.id, professionals);
     await recordAuditLog({
       companyId: company.id,
       entityType: 'Service',
@@ -98,6 +110,30 @@ export async function getServiceSuppliesAction(rawId: unknown) {
   const id = parseId(rawId);
   const { company } = await requireCurrentCompany();
   return listServiceSupplies(company.id, id);
+}
+
+/**
+ * Cadastro do serviço: profissionais ativos e quem faz este serviço (com o preço de cada um).
+ * Sem `serviceId` (serviço novo), só a lista de profissionais.
+ */
+export async function getServiceStaffingAction(input: unknown) {
+  return toActionResult(async () => {
+    const { serviceId } = z
+      .object({ serviceId: z.string().min(1).max(64).nullable() })
+      .parse(input);
+    const { company } = await requireCurrentCompany();
+    const [professionals, staffing] = await Promise.all([
+      prisma.professional.findMany({
+        where: { companyId: company.id, active: true },
+        select: { id: true, name: true, color: true },
+        orderBy: { name: 'asc' },
+      }),
+      serviceId
+        ? listServiceStaffing(company.id, serviceId)
+        : Promise.resolve<Staffing>({ professionalIds: null, prices: {} }),
+    ]);
+    return { professionals, staffing };
+  });
 }
 
 /** Link do cliente: liga/desliga o serviço no agendamento online, sem abrir o cadastro. */
