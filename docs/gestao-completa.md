@@ -17,7 +17,7 @@ A primeira rodada (orçamentos, portal, lista de espera, aprovações, rotinas) 
 | Modelos prontos de formulário | `STARTER_TEMPLATES` em `src/lib/forms/starter.ts` |
 | Regras de automação | Automações → Regras (gatilhos e ações em `src/server/automations/rules.ts`) |
 | Antecedência mínima e intervalo dos horários do link público | Link do cliente → Agendamento (`bookingLeadMinutes`, `bookingSlotStep`; opções em `LEAD_MINUTES_OPTIONS`) |
-| Pagamento adiantado por PIX no link (sinal ou valor total, obrigatório ou escolha do cliente) | Link do cliente → Pagamento (`depositPercent`, `depositRequired`; exige a chave da Asaas do próprio negócio) |
+| Pagamento adiantado por PIX no link (sinal ou valor total, obrigatório ou escolha do cliente) | Link do cliente → Pagamento (`depositPercent`, `depositRequired`; exige a chave da Asaas do próprio negócio; a Asaas é uma plataforma à parte e cobra R$ 1,99 por PIX recebido, o que a tela informa) |
 | Tipo de preço e visibilidade no agendamento online | Link do cliente → Serviços no link (liga/desliga) e cadastro do serviço ("Como mostrar o preço", "Aparece no agendamento online"); rótulos em `src/lib/catalog.ts` |
 
 ## Recursos por plano

@@ -18,7 +18,13 @@ import {
 
 type Mode = 'onsite' | 'online';
 
-const MODES: { value: Mode; icon: typeof BanknoteIcon; title: string; text: string }[] = [
+const MODES: {
+  value: Mode;
+  icon: typeof BanknoteIcon;
+  title: string;
+  text: string;
+  note?: string;
+}[] = [
   {
     value: 'onsite',
     icon: BanknoteIcon,
@@ -30,6 +36,7 @@ const MODES: { value: Mode; icon: typeof BanknoteIcon; title: string; text: stri
     icon: QrCodeIcon,
     title: 'Receber pelo sistema (PIX pela Asaas)',
     text: 'O cliente paga por PIX ao marcar — uma parte (sinal) ou o valor todo. Cai na sua conta Asaas e reduz faltas.',
+    note: 'A Asaas é uma plataforma à parte, com conta sua. Ela cobra R$ 1,99 por PIX recebido.',
   },
 ];
 
@@ -133,11 +140,23 @@ export function DepositCard() {
                   )}
                 </span>
                 <span className="text-label-secondary text-[12px] leading-snug">{m.text}</span>
+                {m.note && <span className="text-[12px] leading-snug font-medium">{m.note}</span>}
               </span>
             </button>
           );
         })}
       </div>
+
+      {mode === 'online' && (
+        <p className="bg-foreground/[0.04] rounded-xl px-4 py-3 text-[13px] leading-snug">
+          <span className="font-semibold">Como funciona a cobrança:</span> a Asaas é uma plataforma
+          de pagamentos <span className="font-semibold">separada do Atendafy</span>. Você abre e
+          mantém uma conta própria lá, e o PIX cai direto nela. A Asaas cobra{' '}
+          <span className="font-semibold">R$ 1,99 por PIX recebido</span> — esse valor é dela, não
+          do Atendafy, e é cobrado pela Asaas. Para receber sem taxa nenhuma, use &quot;Receber na
+          hora&quot;.
+        </p>
+      )}
 
       {mode === 'online' && data && (
         <p
