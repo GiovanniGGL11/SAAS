@@ -27,9 +27,9 @@ describe('configuração central dos planos', () => {
   it('ids estáveis, preços em centavos, três planos oferecidos e Rede preservado como antigo', () => {
     expect(new Set(PLANS.map((p) => p.id)).size).toBe(PLANS.length);
     expect(PLANS.filter((p) => p.offered).map((p) => [p.id, p.name, p.priceCents])).toEqual([
-      ['essencial', 'Básico', 7990],
-      ['profissional', 'Profissional', 14990],
-      ['pro', 'Pro', 29990],
+      ['essencial', 'Básico', 3990],
+      ['profissional', 'Profissional', 7490],
+      ['pro', 'Pro', 14990],
     ]);
     expect(getPlan('rede')).toMatchObject({ legacy: true, offered: false, checkoutEnabled: false });
     // Preço do Pro ainda não publicado: não dá para contratar.

@@ -14,6 +14,7 @@ import {
   createCustomer,
   createSubscription,
   listSubscriptionPayments,
+  updateSubscription,
 } from '@/server/billing/asaas';
 
 /*
@@ -135,6 +136,66 @@ export async function pendingInvoiceUrl(company: Company): Promise<string | null
   );
 }
 
+/**
+ * Troca de plano na mesma assinatura: muda o valor das próximas cobranças (e da que está em aberto).
+ * Não troca para um plano com menos profissionais do que a empresa tem ativos.
+ */
+export async function changeSubscriptionPlan(company: Company, planId: PlanId) {
+  const plan = getPlan(planId);
+  if (!plan) throw new UserError('Plano não encontrado.');
+  if (!plan.offered || !plan.checkoutEnabled) {
+    throw new UserError(`O plano ${plan.name} ainda não está disponível para contratação.`);
+  }
+  if (!company.asaasSubscriptionId || company.subscriptionStatus === 'CANCELED') {
+    throw new UserError('Não há assinatura ativa para trocar de plano.');
+  }
+  if (company.plan === plan.id) throw new UserError(`Você já está no plano ${plan.name}.`);
+  if (plan.maxProfessionals !== null) {
+    const active = await prisma.professional.count({
+      where: { companyId: company.id, active: true },
+    });
+    if (active > plan.maxProfessionals) {
+      throw new UserError(
+        `O plano ${plan.name} inclui até ${plan.maxProfessionals} profissionais e você tem ${active} ativos. Desative alguns antes de trocar.`,
+      );
+    }
+  }
+  try {
+    await updateSubscription(apiKey(), company.asaasSubscriptionId, {
+      value: planPrice(plan),
+      description: `Atendafy — plano ${plan.name}`,
+    });
+  } catch (error) {
+    if (error instanceof AsaasError) throw new UserError(`A Asaas recusou: ${error.message}`);
+    throw error;
+  }
+  await prisma.company.update({ where: { id: company.id }, data: { plan: plan.id } });
+}
+
+export type Invoice = {
+  id: string;
+  status: string;
+  value: number;
+  dueDate: string;
+  invoiceUrl: string;
+};
+
+/** Últimas cobranças da assinatura (mais recentes primeiro). */
+export async function listInvoices(company: Company): Promise<Invoice[]> {
+  if (!company.asaasSubscriptionId || !billingConfigured()) return [];
+  const payments = await listSubscriptionPayments(apiKey(), company.asaasSubscriptionId);
+  return payments.data
+    .map(({ id, status, value, dueDate, invoiceUrl }) => ({
+      id,
+      status,
+      value,
+      dueDate,
+      invoiceUrl,
+    }))
+    .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
+    .slice(0, 12);
+}
+
 export async function cancelCompanySubscription(company: Company) {
   if (!company.asaasSubscriptionId) throw new UserError('Não há assinatura para cancelar.');
   await cancelSubscription(apiKey(), company.asaasSubscriptionId);
@@ -145,6 +206,7 @@ export async function cancelCompanySubscription(company: Company) {
 }
 
 type AsaasWebhook = {
+  id?: string;
   event?: string;
   payment?: { id?: string; subscription?: string | null; dueDate?: string; status?: string };
   subscription?: { id?: string };
@@ -156,24 +218,57 @@ function addMonth(ymdDate: string): Date {
   return d;
 }
 
-/** Eventos da Asaas: pagamento confirmado ativa e estende o período; atraso e cancelamento marcam a conta. */
-export async function handleBillingWebhook(payload: AsaasWebhook): Promise<'updated' | 'ignored'> {
-  const subscriptionId = payload.payment?.subscription ?? payload.subscription?.id;
+const dayStart = (ymdDate: string) => new Date(`${ymdDate}T00:00:00-03:00`);
+
+/**
+ * Eventos da Asaas: pagamento confirmado ativa e estende o período; atraso, estorno e cancelamento
+ * marcam a conta. A Asaas reenvia eventos, então cada id é processado uma vez só, e um atraso de
+ * uma cobrança cujo período já está pago é ignorado.
+ */
+export async function handleBillingWebhook(
+  payload: AsaasWebhook,
+): Promise<'updated' | 'ignored' | 'duplicate'> {
+  if (payload.id) {
+    const seen = await prisma.billingWebhookEvent.findUnique({ where: { id: payload.id } });
+    if (seen) return 'duplicate';
+  }
+  const subscriptionId = payload.payment?.subscription ?? payload.subscription?.id ?? null;
+  const result = await applyBillingEvent(payload, subscriptionId);
+  if (payload.id) {
+    await prisma.billingWebhookEvent
+      .create({
+        data: {
+          id: payload.id,
+          event: payload.event ?? '',
+          subscriptionId,
+          paymentId: payload.payment?.id ?? null,
+          result,
+        },
+      })
+      .catch(() => undefined); // mesmo evento chegando em paralelo: o primeiro já registrou
+  }
+  return result;
+}
+
+async function applyBillingEvent(
+  payload: AsaasWebhook,
+  subscriptionId: string | null,
+): Promise<'updated' | 'ignored'> {
   if (!subscriptionId) return 'ignored';
   const company = await prisma.company.findUnique({
     where: { asaasSubscriptionId: subscriptionId },
   });
   if (!company) return 'ignored';
+  const dueDate = payload.payment?.dueDate;
   switch (payload.event) {
     case 'PAYMENT_CONFIRMED':
     case 'PAYMENT_RECEIVED': {
-      const periodEnd = payload.payment?.dueDate
-        ? addMonth(payload.payment.dueDate)
-        : addMonth(new Date().toISOString().slice(0, 10));
+      const periodEnd = addMonth(dueDate ?? new Date().toISOString().slice(0, 10));
       await prisma.company.update({
         where: { id: company.id },
         data: {
-          subscriptionStatus: 'ACTIVE',
+          // Pagou uma cobrança antiga depois de cancelar: estende o período, mas segue cancelada.
+          subscriptionStatus: company.subscriptionStatus === 'CANCELED' ? 'CANCELED' : 'ACTIVE',
           currentPeriodEnd:
             company.currentPeriodEnd && company.currentPeriodEnd > periodEnd
               ? company.currentPeriodEnd
@@ -182,12 +277,38 @@ export async function handleBillingWebhook(payload: AsaasWebhook): Promise<'upda
       });
       return 'updated';
     }
-    case 'PAYMENT_OVERDUE':
+    case 'PAYMENT_OVERDUE': {
+      // O período desta cobrança já está pago (evento atrasado ou reenviado): nada muda.
+      if (dueDate && company.currentPeriodEnd && company.currentPeriodEnd >= addMonth(dueDate)) {
+        return 'ignored';
+      }
+      if (company.subscriptionStatus === 'CANCELED') return 'ignored';
       await prisma.company.update({
         where: { id: company.id },
-        data: { subscriptionStatus: 'PAST_DUE' },
+        data: {
+          subscriptionStatus: 'PAST_DUE',
+          // Primeira cobrança (fim do teste) atrasada: a tolerância conta do vencimento.
+          currentPeriodEnd: company.currentPeriodEnd ?? (dueDate ? dayStart(dueDate) : new Date()),
+        },
       });
       return 'updated';
+    }
+    case 'PAYMENT_REFUNDED':
+    case 'PAYMENT_CHARGEBACK_REQUESTED': {
+      // Dinheiro devolvido: o período pago por esta cobrança deixa de valer.
+      const paidUntil = dueDate ? dayStart(dueDate) : new Date();
+      await prisma.company.update({
+        where: { id: company.id },
+        data: {
+          subscriptionStatus: company.subscriptionStatus === 'CANCELED' ? 'CANCELED' : 'PAST_DUE',
+          currentPeriodEnd:
+            company.currentPeriodEnd && company.currentPeriodEnd < paidUntil
+              ? company.currentPeriodEnd
+              : paidUntil,
+        },
+      });
+      return 'updated';
+    }
     case 'SUBSCRIPTION_DELETED':
     case 'SUBSCRIPTION_INACTIVATED':
       await prisma.company.update({

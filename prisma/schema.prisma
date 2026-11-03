@@ -2168,3 +2168,17 @@ model ServiceProfessional {
   @@index([companyId])
   @@index([professionalId])
 }
+
+/// Eventos recebidos do webhook da Asaas da plataforma (assinaturas): evita processar duas vezes e serve de histórico.
+model BillingWebhookEvent {
+  /// id do evento na Asaas ("evt_...").
+  id             String   @id
+  event          String
+  subscriptionId String?
+  paymentId      String?
+  /// updated | ignored
+  result         String
+  createdAt      DateTime @default(now())
+
+  @@index([subscriptionId])
+}

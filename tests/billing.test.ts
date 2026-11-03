@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { prisma } from '@/lib/db';
 import {
+  changeSubscriptionPlan,
   getSubscriptionState,
   handleBillingWebhook,
   startSubscription,
@@ -40,7 +41,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
                 status: 'PENDING',
                 invoiceUrl: 'https://asaas/i/1',
                 dueDate: '2030-01-01',
-                value: 149.9,
+                value: 74.9,
               },
             ],
           });
@@ -53,6 +54,9 @@ describe('assinatura do Atendafy (Asaas)', () => {
     vi.unstubAllGlobals();
     delete process.env.ASAAS_API_KEY;
     delete process.env.BILLING_ENFORCE;
+    await prisma.billingWebhookEvent.deleteMany({
+      where: { subscriptionId: `sub_${fixture.company.id}` },
+    });
     await deleteTestCompany(fixture.company.id);
   });
 
@@ -100,7 +104,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
     expect(sub.key).toBe('$aact_hmlg_chave_de_teste');
     expect(sub.body).toMatchObject({
       customer: 'cus_1',
-      value: 149.9,
+      value: 74.9,
       cycle: 'MONTHLY',
       billingType: 'UNDEFINED',
       externalReference: company.id,
@@ -133,5 +137,83 @@ describe('assinatura do Atendafy (Asaas)', () => {
         payment: { subscription: 'sub_outra' },
       }),
     ).toBe('ignored');
+  });
+
+  it('evento repetido, atraso de período já pago, estorno e primeira cobrança atrasada', async () => {
+    const id = fixture.company.id;
+    const subscription = `sub_${id}`;
+    await prisma.company.update({
+      where: { id },
+      data: { asaasSubscriptionId: subscription, plan: 'profissional' },
+    });
+    const read = () => prisma.company.findUniqueOrThrow({ where: { id } });
+
+    // Fim do teste: a primeira cobrança atrasou; a tolerância conta do vencimento.
+    await handleBillingWebhook({
+      id: `evt_a_${id}`,
+      event: 'PAYMENT_OVERDUE',
+      payment: { id: 'pay_1', subscription, dueDate: '2030-01-10' },
+    });
+    let c = await read();
+    expect(c.subscriptionStatus).toBe('PAST_DUE');
+    expect(c.currentPeriodEnd!.toISOString().slice(0, 10)).toBe('2030-01-10');
+
+    const paid = {
+      id: `evt_b_${id}`,
+      event: 'PAYMENT_RECEIVED',
+      payment: { id: 'pay_1', subscription, dueDate: '2030-01-10' },
+    };
+    expect(await handleBillingWebhook(paid)).toBe('updated');
+    expect(await handleBillingWebhook(paid)).toBe('duplicate');
+    c = await read();
+    expect(c.subscriptionStatus).toBe('ACTIVE');
+    expect(c.currentPeriodEnd!.toISOString().slice(0, 10)).toBe('2030-02-10');
+
+    // Atraso reenviado da cobrança já paga: ignorado.
+    expect(
+      await handleBillingWebhook({
+        id: `evt_c_${id}`,
+        event: 'PAYMENT_OVERDUE',
+        payment: { id: 'pay_1', subscription, dueDate: '2030-01-10' },
+      }),
+    ).toBe('ignored');
+    expect((await read()).subscriptionStatus).toBe('ACTIVE');
+
+    // Estorno: o período pago por essa cobrança deixa de valer.
+    await handleBillingWebhook({
+      id: `evt_d_${id}`,
+      event: 'PAYMENT_REFUNDED',
+      payment: { id: 'pay_1', subscription, dueDate: '2030-01-10' },
+    });
+    c = await read();
+    expect(c.subscriptionStatus).toBe('PAST_DUE');
+    expect(c.currentPeriodEnd!.toISOString().slice(0, 10)).toBe('2030-01-10');
+  });
+
+  it('troca de plano muda o valor na Asaas e respeita o limite de profissionais', async () => {
+    const id = fixture.company.id;
+    await prisma.company.update({
+      where: { id },
+      data: {
+        asaasSubscriptionId: `sub_${id}`,
+        plan: 'profissional',
+        subscriptionStatus: 'ACTIVE',
+      },
+    });
+    await prisma.professional.createMany({
+      data: [1, 2, 3].map((n) => ({ companyId: id, name: `Prof ${n}`, color: '#007AFF' })),
+    });
+    const company = await prisma.company.findUniqueOrThrow({ where: { id } });
+    await expect(changeSubscriptionPlan(company, 'essencial')).rejects.toThrow(
+      /até 2 profissionais/,
+    );
+    await expect(changeSubscriptionPlan(company, 'pro')).rejects.toThrow(/não está disponível/);
+
+    await prisma.professional.updateMany({ where: { companyId: id }, data: { active: false } });
+    await changeSubscriptionPlan(company, 'essencial');
+    const put = calls.find((c) => c.method === 'PUT')!;
+    expect(put.url).toBe(`https://api-sandbox.asaas.com/v3/subscriptions/sub_${id}`);
+    expect(put.body).toMatchObject({ value: 39.9, updatePendingPayments: true });
+    expect((await prisma.company.findUniqueOrThrow({ where: { id } })).plan).toBe('essencial');
   });
 });

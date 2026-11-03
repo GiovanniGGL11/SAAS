@@ -65,10 +65,31 @@ export async function createSubscription(
   });
 }
 
+export async function updateSubscription(
+  apiKey: string,
+  subscriptionId: string,
+  input: { value: number; description: string },
+) {
+  return asaasRequest(apiKey, `/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: 'PUT',
+    // Vale também para a cobrança já gerada e ainda não paga.
+    body: { ...input, updatePendingPayments: true },
+  });
+}
+
+export type AsaasSubscriptionPayment = {
+  id: string;
+  status: string;
+  invoiceUrl: string;
+  dueDate: string;
+  value: number;
+};
+
 export async function listSubscriptionPayments(apiKey: string, subscriptionId: string) {
-  return asaasRequest<{
-    data: { id: string; status: string; invoiceUrl: string; dueDate: string; value: number }[];
-  }>(apiKey, `/subscriptions/${encodeURIComponent(subscriptionId)}/payments`);
+  return asaasRequest<{ data: AsaasSubscriptionPayment[] }>(
+    apiKey,
+    `/subscriptions/${encodeURIComponent(subscriptionId)}/payments`,
+  );
 }
 
 export async function cancelSubscription(apiKey: string, subscriptionId: string) {
