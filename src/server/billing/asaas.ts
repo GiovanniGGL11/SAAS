@@ -130,3 +130,43 @@ export async function getPayment(apiKey: string, paymentId: string) {
 
 /** Status da Asaas que significam "dinheiro pago". */
 export const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
+
+export type AsaasSubaccountInput = {
+  name: string;
+  email: string;
+  cpfCnpj: string;
+  birthDate?: string;
+  companyType?: 'MEI' | 'LIMITED' | 'INDIVIDUAL' | 'ASSOCIATION';
+  mobilePhone: string;
+  incomeValue: number;
+  address: string;
+  addressNumber: string;
+  complement?: string;
+  province: string;
+  postalCode: string;
+};
+
+/**
+ * Cria uma subconta da conta da plataforma. A chave da subconta só vem nesta resposta: guarde na
+ * hora (a Asaas não mostra de novo).
+ */
+export async function createSubaccount(apiKey: string, input: AsaasSubaccountInput) {
+  return asaasRequest<{
+    id: string;
+    walletId: string;
+    accessToken?: { apiKey?: string };
+    apiKey?: string;
+  }>(apiKey, '/accounts', { method: 'POST', body: input });
+}
+
+export type AsaasApprovalStatus = 'APPROVED' | 'PENDING' | 'AWAITING_APPROVAL' | 'REJECTED';
+
+/** Situação de aprovação da conta dona da chave (documentos, dados comerciais, banco, geral). */
+export async function getAccountStatus(apiKey: string) {
+  return asaasRequest<{
+    commercialInfo?: AsaasApprovalStatus;
+    bankAccountInfo?: AsaasApprovalStatus;
+    documentation?: AsaasApprovalStatus;
+    general?: AsaasApprovalStatus;
+  }>(apiKey, '/myAccount/status');
+}

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { AsaasAccountForm } from '@/components/configuracoes/asaas-account-form';
 import { unwrapResult } from '@/lib/action-result';
 import {
   getDepositSettingsAction,
@@ -17,6 +18,13 @@ import {
 } from '@/server/actions/deposit-actions';
 
 type Mode = 'onsite' | 'online';
+
+const ACCOUNT_STATUS: Record<string, string> = {
+  PENDING:
+    'Conta Asaas criada. Falta ativar: abra o e-mail da Asaas, crie a senha e envie os documentos.',
+  AWAITING_APPROVAL: 'Documentos enviados. A Asaas está analisando sua conta.',
+  REJECTED: 'A Asaas recusou algum dado ou documento. Entre na sua conta Asaas para corrigir.',
+};
 
 const MODES: {
   value: Mode;
@@ -169,8 +177,10 @@ export function DepositCard() {
           {!data.connected ? (
             <>
               <span className="font-semibold">Ainda não aparece para o cliente:</span> falta
-              conectar a conta Asaas do seu negócio (é nela que o PIX cai). Cole a chave de API
-              abaixo.
+              conectar a conta Asaas do seu negócio (é nela que o PIX cai).{' '}
+              {data.canCreateAccount
+                ? 'Crie a conta aqui mesmo ou, se já tem uma, cole a chave de API abaixo.'
+                : 'Cole a chave de API abaixo.'}
             </>
           ) : data.percent <= 0 ? (
             <>
@@ -189,6 +199,19 @@ export function DepositCard() {
         </p>
       )}
 
+      {mode === 'online' &&
+        data?.managed &&
+        data.accountStatus &&
+        ACCOUNT_STATUS[data.accountStatus] && (
+          <p className="bg-system-blue/[0.06] rounded-xl px-4 py-3 text-[13px]">
+            {ACCOUNT_STATUS[data.accountStatus]}
+          </p>
+        )}
+
+      {mode === 'online' && data && !data.connected && data.canCreateAccount && (
+        <AsaasAccountForm onCreated={refresh} />
+      )}
+
       <form
         className="grid gap-2 sm:grid-cols-[1fr_120px_140px]"
         onSubmit={(e) => {
@@ -198,18 +221,25 @@ export function DepositCard() {
       >
         {mode === 'online' && (
           <>
-            <Input
-              type="password"
-              autoComplete="off"
-              placeholder={
-                data?.connected
-                  ? `Chave salva (${data.environment === 'sandbox' ? 'sandbox' : 'produção'}) — deixe vazio para manter`
-                  : 'Chave de API da sua conta Asaas ($aact_...)'
-              }
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              aria-label="Chave de API da Asaas"
-            />
+            {data?.managed ? (
+              <p className="text-label-secondary self-center text-[13px]">
+                Conta Asaas criada pelo Atendafy (
+                {data.environment === 'sandbox' ? 'sandbox' : 'produção'}).
+              </p>
+            ) : (
+              <Input
+                type="password"
+                autoComplete="off"
+                placeholder={
+                  data?.connected
+                    ? `Chave salva (${data.environment === 'sandbox' ? 'sandbox' : 'produção'}) — deixe vazio para manter`
+                    : 'Chave de API da sua conta Asaas ($aact_...)'
+                }
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                aria-label="Chave de API da Asaas"
+              />
+            )}
             <label className="flex items-center gap-2 text-[13px]">
               <Input
                 type="number"
@@ -273,7 +303,7 @@ export function DepositCard() {
           <Button type="submit" variant="outline" disabled={save.isPending}>
             {save.isPending ? 'Salvando...' : 'Salvar'}
           </Button>
-          {mode === 'online' && data?.connected && (
+          {mode === 'online' && data?.connected && !data.managed && (
             <Button
               type="button"
               variant="ghost"

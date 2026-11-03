@@ -54,6 +54,9 @@ model Company {
   asaasSubscriptionId String?            @unique
   // Sinal por PIX no agendamento online: conta Asaas do próprio salão (chave cifrada).
   asaasApiKey         String?
+  // Conta Asaas criada pelo Atendafy (subconta): a chave acima não pode ser recuperada de novo.
+  asaasAccountId      String?
+  asaasWalletId       String?
   depositPercent      Int                @default(0)
   depositHoldMinutes  Int                @default(30)
   // true: o pagamento adiantado é obrigatório para reservar pelo link; false: o cliente escolhe pagar agora ou no atendimento.
