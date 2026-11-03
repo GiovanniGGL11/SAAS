@@ -15,13 +15,18 @@ import {
   saldo próprio, e o titular ativa pelo e-mail da Asaas e envia os documentos lá.
 */
 
+/**
+ * Só a conta Asaas de CNPJ pode criar subcontas (e precisa estar liberada pela Asaas): fica
+ * desligado até ASAAS_SUBACCOUNTS=true.
+ */
 export function canCreateSubaccount(): boolean {
-  return Boolean(process.env.ASAAS_API_KEY?.trim());
+  return Boolean(process.env.ASAAS_API_KEY?.trim()) && process.env.ASAAS_SUBACCOUNTS === 'true';
 }
 
 export async function createCompanySubaccount(companyId: string, input: AsaasSubaccountInput) {
   const platformKey = process.env.ASAAS_API_KEY?.trim();
-  if (!platformKey) throw new UserError('A criação de conta Asaas ainda não está disponível.');
+  if (!platformKey || !canCreateSubaccount())
+    throw new UserError('A criação de conta Asaas ainda não está disponível.');
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId },
     select: { asaasApiKey: true },

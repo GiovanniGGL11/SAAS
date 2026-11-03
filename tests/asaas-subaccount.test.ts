@@ -25,6 +25,7 @@ describe('conta Asaas criada pelo Atendafy (subconta)', () => {
   beforeEach(async () => {
     fixture = await createTestCompany('subaccount');
     process.env.ASAAS_API_KEY = '$aact_hmlg_plataforma';
+    process.env.ASAAS_SUBACCOUNTS = 'true';
     calls.length = 0;
     vi.stubGlobal(
       'fetch',
@@ -50,6 +51,7 @@ describe('conta Asaas criada pelo Atendafy (subconta)', () => {
   afterEach(async () => {
     vi.unstubAllGlobals();
     delete process.env.ASAAS_API_KEY;
+    delete process.env.ASAAS_SUBACCOUNTS;
     await deleteTestCompany(fixture.company.id);
   });
 
@@ -72,7 +74,12 @@ describe('conta Asaas criada pelo Atendafy (subconta)', () => {
     await expect(createCompanySubaccount(id, input)).rejects.toThrow(/já tem uma conta/);
   });
 
-  it('sem a chave da plataforma não cria', async () => {
+  it('sem a chave da plataforma ou sem liberar subcontas não cria', async () => {
+    delete process.env.ASAAS_SUBACCOUNTS;
+    await expect(createCompanySubaccount(fixture.company.id, input)).rejects.toThrow(
+      /ainda não está disponível/,
+    );
+    process.env.ASAAS_SUBACCOUNTS = 'true';
     delete process.env.ASAAS_API_KEY;
     await expect(createCompanySubaccount(fixture.company.id, input)).rejects.toThrow(
       /ainda não está disponível/,
