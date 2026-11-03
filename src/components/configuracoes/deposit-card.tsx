@@ -69,6 +69,8 @@ export function DepositCard() {
   });
   const [modePick, setModePick] = React.useState<Mode | null>(null);
   const [apiKey, setApiKey] = React.useState('');
+  // Quem já tem conta Asaas pode colar a chave; com a criação de conta ligada, isso fica escondido.
+  const [useOwnKey, setUseOwnKey] = React.useState(false);
   const [percent, setPercent] = React.useState<string | null>(null);
   const [hold, setHold] = React.useState<string | null>(null);
   const [requiredPick, setRequiredPick] = React.useState<'required' | 'optional' | null>(null);
@@ -237,7 +239,7 @@ export function DepositCard() {
               <span className="font-semibold">Ainda não aparece para o cliente:</span> falta
               conectar a conta Asaas do seu negócio (é nela que o PIX cai).{' '}
               {data.canCreateAccount
-                ? 'Crie a conta aqui mesmo ou, se já tem uma, cole a chave de API abaixo.'
+                ? 'Crie a conta aqui mesmo, só com seus dados.'
                 : 'Cole a chave de API abaixo.'}
             </>
           ) : data.percent <= 0 ? (
@@ -266,163 +268,174 @@ export function DepositCard() {
           </p>
         )}
 
-      {mode === 'online' && data && !data.connected && data.canCreateAccount && (
-        <AsaasAccountForm onCreated={refresh} />
+      {mode === 'online' && data && !data.connected && data.canCreateAccount && !useOwnKey && (
+        <>
+          <AsaasAccountForm onCreated={refresh} />
+          <button
+            type="button"
+            className="text-label-secondary self-start text-[12px] underline"
+            onClick={() => setUseOwnKey(true)}
+          >
+            Já tenho conta na Asaas e quero usar a minha chave de API
+          </button>
+        </>
       )}
 
-      <form
-        className="grid gap-2 sm:grid-cols-[1fr_120px_140px]"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate();
-        }}
-      >
-        {mode === 'pix' && (
-          <div className="grid gap-2 sm:col-span-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <span className="text-[13px] font-medium">Tipo da chave</span>
-              <SegmentedControl
-                size="sm"
-                className="self-start"
-                value={pix.keyType}
-                onValueChange={(v: string) => setPix({ keyType: v as PixKeyType })}
-                options={PIX_KEY_TYPES}
+      {!(mode === 'online' && data && !data.connected && data.canCreateAccount && !useOwnKey) && (
+        <form
+          className="grid gap-2 sm:grid-cols-[1fr_120px_140px]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate();
+          }}
+        >
+          {mode === 'pix' && (
+            <div className="grid gap-2 sm:col-span-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <span className="text-[13px] font-medium">Tipo da chave</span>
+                <SegmentedControl
+                  size="sm"
+                  className="self-start"
+                  value={pix.keyType}
+                  onValueChange={(v: string) => setPix({ keyType: v as PixKeyType })}
+                  options={PIX_KEY_TYPES}
+                />
+              </div>
+              <Input
+                placeholder="Sua chave PIX"
+                value={pix.key}
+                onChange={(e) => setPix({ key: e.target.value })}
+                aria-label="Chave PIX"
+              />
+              <Input
+                placeholder="Nome de quem recebe (como no banco)"
+                value={pix.name}
+                onChange={(e) => setPix({ name: e.target.value })}
+                aria-label="Nome do recebedor"
+              />
+              <Input
+                placeholder="Cidade"
+                value={pix.city}
+                onChange={(e) => setPix({ city: e.target.value })}
+                aria-label="Cidade"
               />
             </div>
-            <Input
-              placeholder="Sua chave PIX"
-              value={pix.key}
-              onChange={(e) => setPix({ key: e.target.value })}
-              aria-label="Chave PIX"
-            />
-            <Input
-              placeholder="Nome de quem recebe (como no banco)"
-              value={pix.name}
-              onChange={(e) => setPix({ name: e.target.value })}
-              aria-label="Nome do recebedor"
-            />
-            <Input
-              placeholder="Cidade"
-              value={pix.city}
-              onChange={(e) => setPix({ city: e.target.value })}
-              aria-label="Cidade"
-            />
-          </div>
-        )}
-        {mode !== 'onsite' && (
-          <>
-            {mode === 'pix' ? null : data?.managed ? (
-              <p className="text-label-secondary self-center text-[13px]">
-                Conta Asaas criada pelo Atendafy (
-                {data.environment === 'sandbox' ? 'sandbox' : 'produção'}).
-              </p>
-            ) : (
-              <Input
-                type="password"
-                autoComplete="off"
-                placeholder={
-                  data?.connected
-                    ? `Chave salva (${data.environment === 'sandbox' ? 'sandbox' : 'produção'}) — deixe vazio para manter`
-                    : 'Chave de API da sua conta Asaas ($aact_...)'
-                }
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                aria-label="Chave de API da Asaas"
-              />
-            )}
-            <label
-              className={cn(
-                'flex items-center gap-2 text-[13px]',
-                mode === 'pix' && 'max-w-[160px]',
+          )}
+          {mode !== 'onsite' && (
+            <>
+              {mode === 'pix' ? null : data?.managed ? (
+                <p className="text-label-secondary self-center text-[13px]">
+                  Conta Asaas criada pelo Atendafy (
+                  {data.environment === 'sandbox' ? 'sandbox' : 'produção'}).
+                </p>
+              ) : (
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  placeholder={
+                    data?.connected
+                      ? `Chave salva (${data.environment === 'sandbox' ? 'sandbox' : 'produção'}) — deixe vazio para manter`
+                      : 'Chave de API da sua conta Asaas ($aact_...)'
+                  }
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  aria-label="Chave de API da Asaas"
+                />
               )}
-            >
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={percentValue}
-                onChange={(e) => setPercent(e.target.value)}
-                aria-label="Percentual cobrado"
-              />
-              %
-            </label>
-            {mode === 'online' && (
-              <label className="flex items-center gap-2 text-[13px]">
+              <label
+                className={cn(
+                  'flex items-center gap-2 text-[13px]',
+                  mode === 'pix' && 'max-w-[160px]',
+                )}
+              >
                 <Input
                   type="number"
-                  min={10}
-                  max={1440}
-                  value={holdValue}
-                  onChange={(e) => setHold(e.target.value)}
-                  aria-label="Prazo para pagar"
+                  min={1}
+                  max={100}
+                  value={percentValue}
+                  onChange={(e) => setPercent(e.target.value)}
+                  aria-label="Percentual cobrado"
                 />
-                min
+                %
               </label>
-            )}
-            <div className="flex flex-wrap items-center gap-2 sm:col-span-3">
-              <span className="text-[13px] font-medium">Cobrar:</span>
-              {[30, 50, 100].map((p) => (
-                <Button
-                  key={p}
-                  type="button"
-                  size="sm"
-                  variant={Number(percentValue) === p ? 'default' : 'outline'}
-                  onClick={() => setPercent(String(p))}
-                >
-                  {p === 100 ? 'Valor total' : `${p}%`}
-                </Button>
-              ))}
               {mode === 'online' && (
-                <span className="text-label-secondary text-[12px]">
-                  O prazo (em minutos) é quanto o horário fica reservado esperando o PIX.
-                </span>
+                <label className="flex items-center gap-2 text-[13px]">
+                  <Input
+                    type="number"
+                    min={10}
+                    max={1440}
+                    value={holdValue}
+                    onChange={(e) => setHold(e.target.value)}
+                    aria-label="Prazo para pagar"
+                  />
+                  min
+                </label>
               )}
-            </div>
-            <div className="flex flex-col gap-1.5 sm:col-span-3">
-              <span className="text-[13px] font-medium">No link de agendamento</span>
-              <SegmentedControl
-                size="sm"
-                className="self-start"
-                value={requiredValue}
-                onValueChange={(v: string) => setRequiredPick(v as 'required' | 'optional')}
-                options={[
-                  { value: 'required', label: 'Pagamento obrigatório' },
-                  { value: 'optional', label: 'Cliente escolhe pagar agora' },
-                ]}
-              />
-              <span className="text-label-secondary text-[12px]">
-                {requiredValue === 'required'
-                  ? mode === 'pix'
-                    ? 'Todo mundo que marca pelo link recebe o PIX para pagar; o horário é confirmado quando você confirmar o pagamento.'
-                    : 'Todo mundo que marca pelo link paga para confirmar o horário. Não pago no prazo, o horário é liberado.'
-                  : 'O cliente escolhe entre pagar agora por PIX ou pagar no atendimento. Sem pagar agora, o horário fica reservado normalmente.'}
-              </span>
-            </div>
-          </>
-        )}
-        <div className="flex flex-wrap items-center gap-2 sm:col-span-3">
-          <Button type="submit" variant="outline" disabled={save.isPending}>
-            {save.isPending ? 'Salvando...' : 'Salvar'}
-          </Button>
-          {mode === 'online' && data?.connected && !data.managed && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-destructive"
-              onClick={() => remove.mutate()}
-            >
-              Desconectar Asaas
-            </Button>
+              <div className="flex flex-wrap items-center gap-2 sm:col-span-3">
+                <span className="text-[13px] font-medium">Cobrar:</span>
+                {[30, 50, 100].map((p) => (
+                  <Button
+                    key={p}
+                    type="button"
+                    size="sm"
+                    variant={Number(percentValue) === p ? 'default' : 'outline'}
+                    onClick={() => setPercent(String(p))}
+                  >
+                    {p === 100 ? 'Valor total' : `${p}%`}
+                  </Button>
+                ))}
+                {mode === 'online' && (
+                  <span className="text-label-secondary text-[12px]">
+                    O prazo (em minutos) é quanto o horário fica reservado esperando o PIX.
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-3">
+                <span className="text-[13px] font-medium">No link de agendamento</span>
+                <SegmentedControl
+                  size="sm"
+                  className="self-start"
+                  value={requiredValue}
+                  onValueChange={(v: string) => setRequiredPick(v as 'required' | 'optional')}
+                  options={[
+                    { value: 'required', label: 'Pagamento obrigatório' },
+                    { value: 'optional', label: 'Cliente escolhe pagar agora' },
+                  ]}
+                />
+                <span className="text-label-secondary text-[12px]">
+                  {requiredValue === 'required'
+                    ? mode === 'pix'
+                      ? 'Todo mundo que marca pelo link recebe o PIX para pagar; o horário é confirmado quando você confirmar o pagamento.'
+                      : 'Todo mundo que marca pelo link paga para confirmar o horário. Não pago no prazo, o horário é liberado.'
+                    : 'O cliente escolhe entre pagar agora por PIX ou pagar no atendimento. Sem pagar agora, o horário fica reservado normalmente.'}
+                </span>
+              </div>
+            </>
           )}
-          <span className="text-label-secondary text-[12px]">
-            {mode === 'online'
-              ? 'A chave fica cifrada e é conferida com a Asaas antes de salvar. O valor pago é descontado na hora de cobrar o atendimento.'
-              : mode === 'pix'
-                ? 'O valor pago é descontado na hora de cobrar o atendimento.'
-                : 'Você pode ligar o pagamento por PIX depois, sem perder nada.'}
-          </span>
-        </div>
-      </form>
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-3">
+            <Button type="submit" variant="outline" disabled={save.isPending}>
+              {save.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+            {mode === 'online' && data?.connected && !data.managed && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive"
+                onClick={() => remove.mutate()}
+              >
+                Desconectar Asaas
+              </Button>
+            )}
+            <span className="text-label-secondary text-[12px]">
+              {mode === 'online'
+                ? 'A chave fica cifrada e é conferida com a Asaas antes de salvar. O valor pago é descontado na hora de cobrar o atendimento.'
+                : mode === 'pix'
+                  ? 'O valor pago é descontado na hora de cobrar o atendimento.'
+                  : 'Você pode ligar o pagamento por PIX depois, sem perder nada.'}
+            </span>
+          </div>
+        </form>
+      )}
     </section>
   );
 }
