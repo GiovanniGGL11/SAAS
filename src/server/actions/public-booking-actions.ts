@@ -148,7 +148,7 @@ export async function createPublicBookingAction(input: unknown) {
     const configured = await getDepositConfig(company.id);
     // Obrigatório: sempre cobra. Opcional: só se o cliente escolheu pagar agora.
     const depositConfig = chargesDeposit(configured, parsed.payNow) ? configured : null;
-    if (depositConfig && parsed.cpf?.length !== 11) {
+    if (depositConfig?.method === 'asaas' && parsed.cpf?.length !== 11) {
       throw new UserError('Informe seu CPF (11 dígitos) para gerar o PIX.');
     }
 
@@ -176,7 +176,7 @@ export async function createPublicBookingAction(input: unknown) {
           clientId: appointment.clientId,
           name: parsed.name,
           phone: parsed.phone,
-          cpf: parsed.cpf!,
+          cpf: parsed.cpf,
           config: depositConfig,
         });
       } catch (error) {

@@ -29,6 +29,7 @@ import { formatTimeInTz } from '@/lib/time';
 import { formatPhone, whatsappLink } from '@/lib/phone';
 import { getConfirmationLinkAction } from '@/server/actions/public-booking-actions';
 import { getReviewLinkAction } from '@/server/actions/relationship-actions';
+import { confirmDepositReceivedAction } from '@/server/actions/deposit-actions';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { AppointmentStatus } from '@/generated/prisma/client';
 
@@ -62,6 +63,17 @@ export function AppointmentCard({
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível atualizar o status.'),
+  });
+
+  // PIX pago (Asaas atrasou ou PIX direto na chave do negócio): a equipe confere no banco e confirma.
+  const depositMutation = useMutation({
+    mutationFn: () =>
+      confirmDepositReceivedAction({ appointmentId: appointment.id }).then(unwrapResult),
+    onSuccess: () => {
+      toast.success('Pagamento confirmado.');
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const [confirmCancel, setConfirmCancel] = React.useState(false);
@@ -196,9 +208,20 @@ export function AppointmentCard({
             />
             {STATUS_LABELS[appointment.status]}
             {appointment.depositStatus === 'PENDING' && (
-              <span className="rounded-full bg-[#ff9500]/15 px-2 py-0.5 text-[11px] font-semibold text-[#b25f00] dark:text-[#ffb340]">
-                Aguardando sinal PIX
-              </span>
+              <>
+                <span className="rounded-full bg-[#ff9500]/15 px-2 py-0.5 text-[11px] font-semibold text-[#b25f00] dark:text-[#ffb340]">
+                  Aguardando PIX
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[11px]"
+                  disabled={depositMutation.isPending}
+                  onClick={() => depositMutation.mutate()}
+                >
+                  Confirmar PIX recebido
+                </Button>
+              </>
             )}
             {appointment.depositStatus === 'PAID' && appointment.depositAmount !== null && (
               <span className="bg-system-green/15 text-delta-good rounded-full px-2 py-0.5 text-[11px] font-semibold">

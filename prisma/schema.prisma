@@ -57,6 +57,12 @@ model Company {
   // Conta Asaas criada pelo Atendafy (subconta): a chave acima não pode ser recuperada de novo.
   asaasAccountId      String?
   asaasWalletId       String?
+  // Como o pagamento adiantado é recebido: "asaas" (confirma sozinho) ou "pix" (chave do negócio, confirmação manual).
+  depositMethod       String             @default("asaas")
+  pixKey              String?
+  pixKeyType          String?
+  pixName             String?
+  pixCity             String?
   depositPercent      Int                @default(0)
   depositHoldMinutes  Int                @default(30)
   // true: o pagamento adiantado é obrigatório para reservar pelo link; false: o cliente escolhe pagar agora ou no atendimento.

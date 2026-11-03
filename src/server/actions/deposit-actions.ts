@@ -4,9 +4,10 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
 import { prisma } from '@/lib/db';
+import { normalizePixKey, type PixKeyType } from '@/lib/pix';
 import { toActionResult } from '@/server/action-result';
 import { UserError } from '@/server/errors';
-import { requireCompanyAdmin } from '@/server/auth/require-current-company';
+import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { openSecret, sealSecret } from '@/server/secret-box';
 import { AsaasError, asaasBaseUrl, asaasRequest } from '@/server/billing/asaas';
 import {
@@ -14,6 +15,7 @@ import {
   companyAccountStatus,
   createCompanySubaccount,
 } from '@/server/billing/subaccount';
+import { markDepositPaid } from '@/server/billing/deposit';
 
 export async function getDepositSettingsAction() {
   const { company } = await requireCompanyAdmin();
@@ -25,6 +27,11 @@ export async function getDepositSettingsAction() {
       depositPercent: true,
       depositHoldMinutes: true,
       depositRequired: true,
+      depositMethod: true,
+      pixKey: true,
+      pixKeyType: true,
+      pixName: true,
+      pixCity: true,
     },
   });
   let environment: 'sandbox' | 'producao' | null = null;
@@ -48,6 +55,13 @@ export async function getDepositSettingsAction() {
     percent: full.depositPercent,
     holdMinutes: full.depositHoldMinutes,
     required: full.depositRequired,
+    method: full.depositMethod === 'pix' ? ('pix' as const) : ('asaas' as const),
+    pix: {
+      key: full.pixKey ?? '',
+      keyType: (full.pixKeyType as PixKeyType | null) ?? 'CPF',
+      name: full.pixName ?? '',
+      city: full.pixCity ?? '',
+    },
   };
 }
 
@@ -59,9 +73,39 @@ export async function saveDepositSettingsAction(input: unknown) {
         percent: z.number().int().min(0).max(100, 'Até 100%.'),
         holdMinutes: z.number().int().min(10, 'Mínimo de 10 minutos.').max(1440),
         required: z.boolean().optional(),
+        method: z.enum(['asaas', 'pix']).optional(),
+        pix: z
+          .object({
+            key: z.string().trim().max(100),
+            keyType: z.enum(['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'EVP']),
+            name: z.string().trim().min(2, 'Informe o nome de quem recebe.').max(60),
+            city: z.string().trim().min(2, 'Informe a cidade.').max(60),
+          })
+          .optional(),
       })
       .parse(input);
     const { company } = await requireCompanyAdmin();
+    if (parsed.method === 'pix') {
+      if (!parsed.pix) throw new UserError('Informe a chave PIX.');
+      const key = normalizePixKey(parsed.pix.keyType, parsed.pix.key);
+      if (!key) throw new UserError('Chave PIX inválida para o tipo escolhido.');
+      await prisma.company.update({
+        where: { id: company.id },
+        data: {
+          depositMethod: 'pix',
+          depositPercent: parsed.percent,
+          depositHoldMinutes: parsed.holdMinutes,
+          ...(parsed.required !== undefined ? { depositRequired: parsed.required } : {}),
+          pixKey: key,
+          pixKeyType: parsed.pix.keyType,
+          pixName: parsed.pix.name,
+          pixCity: parsed.pix.city,
+        },
+      });
+      revalidatePath('/configuracoes');
+      revalidatePath('/link-do-cliente');
+      return;
+    }
     const current = await prisma.company.findUniqueOrThrow({
       where: { id: company.id },
       select: { asaasApiKey: true, asaasAccountId: true },
@@ -85,6 +129,7 @@ export async function saveDepositSettingsAction(input: unknown) {
     await prisma.company.update({
       where: { id: company.id },
       data: {
+        ...(parsed.method === 'asaas' ? { depositMethod: 'asaas' } : {}),
         depositPercent: parsed.percent,
         depositHoldMinutes: parsed.holdMinutes,
         ...(parsed.required !== undefined ? { depositRequired: parsed.required } : {}),
@@ -173,5 +218,16 @@ export async function createAsaasAccountAction(input: unknown) {
     });
     revalidatePath('/configuracoes');
     revalidatePath('/link-do-cliente');
+  });
+}
+
+/** PIX direto na chave do negócio: alguém da equipe confere no banco e confirma aqui. */
+export async function confirmDepositReceivedAction(input: unknown) {
+  return toActionResult(async () => {
+    const { appointmentId } = z.object({ appointmentId: z.string().min(1) }).parse(input);
+    const { company } = await requireCurrentCompany();
+    const ok = await markDepositPaid(company.id, appointmentId);
+    if (!ok) throw new UserError('Este agendamento não está aguardando pagamento.');
+    revalidatePath('/agenda');
   });
 }

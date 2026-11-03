@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { BanknoteIcon, QrCodeIcon } from 'lucide-react';
+import { BanknoteIcon, KeyRoundIcon, QrCodeIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -11,13 +11,14 @@ import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { AsaasAccountForm } from '@/components/configuracoes/asaas-account-form';
 import { unwrapResult } from '@/lib/action-result';
+import { PIX_KEY_TYPES, type PixKeyType } from '@/lib/pix';
 import {
   getDepositSettingsAction,
   removeDepositKeyAction,
   saveDepositSettingsAction,
 } from '@/server/actions/deposit-actions';
 
-type Mode = 'onsite' | 'online';
+type Mode = 'onsite' | 'pix' | 'online';
 
 const ACCOUNT_STATUS: Record<string, string> = {
   PENDING:
@@ -40,17 +41,25 @@ const MODES: {
     text: 'O cliente agenda pelo link sem pagar nada agora e paga no atendimento. O horário fica reservado normalmente.',
   },
   {
+    value: 'pix',
+    icon: KeyRoundIcon,
+    title: 'PIX direto na sua chave',
+    text: 'O cliente paga por PIX ao marcar, direto no seu banco. Você confere o pagamento e confirma na agenda.',
+    note: 'Sem taxa e sem cadastro em outra plataforma.',
+  },
+  {
     value: 'online',
     icon: QrCodeIcon,
-    title: 'Receber pelo sistema (PIX pela Asaas)',
+    title: 'PIX automático (Asaas)',
     text: 'O cliente paga por PIX ao marcar — uma parte (sinal) ou o valor todo. Cai na sua conta Asaas e reduz faltas.',
     note: 'A Asaas é uma plataforma à parte, com conta sua. Ela cobra R$ 1,99 por PIX recebido.',
   },
 ];
 
 /**
- * Como o negócio recebe de quem marca pelo link: na hora (no atendimento) ou pelo sistema, com PIX
- * na conta Asaas do próprio negócio (sinal ou valor total; obrigatório ou escolha do cliente).
+ * Como o negócio recebe de quem marca pelo link: na hora (no atendimento), por PIX direto na chave
+ * do negócio (ele confirma) ou por PIX na conta Asaas do negócio (confirma sozinho). Nos dois PIX:
+ * sinal ou valor total; obrigatório ou escolha do cliente.
  */
 export function DepositCard() {
   const queryClient = useQueryClient();
@@ -63,7 +72,16 @@ export function DepositCard() {
   const [percent, setPercent] = React.useState<string | null>(null);
   const [hold, setHold] = React.useState<string | null>(null);
   const [requiredPick, setRequiredPick] = React.useState<'required' | 'optional' | null>(null);
-  const savedMode: Mode = data && data.percent > 0 ? 'online' : 'onsite';
+  const [pixPick, setPixPick] = React.useState<{
+    key: string;
+    keyType: PixKeyType;
+    name: string;
+    city: string;
+  } | null>(null);
+  const pix = pixPick ?? data?.pix ?? { key: '', keyType: 'CPF' as PixKeyType, name: '', city: '' };
+  const setPix = (patch: Partial<typeof pix>) => setPixPick({ ...pix, ...patch });
+  const savedMode: Mode =
+    data && data.percent > 0 ? (data.method === 'pix' ? 'pix' : 'online') : 'onsite';
   const mode = modePick ?? savedMode;
   const requiredValue = requiredPick ?? (data?.required === false ? 'optional' : 'required');
   const percentValue = percent ?? String(data?.percent ?? 0);
@@ -72,27 +90,30 @@ export function DepositCard() {
 
   const save = useMutation({
     mutationFn: () => {
-      const online = mode === 'online';
-      const pct = online ? Number(percentValue) || 0 : 0;
-      if (online && pct <= 0) {
+      const charging = mode !== 'onsite';
+      const pct = charging ? Number(percentValue) || 0 : 0;
+      if (charging && pct <= 0) {
         throw new Error('Escolha quanto cobrar: 30%, 50% ou valor total.');
       }
       return saveDepositSettingsAction({
-        apiKey: online ? apiKey || undefined : undefined,
+        apiKey: mode === 'online' ? apiKey || undefined : undefined,
         percent: pct,
         holdMinutes: Number(holdValue) || 30,
-        ...(online ? { required: requiredValue === 'required' } : {}),
+        ...(charging ? { required: requiredValue === 'required' } : {}),
+        ...(mode === 'pix' ? { method: 'pix', pix } : {}),
+        ...(mode === 'online' ? { method: 'asaas' } : {}),
       }).then(unwrapResult);
     },
     onSuccess: () => {
       toast.success(
-        mode === 'online'
-          ? 'Pagamento pelo sistema ligado no link de agendamento.'
+        mode !== 'onsite'
+          ? 'Pagamento por PIX ligado no link de agendamento.'
           : 'Pronto: o cliente agenda sem pagar agora e paga na hora do atendimento.',
       );
       setApiKey('');
       setModePick(null);
       setPercent(null);
+      setPixPick(null);
       refresh();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -112,12 +133,12 @@ export function DepositCard() {
       <div>
         <h2 className="text-[17px] font-semibold">Como você recebe de quem agenda pelo link</h2>
         <p className="text-label-secondary text-[13px]">
-          Escolha uma das duas formas. Dá para mudar a qualquer momento: quem já marcou não é
+          Escolha uma das três formas. Dá para mudar a qualquer momento: quem já marcou não é
           afetado.
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Forma de receber">
+      <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Forma de receber">
         {MODES.map((m) => {
           const active = mode === m.value;
           return (
@@ -154,6 +175,43 @@ export function DepositCard() {
           );
         })}
       </div>
+
+      {mode === 'pix' && (
+        <p className="bg-foreground/[0.04] rounded-xl px-4 py-3 text-[13px] leading-snug">
+          <span className="font-semibold">Como funciona:</span> o Atendafy mostra ao cliente o QR
+          code e o copia e cola com o valor certo, e o dinheiro cai direto na sua chave, sem taxa.
+          Como só o seu banco sabe que o PIX chegou,{' '}
+          <span className="font-semibold">
+            o agendamento fica &quot;Aguardando PIX&quot; até você confirmar na agenda
+          </span>{' '}
+          (o cliente pode mandar o comprovante pelo seu WhatsApp). O horário não é liberado sozinho.
+        </p>
+      )}
+
+      {mode === 'pix' && data && (
+        <p
+          className={`rounded-xl px-4 py-3 text-[13px] ${
+            savedMode === 'pix'
+              ? 'bg-system-green/10'
+              : 'bg-[#ff9f0a]/12 text-[#8a4b00] dark:text-[#ffb340]'
+          }`}
+        >
+          {savedMode === 'pix' ? (
+            <>
+              <span className="font-semibold">Ligado no link de agendamento:</span> cobra{' '}
+              {data.percent === 100 ? 'o valor total' : `${data.percent}%`} na chave {data.pix.key};{' '}
+              {data.required
+                ? 'o pagamento é obrigatório para reservar.'
+                : 'o cliente escolhe pagar agora por PIX ou no atendimento.'}
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">Ainda não aparece para o cliente:</span> informe a
+              chave PIX, quanto cobrar e salve.
+            </>
+          )}
+        </p>
+      )}
 
       {mode === 'online' && (
         <p className="bg-foreground/[0.04] rounded-xl px-4 py-3 text-[13px] leading-snug">
@@ -219,9 +277,41 @@ export function DepositCard() {
           save.mutate();
         }}
       >
-        {mode === 'online' && (
+        {mode === 'pix' && (
+          <div className="grid gap-2 sm:col-span-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <span className="text-[13px] font-medium">Tipo da chave</span>
+              <SegmentedControl
+                size="sm"
+                className="self-start"
+                value={pix.keyType}
+                onValueChange={(v: string) => setPix({ keyType: v as PixKeyType })}
+                options={PIX_KEY_TYPES}
+              />
+            </div>
+            <Input
+              placeholder="Sua chave PIX"
+              value={pix.key}
+              onChange={(e) => setPix({ key: e.target.value })}
+              aria-label="Chave PIX"
+            />
+            <Input
+              placeholder="Nome de quem recebe (como no banco)"
+              value={pix.name}
+              onChange={(e) => setPix({ name: e.target.value })}
+              aria-label="Nome do recebedor"
+            />
+            <Input
+              placeholder="Cidade"
+              value={pix.city}
+              onChange={(e) => setPix({ city: e.target.value })}
+              aria-label="Cidade"
+            />
+          </div>
+        )}
+        {mode !== 'onsite' && (
           <>
-            {data?.managed ? (
+            {mode === 'pix' ? null : data?.managed ? (
               <p className="text-label-secondary self-center text-[13px]">
                 Conta Asaas criada pelo Atendafy (
                 {data.environment === 'sandbox' ? 'sandbox' : 'produção'}).
@@ -240,7 +330,12 @@ export function DepositCard() {
                 aria-label="Chave de API da Asaas"
               />
             )}
-            <label className="flex items-center gap-2 text-[13px]">
+            <label
+              className={cn(
+                'flex items-center gap-2 text-[13px]',
+                mode === 'pix' && 'max-w-[160px]',
+              )}
+            >
               <Input
                 type="number"
                 min={1}
@@ -251,17 +346,19 @@ export function DepositCard() {
               />
               %
             </label>
-            <label className="flex items-center gap-2 text-[13px]">
-              <Input
-                type="number"
-                min={10}
-                max={1440}
-                value={holdValue}
-                onChange={(e) => setHold(e.target.value)}
-                aria-label="Prazo para pagar"
-              />
-              min
-            </label>
+            {mode === 'online' && (
+              <label className="flex items-center gap-2 text-[13px]">
+                <Input
+                  type="number"
+                  min={10}
+                  max={1440}
+                  value={holdValue}
+                  onChange={(e) => setHold(e.target.value)}
+                  aria-label="Prazo para pagar"
+                />
+                min
+              </label>
+            )}
             <div className="flex flex-wrap items-center gap-2 sm:col-span-3">
               <span className="text-[13px] font-medium">Cobrar:</span>
               {[30, 50, 100].map((p) => (
@@ -275,9 +372,11 @@ export function DepositCard() {
                   {p === 100 ? 'Valor total' : `${p}%`}
                 </Button>
               ))}
-              <span className="text-label-secondary text-[12px]">
-                O prazo (em minutos) é quanto o horário fica reservado esperando o PIX.
-              </span>
+              {mode === 'online' && (
+                <span className="text-label-secondary text-[12px]">
+                  O prazo (em minutos) é quanto o horário fica reservado esperando o PIX.
+                </span>
+              )}
             </div>
             <div className="flex flex-col gap-1.5 sm:col-span-3">
               <span className="text-[13px] font-medium">No link de agendamento</span>
@@ -293,7 +392,9 @@ export function DepositCard() {
               />
               <span className="text-label-secondary text-[12px]">
                 {requiredValue === 'required'
-                  ? 'Todo mundo que marca pelo link paga para confirmar o horário. Não pago no prazo, o horário é liberado.'
+                  ? mode === 'pix'
+                    ? 'Todo mundo que marca pelo link recebe o PIX para pagar; o horário é confirmado quando você confirmar o pagamento.'
+                    : 'Todo mundo que marca pelo link paga para confirmar o horário. Não pago no prazo, o horário é liberado.'
                   : 'O cliente escolhe entre pagar agora por PIX ou pagar no atendimento. Sem pagar agora, o horário fica reservado normalmente.'}
               </span>
             </div>
@@ -316,7 +417,9 @@ export function DepositCard() {
           <span className="text-label-secondary text-[12px]">
             {mode === 'online'
               ? 'A chave fica cifrada e é conferida com a Asaas antes de salvar. O valor pago é descontado na hora de cobrar o atendimento.'
-              : 'Você pode ligar o pagamento pelo sistema depois, sem perder nada.'}
+              : mode === 'pix'
+                ? 'O valor pago é descontado na hora de cobrar o atendimento.'
+                : 'Você pode ligar o pagamento por PIX depois, sem perder nada.'}
           </span>
         </div>
       </form>

@@ -94,9 +94,16 @@ export default async function AgendarPage({ params }: { params: Promise<{ slug: 
             address,
             mapUrl,
             cancellationPolicy: company.cancellationPolicy,
-            // Sinal por PIX: só quando o salão ligou e conectou a conta Asaas.
-            depositPercent: company.asaasApiKey ? company.depositPercent : 0,
+            // Pagamento adiantado: só com a conta Asaas conectada ou a chave PIX cadastrada.
+            depositPercent: (company.depositMethod === 'pix' ? company.pixKey : company.asaasApiKey)
+              ? company.depositPercent
+              : 0,
             depositRequired: company.depositRequired,
+            depositManual: company.depositMethod === 'pix',
+            whatsappUrl: whatsappLink(
+              company.whatsapp,
+              'Olá! Segue o comprovante do PIX do meu agendamento.',
+            ),
           }}
           services={catalog.services}
           professionals={catalog.professionals}

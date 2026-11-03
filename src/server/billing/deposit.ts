@@ -6,7 +6,10 @@ import { recordAuditLog } from '@/server/data/audit';
 import { cancelAppointment } from '@/server/data/appointments';
 import { scheduleConfirmation } from '@/server/whatsapp/automation';
 import { formatTimeInTz, utcToCalendarDate } from '@/lib/time';
+import QRCode from 'qrcode';
+
 import { depositAmountFor } from '@/lib/deposit';
+import { buildPixPayload } from '@/lib/pix';
 import {
   AsaasError,
   PAID_STATUSES,
@@ -20,6 +23,10 @@ import {
   Sinal por PIX no agendamento online, recebido na conta Asaas do próprio salão. O horário fica
   reservado por alguns minutos; pago, o agendamento confirma e o sinal entra no financeiro (e é
   descontado na comanda). Não pago no prazo, o horário volta a ficar livre.
+
+  Com a chave PIX do próprio negócio (depositMethod "pix") não há Asaas: o código PIX é gerado
+  aqui, o dinheiro cai direto no banco dele e quem confirma é o negócio (agenda). Como ninguém
+  além dele sabe se caiu, o horário não expira sozinho.
 */
 
 export { depositAmountFor };
@@ -27,7 +34,11 @@ export { depositAmountFor };
 export type DepositConfig = {
   percent: number;
   holdMinutes: number;
-  apiKey: string;
+  method: 'asaas' | 'pix';
+  /** Só no método "asaas". */
+  apiKey: string | null;
+  /** Só no método "pix". */
+  pix: { key: string; name: string; city: string } | null;
   /** false: o cliente escolhe pagar agora (PIX) ou no atendimento. */
   required: boolean;
 };
@@ -44,20 +55,39 @@ export async function getDepositConfig(companyId: string): Promise<DepositConfig
   const company = await prisma.company.findUnique({
     where: { id: companyId },
     select: {
+      name: true,
       asaasApiKey: true,
       depositPercent: true,
       depositHoldMinutes: true,
       depositRequired: true,
+      depositMethod: true,
+      pixKey: true,
+      pixName: true,
+      pixCity: true,
     },
   });
-  if (!company?.asaasApiKey || company.depositPercent <= 0) return null;
-  try {
+  if (!company || company.depositPercent <= 0) return null;
+  const base = {
+    percent: company.depositPercent,
+    holdMinutes: company.depositHoldMinutes,
+    required: company.depositRequired,
+  };
+  if (company.depositMethod === 'pix') {
+    if (!company.pixKey) return null;
     return {
-      percent: company.depositPercent,
-      holdMinutes: company.depositHoldMinutes,
-      apiKey: openSecret(company.asaasApiKey),
-      required: company.depositRequired,
+      ...base,
+      method: 'pix',
+      apiKey: null,
+      pix: {
+        key: company.pixKey,
+        name: company.pixName || company.name,
+        city: company.pixCity || '',
+      },
     };
+  }
+  if (!company.asaasApiKey) return null;
+  try {
+    return { ...base, method: 'asaas', apiKey: openSecret(company.asaasApiKey), pix: null };
   } catch {
     return null;
   }
@@ -67,7 +97,8 @@ export type DepositCharge = {
   amount: number;
   qrImage: string;
   copyPaste: string;
-  expiresAt: string;
+  /** null: PIX direto na chave do negócio, sem prazo; ele confirma quando o dinheiro cair. */
+  expiresAt: string | null;
 };
 
 /** Gera o PIX do sinal para um agendamento recém-criado e guarda o prazo para pagar. */
@@ -78,7 +109,8 @@ export async function createDeposit(params: {
   clientId: string;
   name: string;
   phone: string;
-  cpf: string;
+  /** Só no método "asaas" (a Asaas exige CPF do pagador). */
+  cpf?: string;
   config: DepositConfig;
 }): Promise<DepositCharge | null> {
   const appointment = await prisma.appointment.findFirstOrThrow({
@@ -88,20 +120,45 @@ export async function createDeposit(params: {
   if (amount === null) return null;
   const day = utcToCalendarDate(new Date(), params.timezone);
   const startLabel = `${new Intl.DateTimeFormat('pt-BR', { timeZone: params.timezone, day: '2-digit', month: '2-digit' }).format(appointment.startAt)} às ${formatTimeInTz(appointment.startAt, params.timezone)}`;
-  const customer = await createCustomer(params.config.apiKey, {
+  if (params.config.method === 'pix' && params.config.pix) {
+    const copyPaste = buildPixPayload({ ...params.config.pix, amount, txid: appointment.id });
+    const dataUrl = await QRCode.toDataURL(copyPaste, { width: 400, margin: 1 });
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: {
+        depositAmount: amount,
+        depositStatus: 'PENDING',
+        depositExpiresAt: null,
+        notes: [
+          appointment.notes,
+          `Aguardando PIX de R$ ${amount.toFixed(2).replace('.', ',')} na sua chave (confira no banco)`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      },
+    });
+    return {
+      amount,
+      qrImage: dataUrl.replace(/^data:image\/png;base64,/, ''),
+      copyPaste,
+      expiresAt: null,
+    };
+  }
+  const apiKey = params.config.apiKey!;
+  const customer = await createCustomer(apiKey, {
     name: params.name.trim(),
-    cpfCnpj: params.cpf.replace(/\D/g, ''),
+    cpfCnpj: (params.cpf ?? '').replace(/\D/g, ''),
     mobilePhone: params.phone.replace(/\D/g, ''),
     externalReference: params.clientId,
   });
-  const payment = await createPixPayment(params.config.apiKey, {
+  const payment = await createPixPayment(apiKey, {
     customer: customer.id,
     value: amount,
     dueDate: `${day.year}-${String(day.month).padStart(2, '0')}-${String(day.day).padStart(2, '0')}`,
     description: `Sinal — ${appointment.serviceNameSnapshot} em ${startLabel}`,
     externalReference: appointment.id,
   });
-  const qr = await getPixQrCode(params.config.apiKey, payment.id);
+  const qr = await getPixQrCode(apiKey, payment.id);
   const expiresAt = new Date(Date.now() + params.config.holdMinutes * 60_000);
   await prisma.appointment.update({
     where: { id: appointment.id },
@@ -137,7 +194,13 @@ export async function markDepositPaid(companyId: string, appointmentId: string):
       data: {
         depositStatus: 'PAID',
         ...(appointment.status === 'SCHEDULED' ? { status: 'CONFIRMED' as const } : {}),
-        notes: (appointment.notes ?? '').replace(/Aguardando sinal PIX/, 'Sinal PIX pago') || null,
+        notes:
+          (appointment.notes ?? '')
+            .replace(/Aguardando sinal PIX/, 'Sinal PIX pago')
+            .replace(
+              /Aguardando PIX de (R\$ [\d.,]+) na sua chave \(confira no banco\)/,
+              'PIX de $1 recebido',
+            ) || null,
       },
     });
     if (marked.count === 0) return false;
@@ -192,10 +255,12 @@ export async function refreshDeposit(
     where: { id: appointmentId, companyId },
     select: { depositStatus: true, depositPaymentId: true },
   });
-  if (!appointment?.depositPaymentId) return null;
+  if (!appointment) return null;
+  // PIX direto na chave (sem cobrança na Asaas): só muda quando o negócio confirma.
+  if (!appointment.depositPaymentId) return appointment.depositStatus;
   if (appointment.depositStatus !== 'PENDING') return appointment.depositStatus;
   const cfg = config ?? (await getDepositConfig(companyId));
-  if (!cfg) return appointment.depositStatus;
+  if (!cfg?.apiKey) return appointment.depositStatus;
   try {
     const payment = await getPayment(cfg.apiKey, appointment.depositPaymentId);
     if (PAID_STATUSES.has(payment.status)) {
