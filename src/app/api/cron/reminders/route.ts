@@ -6,6 +6,7 @@ import { sendEmailReminders } from '@/server/data/reminders';
 import { isEmailConfigured, sendEmail } from '@/server/email';
 import { runDailyWhatsapp } from '@/server/whatsapp/automation';
 import { releaseExpiredDeposits } from '@/server/billing/deposit';
+import { sendBillingNotices } from '@/server/billing/notices';
 import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ function authorized(request: Request): boolean {
 }
 
 /**
- * Lembretes da véspera (e-mail e WhatsApp automático) e parabéns de aniversário. A Vercel chama esta rota todo dia (vercel.json) mandando
+ * Lembretes da véspera (e-mail e WhatsApp automático), parabéns de aniversário e avisos de cobrança. A Vercel chama esta rota todo dia (vercel.json) mandando
  * `Authorization: Bearer $CRON_SECRET`; sem o segredo configurado a rota fica fechada.
  */
 export async function GET(request: Request) {
@@ -45,5 +46,9 @@ export async function GET(request: Request) {
   const email = isEmailConfigured()
     ? await sendEmailReminders(sendEmail, baseUrl)
     : { skipped: 'RESEND_API_KEY / RESEND_FROM não configurados.' };
-  return NextResponse.json({ email, whatsapp, depositsReleased });
+  // Fim do teste e pagamento atrasado (só com a cobrança e o e-mail configurados).
+  const billing = isEmailConfigured()
+    ? await sendBillingNotices(sendEmail, baseUrl)
+    : { skipped: 'E-mail não configurado.' };
+  return NextResponse.json({ email, whatsapp, depositsReleased, billing });
 }
