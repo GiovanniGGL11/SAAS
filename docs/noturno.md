@@ -36,6 +36,7 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-07: todos os itens concluídos e o branch já estava igual ao master (PR anterior incorporado). Execução só de manutenção: tsc e eslint limpos (só avisos antigos), `tests/csv.test.ts` passa; 15 arquivos vindos do master formatados com Prettier.
 - Sino/assistente: a largura em 375px foi conferida só pelo código (sem Clerk aqui não dá para abrir o painel); o topo agora tem busca, assistente, sino, tema e usuário — vale olhar num celular de verdade.
 - Assistente: criar/editar cliente pelas telas normais não grava AuditLog (só pelo assistente). Avaliar se vale padronizar.
 
