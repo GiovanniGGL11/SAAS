@@ -96,6 +96,9 @@ export function resolveEntitlements(
     subscriptionStatus: SubscriptionStatusValue;
     trialEndsAt: Date | null;
     currentPeriodEnd: Date | null;
+    /** Cortesia do dono do Atendafy: vale como assinatura do plano dado até a data. */
+    courtesyUntil?: Date | null;
+    courtesyPlan?: string | null;
   },
   options: { now?: Date; production?: boolean } = {},
 ): Entitlements {
@@ -105,12 +108,19 @@ export function resolveEntitlements(
   const inTrial = trialEnd.getTime() > now.getTime() && company.subscriptionStatus === 'TRIAL';
   const chosen = getPlan(company.plan);
   const periodEnd = company.currentPeriodEnd?.getTime() ?? 0;
+  const courtesyPlan =
+    company.courtesyUntil && company.courtesyUntil.getTime() > now.getTime()
+      ? getPlan(company.courtesyPlan)
+      : undefined;
 
   let source: AccessSource = 'none';
   let plan: Plan | undefined;
   if (company.subscriptionStatus === 'ACTIVE' && chosen) {
     source = 'subscription';
     plan = chosen;
+  } else if (courtesyPlan) {
+    source = 'subscription';
+    plan = courtesyPlan;
   } else if (inTrial) {
     source = 'trial';
     plan = chosen ?? getPlan(TRIAL_GRANT.basePlan);

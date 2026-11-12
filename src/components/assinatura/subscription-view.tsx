@@ -109,7 +109,20 @@ export function SubscriptionView({ state, companyName }: { state: State; company
         description="Seu plano do Atendafy, pagamento e período de teste."
       />
 
-      {state.trialPending && <TrialClaimCard />}
+      {state.trialPending && !state.courtesyUntil && <TrialClaimCard />}
+
+      {state.courtesyUntil && state.status !== 'ACTIVE' && (
+        <section className="bg-system-indigo/[0.07] ring-system-indigo/20 rounded-[22px] p-5 ring-1">
+          <div className="text-[17px] font-semibold">Acesso cortesia</div>
+          <p className="text-label-secondary text-[13px]">
+            O Atendafy liberou o seu acesso sem cobrança{' '}
+            {new Date(state.courtesyUntil).getUTCFullYear() >= 2099
+              ? 'por tempo indeterminado'
+              : `até ${date.format(new Date(state.courtesyUntil))}`}
+            . Você pode assinar quando quiser.
+          </p>
+        </section>
+      )}
 
       <section className="bg-tile flex flex-wrap items-center justify-between gap-4 rounded-[22px] p-5">
         <div>

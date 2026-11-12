@@ -50,6 +50,10 @@ model Company {
   trialEndsAt         DateTime?
   /// Conta nova: o 1º mês grátis só vale depois de conferir os dados (um teste por pessoa).
   trialPending        Boolean            @default(false)
+  /// Cortesia dada pelo dono do Atendafy (painel /plataforma): acesso ao plano sem pagar até a data.
+  courtesyUntil       DateTime?
+  courtesyPlan        String?
+  courtesyNote        String?
   plan                String?
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?

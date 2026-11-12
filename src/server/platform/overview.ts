@@ -22,10 +22,11 @@ export function isPlatformAdmin(userId: string | null | undefined): boolean {
 }
 
 export type CompanySituation =
-  'paying' | 'past_due' | 'canceled' | 'trial' | 'trial_pending' | 'trial_ended';
+  'paying' | 'courtesy' | 'past_due' | 'canceled' | 'trial' | 'trial_pending' | 'trial_ended';
 
 export const SITUATION_LABEL: Record<CompanySituation, string> = {
   paying: 'Pagando',
+  courtesy: 'Cortesia',
   past_due: 'Pagamento atrasado',
   canceled: 'Cancelada',
   trial: 'Em teste',
@@ -43,10 +44,12 @@ type CompanyRow = Pick<
   | 'trialEndsAt'
   | 'trialPending'
   | 'currentPeriodEnd'
->;
+> &
+  Partial<Pick<Company, 'courtesyUntil'>>;
 
 export function situationOf(company: CompanyRow, now: Date): CompanySituation {
   if (company.subscriptionStatus === 'ACTIVE') return 'paying';
+  if (company.courtesyUntil && company.courtesyUntil.getTime() > now.getTime()) return 'courtesy';
   if (company.subscriptionStatus === 'PAST_DUE') return 'past_due';
   if (company.subscriptionStatus === 'CANCELED') return 'canceled';
   if (company.trialPending) return 'trial_pending';
@@ -65,7 +68,7 @@ export function summarizeCompanies(companies: CompanyRow[], now: Date) {
   for (const company of companies) {
     const situation = situationOf(company, now);
     counts[situation] += 1;
-    // Receita recorrente: quem paga ou está só atrasado (ainda é assinante).
+    // Receita recorrente: quem paga ou está só atrasado (ainda é assinante). Cortesia não entra.
     if (situation === 'paying' || situation === 'past_due') {
       mrr += (getPlan(company.plan)?.priceCents ?? 0) / 100;
     }
@@ -85,16 +88,65 @@ export function summarizeCompanies(companies: CompanyRow[], now: Date) {
   };
 }
 
-type AsaasPayment = { value: number; netValue?: number; status: string; dueDate: string };
+export type AsaasPayment = {
+  customer?: string;
+  value: number;
+  netValue?: number;
+  status: string;
+  dueDate: string;
+  paymentDate?: string | null;
+  clientPaymentDate?: string | null;
+};
+
+export type CustomerBilling = {
+  paid: number;
+  paidNet: number;
+  paidCount: number;
+  lastPaidAt: string | null;
+  open: number;
+  overdue: number;
+  nextDueDate: string | null;
+};
+
+/** Quanto cada cliente da Asaas (= empresa) já pagou, o que está em aberto e o próximo vencimento. */
+export function billingByCustomer(payments: AsaasPayment[]): Map<string, CustomerBilling> {
+  const result = new Map<string, CustomerBilling>();
+  for (const p of payments) {
+    if (!p.customer) continue;
+    const b = result.get(p.customer) ?? {
+      paid: 0,
+      paidNet: 0,
+      paidCount: 0,
+      lastPaidAt: null,
+      open: 0,
+      overdue: 0,
+      nextDueDate: null,
+    };
+    if (PAID_STATUSES.has(p.status)) {
+      b.paid += p.value;
+      b.paidNet += p.netValue ?? p.value;
+      b.paidCount += 1;
+      const paidAt = p.paymentDate ?? p.clientPaymentDate ?? p.dueDate;
+      if (!b.lastPaidAt || paidAt > b.lastPaidAt) b.lastPaidAt = paidAt;
+    } else if (p.status === 'PENDING') {
+      b.open += p.value;
+      if (!b.nextDueDate || p.dueDate < b.nextDueDate) b.nextDueDate = p.dueDate;
+    } else if (p.status === 'OVERDUE') {
+      b.overdue += p.value;
+    }
+    result.set(p.customer, b);
+  }
+  return result;
+}
 
 /** Cobranças da conta da plataforma num filtro, somando todas as páginas (até 1.000). */
-async function sumPayments(apiKey: string, query: string) {
+async function listPayments(apiKey: string, query: string) {
   let offset = 0;
   const all: AsaasPayment[] = [];
   for (let page = 0; page < 10; page++) {
     const res = await asaasRequest<{ data: AsaasPayment[]; hasMore: boolean }>(
       apiKey,
-      `/payments?${query}&limit=100&offset=${offset}`,
+      `/payments?${query}${query ? '&' : ''}limit=100&offset=${offset}`,
     );
     all.push(...res.data);
     if (!res.hasMore) break;
@@ -105,39 +157,45 @@ async function sumPayments(apiKey: string, query: string) {
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Faturamento na Asaas (conta da plataforma). `null` quando a chave não está configurada ou falha. */
+/**
+ * Faturamento na Asaas (conta da plataforma): totais do mês, em aberto, saldo e quanto cada
+ * cliente pagou. `null` quando a chave não está configurada ou a Asaas falha.
+ */
 export async function getPlatformRevenue(now: Date) {
   const apiKey = process.env.ASAAS_API_KEY?.trim();
   if (!apiKey) return null;
   try {
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const prevStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-    const prevEnd = new Date(monthStart.getTime() - 86_400_000);
-    const paidIn = async (from: Date, to: Date) => {
-      const rows = await sumPayments(
-        apiKey,
-        `paymentDate[ge]=${ymd(from)}&paymentDate[le]=${ymd(to)}`,
-      );
-      const paid = rows.filter((p) => PAID_STATUSES.has(p.status));
-      return {
-        count: paid.length,
-        gross: paid.reduce((s, p) => s + p.value, 0),
-        net: paid.reduce((s, p) => s + (p.netValue ?? p.value), 0),
-      };
-    };
-    const [thisMonth, lastMonth, pending, overdue, balance] = await Promise.all([
-      paidIn(monthStart, now),
-      paidIn(prevStart, prevEnd),
-      sumPayments(apiKey, 'status=PENDING'),
-      sumPayments(apiKey, 'status=OVERDUE'),
+    const monthStart = ymd(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+    const prevStart = ymd(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)));
+    const today = ymd(now);
+    const [payments, balance] = await Promise.all([
+      listPayments(apiKey, ''),
       asaasRequest<{ balance: number }>(apiKey, '/finance/balance'),
     ]);
+    const paidBetween = (from: string, to: string) => {
+      const rows = payments.filter((p) => {
+        const at = p.paymentDate ?? p.clientPaymentDate;
+        return PAID_STATUSES.has(p.status) && at && at >= from && at <= to;
+      });
+      return {
+        count: rows.length,
+        gross: rows.reduce((s, p) => s + p.value, 0),
+        net: rows.reduce((s, p) => s + (p.netValue ?? p.value), 0),
+      };
+    };
+    const byStatus = (status: string) => {
+      const rows = payments.filter((p) => p.status === status);
+      return { count: rows.length, total: rows.reduce((s, p) => s + p.value, 0) };
+    };
+    const prevEnd = ymd(new Date(Date.parse(`${monthStart}T00:00:00Z`) - 86_400_000));
     return {
-      thisMonth,
-      lastMonth,
-      pending: { count: pending.length, total: pending.reduce((s, p) => s + p.value, 0) },
-      overdue: { count: overdue.length, total: overdue.reduce((s, p) => s + p.value, 0) },
+      thisMonth: paidBetween(monthStart, today),
+      lastMonth: paidBetween(prevStart, prevEnd),
+      allTime: paidBetween('2000-01-01', today),
+      pending: byStatus('PENDING'),
+      overdue: byStatus('OVERDUE'),
       balance: balance.balance,
+      byCustomer: billingByCustomer(payments),
     };
   } catch {
     return null;
@@ -150,7 +208,7 @@ export async function getPlatformUsers() {
     const client = await clerkClient();
     const [total, latest] = await Promise.all([
       client.users.getCount(),
-      client.users.getUserList({ orderBy: '-created_at', limit: 15 }),
+      client.users.getUserList({ orderBy: '-created_at', limit: 30 }),
     ]);
     return {
       total,
@@ -180,6 +238,10 @@ export async function getPlatformCompanies(now: Date) {
       trialEndsAt: true,
       trialPending: true,
       currentPeriodEnd: true,
+      courtesyUntil: true,
+      courtesyPlan: true,
+      courtesyNote: true,
+      asaasCustomerId: true,
     },
     orderBy: { createdAt: 'desc' },
   });
