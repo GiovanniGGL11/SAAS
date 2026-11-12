@@ -113,17 +113,20 @@ const TEMPLATE_EXAMPLES: Record<ImportKind, Record<string, string>[]> = {
   ],
 };
 
-/**
- * Planilha modelo (CSV com ; e BOM, que o Excel em português abre direto com acentos): o
- * cabeçalho com os nomes que a importação reconhece e duas linhas de exemplo.
- */
-export function importTemplateCsv(kind: ImportKind): string {
+/** Planilha modelo: o cabeçalho com os nomes que a importação reconhece e duas linhas de exemplo. */
+export function importTemplate(kind: ImportKind): { header: string[]; rows: string[][] } {
   const fields = IMPORT_FIELDS[kind];
+  return {
+    header: fields.map((f) => f.label),
+    rows: TEMPLATE_EXAMPLES[kind].map((row) => fields.map((f) => row[f.key] ?? '')),
+  };
+}
+
+/** O mesmo modelo em CSV (com ; e BOM, que o Excel em português abre direto com acentos). */
+export function importTemplateCsv(kind: ImportKind): string {
+  const { header, rows } = importTemplate(kind);
   const quote = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const lines = [
-    fields.map((f) => quote(f.label)),
-    ...TEMPLATE_EXAMPLES[kind].map((row) => fields.map((f) => quote(row[f.key] ?? ''))),
-  ].map((cells) => cells.join(';'));
+  const lines = [header, ...rows].map((cells) => cells.map(quote).join(';'));
   return `\uFEFF${lines.join('\r\n')}\r\n`;
 }
 

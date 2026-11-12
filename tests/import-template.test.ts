@@ -5,10 +5,12 @@ import {
   IMPORT_FIELDS,
   checkClientRow,
   decodeCsvBytes,
+  importTemplate,
   importTemplateCsv,
   suggestMapping,
   type ImportKind,
 } from '@/lib/import';
+import { buildXlsx } from '@/lib/xlsx';
 
 describe('planilha modelo e leitura do arquivo', () => {
   it.each(['clients', 'products'] as ImportKind[])(
@@ -39,5 +41,15 @@ describe('planilha modelo e leitura do arquivo', () => {
       ...new TextEncoder().encode('o Paulo\n'),
     ]);
     expect(decodeCsvBytes(cp1252.buffer as ArrayBuffer)).toContain('João;São Paulo');
+  });
+
+  it('modelo do Excel: arquivo zip com os títulos, centralizado e com a 1ª linha fixa', () => {
+    const { header, rows } = importTemplate('clients');
+    const bytes = buildXlsx('Clientes', header, rows);
+    expect([bytes[0], bytes[1]]).toEqual([0x50, 0x4b]); // "PK": é um zip
+    const text = new TextDecoder().decode(bytes);
+    for (const label of header) expect(text).toContain(`<t xml:space="preserve">${label}</t>`);
+    expect(text).toContain('<alignment horizontal="center" vertical="center"/>');
+    expect(text).toContain('state="frozen"');
   });
 });

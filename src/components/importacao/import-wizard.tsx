@@ -10,11 +10,12 @@ import {
   IMPORT_FIELDS,
   IMPORT_LIMITS,
   decodeCsvBytes,
-  importTemplateCsv,
+  importTemplate,
   type ImportKind,
   type Mapping,
 } from '@/lib/import';
 import { cn } from '@/lib/utils';
+import { buildXlsx } from '@/lib/xlsx';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -88,13 +89,17 @@ const KIND_TEXT: Record<
   },
 };
 
-/** Baixa a planilha modelo, para quem começa do zero. */
+/** Baixa a planilha modelo do Excel (títulos em destaque, colunas largas, tudo centralizado). */
 function downloadTemplate(kind: ImportKind) {
-  const blob = new Blob([importTemplateCsv(kind)], { type: 'text/csv;charset=utf-8' });
+  const { header, rows } = importTemplate(kind);
+  const title = KIND_TEXT[kind].noun[0].toUpperCase() + KIND_TEXT[kind].noun.slice(1);
+  const blob = new Blob([buildXlsx(title, header, rows) as BlobPart], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `modelo-${KIND_TEXT[kind].noun}.csv`;
+  link.download = `modelo-${KIND_TEXT[kind].noun}.xlsx`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -107,11 +112,8 @@ function CsvHelp({ kind }: { kind: ImportKind }) {
   const [open, setOpen] = React.useState(false);
   const copy = KIND_TEXT[kind];
   const fields = IMPORT_FIELDS[kind];
-  const example = importTemplateCsv(kind)
-    .replace(/^\uFEFF/, '')
-    .trim()
-    .split(/\r?\n/)
-    .map((line) => line.split(';'));
+  const { header, rows } = importTemplate(kind);
+  const example = [header, ...rows];
   // Na tabela de exemplo, só as colunas preenchidas no exemplo (fica legível no celular).
   const shown = fields
     .map((f, i) => ({ label: f.label, i }))
@@ -189,7 +191,8 @@ function CsvHelp({ kind }: { kind: ImportKind }) {
               </li>
               <li>
                 <strong className="text-foreground">Começando do zero:</strong> baixe a planilha
-                modelo, preencha no Excel ou no Google Planilhas e salve como CSV.
+                modelo (já vem com os títulos e dois exemplos), preencha no Excel ou no Google
+                Planilhas e salve como CSV, como nos passos acima.
               </li>
             </ul>
           </div>
