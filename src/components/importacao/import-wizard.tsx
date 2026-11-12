@@ -2,11 +2,18 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileUpIcon, Loader2Icon } from 'lucide-react';
+import { DownloadIcon, FileUpIcon, Loader2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
-import { IMPORT_LIMITS, type ImportKind, type Mapping } from '@/lib/import';
+import {
+  IMPORT_FIELDS,
+  IMPORT_LIMITS,
+  decodeCsvBytes,
+  importTemplateCsv,
+  type ImportKind,
+  type Mapping,
+} from '@/lib/import';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,10 +68,122 @@ const REPORT_LABEL = {
   failed: 'Falhou',
 };
 
-const KIND_TEXT: Record<ImportKind, { title: string; noun: string; queryKey: string }> = {
-  clients: { title: 'Importar clientes', noun: 'clientes', queryKey: 'clients' },
-  products: { title: 'Importar produtos', noun: 'produtos', queryKey: 'products' },
+const KIND_TEXT: Record<
+  ImportKind,
+  { title: string; noun: string; one: string; queryKey: string; exportHint: string }
+> = {
+  clients: {
+    title: 'Importar clientes',
+    noun: 'clientes',
+    one: 'cliente',
+    queryKey: 'clients',
+    exportHint: '"Exportar clientes" (ou "Relatório de clientes")',
+  },
+  products: {
+    title: 'Importar produtos',
+    noun: 'produtos',
+    one: 'produto',
+    queryKey: 'products',
+    exportHint: '"Exportar produtos" (ou "Relatório de estoque")',
+  },
 };
+
+/** Baixa a planilha modelo, para quem começa do zero. */
+function downloadTemplate(kind: ImportKind) {
+  const blob = new Blob([importTemplateCsv(kind)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `modelo-${KIND_TEXT[kind].noun}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** O que é um CSV e como conseguir o arquivo — muita gente nunca ouviu falar. */
+function CsvHelp({ kind }: { kind: ImportKind }) {
+  const copy = KIND_TEXT[kind];
+  const fields = IMPORT_FIELDS[kind];
+  const example = importTemplateCsv(kind)
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.split(';'));
+  // Na tabela de exemplo, só as colunas preenchidas no exemplo (fica legível no celular).
+  const shown = fields
+    .map((f, i) => ({ label: f.label, i }))
+    .filter(({ i }) => example.slice(1).some((row) => row[i]))
+    .slice(0, 4);
+  return (
+    <div className="bg-foreground/[0.03] flex flex-col gap-3 rounded-2xl p-4 text-[13px] leading-snug">
+      <div>
+        <h3 className="text-[14px] font-semibold">O que é um arquivo CSV?</h3>
+        <p className="text-label-secondary mt-1">
+          É uma planilha comum, como as do Excel ou do Google Planilhas, salva num formato simples
+          que qualquer sistema consegue ler. Cada <strong>linha</strong> é um {copy.one} e cada{' '}
+          <strong>coluna</strong> é uma informação. A primeira linha tem o nome das colunas:
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-[12px]">
+          <thead>
+            <tr>
+              {shown.map(({ label, i }) => (
+                <th key={i} className="border-foreground/10 border-b px-2 py-1 font-semibold">
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="text-label-secondary">
+            {example.slice(1).map((row, r) => (
+              <tr key={r}>
+                {shown.map(({ i }) => (
+                  <td key={i} className="px-2 py-1 whitespace-nowrap">
+                    {row[i] || '—'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3 className="text-[14px] font-semibold">Como conseguir o arquivo</h3>
+        <ul className="text-label-secondary mt-1 flex list-disc flex-col gap-1 pl-5">
+          <li>
+            <strong className="text-foreground">Vindo de outro sistema:</strong> procure a opção{' '}
+            {copy.exportHint} e escolha CSV. Se só tiver Excel, baixe e siga o passo abaixo.
+          </li>
+          <li>
+            <strong className="text-foreground">Tenho no Excel:</strong> Arquivo → Salvar como → no
+            tipo, escolha <em>CSV UTF-8 (delimitado por vírgulas)</em>.
+          </li>
+          <li>
+            <strong className="text-foreground">Tenho no Google Planilhas:</strong> Arquivo → Fazer
+            download → <em>Valores separados por vírgula (.csv)</em>.
+          </li>
+          <li>
+            <strong className="text-foreground">Começando do zero:</strong> baixe a planilha modelo,
+            preencha no Excel ou no Google Planilhas e salve como CSV.
+          </li>
+        </ul>
+      </div>
+      <p className="text-label-secondary">
+        Só o <strong className="text-foreground">nome</strong> é obrigatório. Se as colunas do seu
+        arquivo tiverem outros nomes, no próximo passo você diz qual é qual.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={() => downloadTemplate(kind)}
+      >
+        <DownloadIcon className="size-4" /> Baixar planilha modelo
+      </Button>
+    </div>
+  );
+}
 
 /**
  * Importação assistida: arquivo → colunas → prévia (novos, duplicados, erros) → confirmar →
@@ -135,11 +254,17 @@ export function ImportWizard({
       toast.error('Arquivo grande demais. Divida em partes de até 5.000 linhas.');
       return;
     }
-    if (!/\.(csv|txt)$/i.test(chosen.name)) {
-      toast.error('Use um arquivo .csv (no Excel: Salvar como → CSV).');
+    if (/\.(xlsx?|ods|numbers)$/i.test(chosen.name)) {
+      toast.error(
+        'Esse arquivo é uma planilha do Excel. Abra no Excel e use Arquivo → Salvar como → CSV UTF-8.',
+      );
       return;
     }
-    const text = await chosen.text();
+    if (!/\.(csv|txt)$/i.test(chosen.name)) {
+      toast.error('Use um arquivo .csv (no Excel: Salvar como → CSV UTF-8).');
+      return;
+    }
+    const text = decodeCsvBytes(await chosen.arrayBuffer());
     setFile({ name: chosen.name, text });
     setPreview(null);
     setResult(null);
@@ -167,19 +292,27 @@ export function ImportWizard({
         </DialogHeader>
 
         {step === 1 && (
-          <label className="border-foreground/15 hover:bg-foreground/[0.03] flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
-            {analyze.isPending ? (
-              <Loader2Icon className="text-label-secondary size-8 animate-spin" />
-            ) : (
-              <FileUpIcon className="text-label-secondary size-8" />
-            )}
-            <span className="text-[15px] font-medium">Escolher arquivo CSV</span>
-            <span className="text-label-secondary text-[12px]">
-              Planilha salva como CSV (separada por ; ou ,), com cabeçalho. Até{' '}
-              {IMPORT_LIMITS.maxRows.toLocaleString('pt-BR')} linhas.
-            </span>
-            <input type="file" accept=".csv,.txt,text/csv" className="sr-only" onChange={onFile} />
-          </label>
+          <div className="flex flex-col gap-4">
+            <label className="border-foreground/15 hover:bg-foreground/[0.03] flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
+              {analyze.isPending ? (
+                <Loader2Icon className="text-label-secondary size-8 animate-spin" />
+              ) : (
+                <FileUpIcon className="text-label-secondary size-8" />
+              )}
+              <span className="text-[15px] font-medium">Escolher arquivo CSV</span>
+              <span className="text-label-secondary text-[12px]">
+                Arquivo terminado em .csv, com uma linha por {copy.one}. Até{' '}
+                {IMPORT_LIMITS.maxRows.toLocaleString('pt-BR')} linhas.
+              </span>
+              <input
+                type="file"
+                accept=".csv,.txt,text/csv"
+                className="sr-only"
+                onChange={onFile}
+              />
+            </label>
+            <CsvHelp kind={kind} />
+          </div>
         )}
 
         {step === 2 && analysis && (

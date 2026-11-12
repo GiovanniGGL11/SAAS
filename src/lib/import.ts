@@ -86,6 +86,59 @@ export const IMPORT_FIELDS: Record<ImportKind, FieldDef[]> = {
 
 export type Mapping = Record<string, number | null>;
 
+/** Linhas de exemplo (fictícias) da planilha modelo, na ordem de IMPORT_FIELDS. */
+const TEMPLATE_EXAMPLES: Record<ImportKind, Record<string, string>[]> = {
+  clients: [
+    {
+      name: 'Maria Silva',
+      phone: '(11) 91234-5678',
+      email: 'maria@exemplo.com',
+      birthDate: '15/03/1990',
+      notes: 'Prefere horários à tarde',
+      city: 'São Paulo',
+      state: 'SP',
+    },
+    { name: 'João Souza', phone: '(21) 99876-5432' },
+  ],
+  products: [
+    {
+      name: 'Shampoo 300 ml',
+      sku: 'SH300',
+      costPrice: '18,50',
+      salePrice: '39,90',
+      quantity: '12',
+      minQuantity: '3',
+    },
+    { name: 'Pomada modeladora', salePrice: '45,00', quantity: '8' },
+  ],
+};
+
+/**
+ * Planilha modelo (CSV com ; e BOM, que o Excel em português abre direto com acentos): o
+ * cabeçalho com os nomes que a importação reconhece e duas linhas de exemplo.
+ */
+export function importTemplateCsv(kind: ImportKind): string {
+  const fields = IMPORT_FIELDS[kind];
+  const quote = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const lines = [
+    fields.map((f) => quote(f.label)),
+    ...TEMPLATE_EXAMPLES[kind].map((row) => fields.map((f) => quote(row[f.key] ?? ''))),
+  ].map((cells) => cells.join(';'));
+  return `\uFEFF${lines.join('\r\n')}\r\n`;
+}
+
+/**
+ * Texto do arquivo: UTF-8 quando for (CSV UTF-8, Google Planilhas); senão Windows-1252, que é o
+ * "CSV (separado por vírgulas)" comum do Excel no Windows — sem isso os acentos viram "Ã£".
+ */
+export function decodeCsvBytes(bytes: ArrayBuffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
+}
+
 export function normalizeHeader(value: string): string {
   return value
     .normalize('NFD')
