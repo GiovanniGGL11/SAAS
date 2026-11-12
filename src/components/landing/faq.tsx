@@ -1,4 +1,5 @@
-const QUESTIONS = [
+/** Também vai para o Google como perguntas frequentes (dados estruturados na página inicial). */
+export const QUESTIONS = [
   {
     q: 'Meus clientes conseguem agendar sozinhos?',
     a: 'Sim. Você liga o agendamento online em "Link do cliente" e divulga o seu link (ou o QR code) (na bio do Instagram, no WhatsApp). O cliente escolhe serviço, profissional e horário, e os horários respeitam o expediente e a agenda de cada profissional.',

@@ -10,10 +10,12 @@ import { Highlights } from '@/components/landing/highlights';
 import { HowItWorks } from '@/components/landing/how-it-works';
 import { LandingFooter } from '@/components/landing/landing-footer';
 import { WhatsappButton } from '@/components/landing/whatsapp-button';
+import { StructuredData } from '@/components/landing/structured-data';
 
 export default function Home() {
   return (
     <div className="font-apple flex flex-1 flex-col">
+      <StructuredData />
       <LandingHeader />
       <main className="flex-1">
         <Hero />
