@@ -54,6 +54,10 @@ model Company {
   courtesyUntil       DateTime?
   courtesyPlan        String?
   courtesyNote        String?
+  /// Cadastro pelo link (/cadastro/[slug]): o cliente preenche a própria ficha.
+  selfSignupEnabled   Boolean            @default(false)
+  /// Campos pedidos: { email|birthDate|cpf|address|notes: "off" | "optional" | "required" }.
+  selfSignupFields    Json?
   plan                String?
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?
