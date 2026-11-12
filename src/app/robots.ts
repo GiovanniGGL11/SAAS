@@ -29,6 +29,7 @@ export default function robots(): MetadataRoute.Robots {
         '/historico',
         '/assinatura',
         '/comecar',
+        '/plataforma',
         '/onboarding',
         '/sign-in',
         '/sign-up',
