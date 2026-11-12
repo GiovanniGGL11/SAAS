@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DownloadIcon, FileUpIcon, Loader2Icon } from 'lucide-react';
+import { ChevronDownIcon, DownloadIcon, FileUpIcon, Loader2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -99,8 +99,12 @@ function downloadTemplate(kind: ImportKind) {
   URL.revokeObjectURL(url);
 }
 
-/** O que é um CSV e como conseguir o arquivo — muita gente nunca ouviu falar. */
+/**
+ * O que é um CSV e como conseguir o arquivo — muita gente nunca ouviu falar. A explicação curta
+ * fica sempre à vista; o exemplo e o passo a passo abrem pela setinha.
+ */
 function CsvHelp({ kind }: { kind: ImportKind }) {
+  const [open, setOpen] = React.useState(false);
   const copy = KIND_TEXT[kind];
   const fields = IMPORT_FIELDS[kind];
   const example = importTemplateCsv(kind)
@@ -115,72 +119,95 @@ function CsvHelp({ kind }: { kind: ImportKind }) {
     .slice(0, 4);
   return (
     <div className="bg-foreground/[0.03] flex flex-col gap-3 rounded-2xl p-4 text-[13px] leading-snug">
-      <div>
-        <h3 className="text-[14px] font-semibold">O que é um arquivo CSV?</h3>
-        <p className="text-label-secondary mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex flex-col gap-1 text-left"
+      >
+        <span className="flex w-full items-center justify-between gap-2">
+          <span className="text-[14px] font-semibold">O que é um arquivo CSV?</span>
+          <ChevronDownIcon
+            className={cn(
+              'text-label-secondary size-4 shrink-0 transition-transform',
+              open && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </span>
+        <span className="text-label-secondary">
           É uma planilha comum, como as do Excel ou do Google Planilhas, salva num formato simples
           que qualquer sistema consegue ler. Cada <strong>linha</strong> é um {copy.one} e cada{' '}
-          <strong>coluna</strong> é uma informação. A primeira linha tem o nome das colunas:
-        </p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-[12px]">
-          <thead>
-            <tr>
-              {shown.map(({ label, i }) => (
-                <th key={i} className="border-foreground/10 border-b px-2 py-1 font-semibold">
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="text-label-secondary">
-            {example.slice(1).map((row, r) => (
-              <tr key={r}>
-                {shown.map(({ i }) => (
-                  <td key={i} className="px-2 py-1 whitespace-nowrap">
-                    {row[i] || '—'}
-                  </td>
+          <strong>coluna</strong> é uma informação. A primeira linha tem o nome das colunas.
+        </span>
+        {!open && (
+          <span className="text-system-blue text-[12px] font-medium">
+            Ver exemplo e como conseguir o arquivo
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[12px]">
+              <thead>
+                <tr>
+                  {shown.map(({ label, i }) => (
+                    <th key={i} className="border-foreground/10 border-b px-2 py-1 font-semibold">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-label-secondary">
+                {example.slice(1).map((row, r) => (
+                  <tr key={r}>
+                    {shown.map(({ i }) => (
+                      <td key={i} className="px-2 py-1 whitespace-nowrap">
+                        {row[i] || '—'}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <h3 className="text-[14px] font-semibold">Como conseguir o arquivo</h3>
-        <ul className="text-label-secondary mt-1 flex list-disc flex-col gap-1 pl-5">
-          <li>
-            <strong className="text-foreground">Vindo de outro sistema:</strong> procure a opção{' '}
-            {copy.exportHint} e escolha CSV. Se só tiver Excel, baixe e siga o passo abaixo.
-          </li>
-          <li>
-            <strong className="text-foreground">Tenho no Excel:</strong> Arquivo → Salvar como → no
-            tipo, escolha <em>CSV UTF-8 (delimitado por vírgulas)</em>.
-          </li>
-          <li>
-            <strong className="text-foreground">Tenho no Google Planilhas:</strong> Arquivo → Fazer
-            download → <em>Valores separados por vírgula (.csv)</em>.
-          </li>
-          <li>
-            <strong className="text-foreground">Começando do zero:</strong> baixe a planilha modelo,
-            preencha no Excel ou no Google Planilhas e salve como CSV.
-          </li>
-        </ul>
-      </div>
-      <p className="text-label-secondary">
-        Só o <strong className="text-foreground">nome</strong> é obrigatório. Se as colunas do seu
-        arquivo tiverem outros nomes, no próximo passo você diz qual é qual.
-      </p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="self-start"
-        onClick={() => downloadTemplate(kind)}
-      >
-        <DownloadIcon className="size-4" /> Baixar planilha modelo
-      </Button>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3 className="text-[14px] font-semibold">Como conseguir o arquivo</h3>
+            <ul className="text-label-secondary mt-1 flex list-disc flex-col gap-1 pl-5">
+              <li>
+                <strong className="text-foreground">Vindo de outro sistema:</strong> procure a opção{' '}
+                {copy.exportHint} e escolha CSV. Se só tiver Excel, baixe e siga o passo abaixo.
+              </li>
+              <li>
+                <strong className="text-foreground">Tenho no Excel:</strong> Arquivo → Salvar como →
+                no tipo, escolha <em>CSV UTF-8 (delimitado por vírgulas)</em>.
+              </li>
+              <li>
+                <strong className="text-foreground">Tenho no Google Planilhas:</strong> Arquivo →
+                Fazer download → <em>Valores separados por vírgula (.csv)</em>.
+              </li>
+              <li>
+                <strong className="text-foreground">Começando do zero:</strong> baixe a planilha
+                modelo, preencha no Excel ou no Google Planilhas e salve como CSV.
+              </li>
+            </ul>
+          </div>
+          <p className="text-label-secondary">
+            Só o <strong className="text-foreground">nome</strong> é obrigatório. Se as colunas do
+            seu arquivo tiverem outros nomes, no próximo passo você diz qual é qual.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => downloadTemplate(kind)}
+          >
+            <DownloadIcon className="size-4" /> Baixar planilha modelo
+          </Button>
+        </>
+      )}
     </div>
   );
 }
