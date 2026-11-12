@@ -16,6 +16,8 @@ import {
 } from '@/lib/import';
 import { cn } from '@/lib/utils';
 import { buildXlsx } from '@/lib/xlsx';
+import { readXlsxRows, rowsToCsv } from '@/lib/xlsx-read';
+import { withNetworkRetry } from '@/lib/network-retry';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -128,7 +130,7 @@ function CsvHelp({ kind }: { kind: ImportKind }) {
         className="flex flex-col gap-1 text-left"
       >
         <span className="flex w-full items-center justify-between gap-2">
-          <span className="text-[14px] font-semibold">O que é um arquivo CSV?</span>
+          <span className="text-[14px] font-semibold">Que arquivo posso enviar?</span>
           <ChevronDownIcon
             className={cn(
               'text-label-secondary size-4 shrink-0 transition-transform',
@@ -138,8 +140,8 @@ function CsvHelp({ kind }: { kind: ImportKind }) {
           />
         </span>
         <span className="text-label-secondary">
-          É uma planilha comum, como as do Excel ou do Google Planilhas, salva num formato simples
-          que qualquer sistema consegue ler. Cada <strong>linha</strong> é um {copy.one} e cada{' '}
+          Uma planilha do Excel (.xlsx) ou um arquivo CSV, que é uma planilha num formato simples
+          que qualquer sistema exporta. Cada <strong>linha</strong> é um {copy.one} e cada{' '}
           <strong>coluna</strong> é uma informação. A primeira linha tem o nome das colunas.
         </span>
         {!open && (
@@ -179,20 +181,20 @@ function CsvHelp({ kind }: { kind: ImportKind }) {
             <ul className="text-label-secondary mt-1 flex list-disc flex-col gap-1 pl-5">
               <li>
                 <strong className="text-foreground">Vindo de outro sistema:</strong> procure a opção{' '}
-                {copy.exportHint} e escolha CSV. Se só tiver Excel, baixe e siga o passo abaixo.
+                {copy.exportHint}, escolha Excel ou CSV e envie o arquivo aqui.
               </li>
               <li>
-                <strong className="text-foreground">Tenho no Excel:</strong> Arquivo → Salvar como →
-                no tipo, escolha <em>CSV UTF-8 (delimitado por vírgulas)</em>.
+                <strong className="text-foreground">Tenho no Excel:</strong> é só enviar o arquivo
+                (.xlsx). Se for um arquivo antigo (.xls), abra e use Arquivo → Salvar como →{' '}
+                <em>Pasta de Trabalho do Excel (.xlsx)</em>.
               </li>
               <li>
                 <strong className="text-foreground">Tenho no Google Planilhas:</strong> Arquivo →
-                Fazer download → <em>Valores separados por vírgula (.csv)</em>.
+                Fazer download → <em>Microsoft Excel (.xlsx)</em> e envie aqui.
               </li>
               <li>
                 <strong className="text-foreground">Começando do zero:</strong> baixe a planilha
-                modelo (já vem com os títulos e dois exemplos), preencha no Excel ou no Google
-                Planilhas e salve como CSV, como nos passos acima.
+                modelo (já vem com os títulos e dois exemplos), preencha e envie aqui.
               </li>
             </ul>
           </div>
@@ -247,7 +249,8 @@ export function ImportWizard({
   };
 
   const analyze = useMutation({
-    mutationFn: (text: string) => analyzeImportAction({ kind, text }).then(unwrapResult),
+    mutationFn: (text: string) =>
+      withNetworkRetry(() => analyzeImportAction({ kind, text })).then(unwrapResult),
     onSuccess: (data) => {
       setAnalysis(data);
       setMapping(data.mapping);
@@ -255,19 +258,25 @@ export function ImportWizard({
     onError: (e: Error) => toast.error(e.message),
   });
   const check = useMutation({
-    mutationFn: () => previewImportAction({ kind, text: file!.text, mapping }).then(unwrapResult),
+    mutationFn: () =>
+      withNetworkRetry(() => previewImportAction({ kind, text: file!.text, mapping })).then(
+        unwrapResult,
+      ),
     onSuccess: setPreview,
     onError: (e: Error) => toast.error(e.message),
   });
   const run = useMutation({
+    // Repetir é seguro: o mesmo arquivo com as mesmas opções não é importado duas vezes.
     mutationFn: () =>
-      runImportAction({
-        kind,
-        text: file!.text,
-        mapping,
-        fileName: file!.name,
-        duplicateMode: mode,
-      }).then(unwrapResult),
+      withNetworkRetry(() =>
+        runImportAction({
+          kind,
+          text: file!.text,
+          mapping,
+          fileName: file!.name,
+          duplicateMode: mode,
+        }),
+      ).then(unwrapResult),
     onSuccess: (data) => {
       setResult(data);
       queryClient.invalidateQueries({ queryKey: [copy.queryKey] });
@@ -280,21 +289,33 @@ export function ImportWizard({
     const chosen = event.target.files?.[0];
     event.target.value = '';
     if (!chosen) return;
-    if (chosen.size > IMPORT_LIMITS.maxBytes) {
+    const isXlsx = /\.xlsx$/i.test(chosen.name);
+    // O .xlsx é compactado: o limite vale depois de convertido (o servidor confere de novo).
+    if (chosen.size > (isXlsx ? 5 * IMPORT_LIMITS.maxBytes : IMPORT_LIMITS.maxBytes)) {
       toast.error('Arquivo grande demais. Divida em partes de até 5.000 linhas.');
       return;
     }
-    if (/\.(xlsx?|ods|numbers)$/i.test(chosen.name)) {
+    if (/\.(xls|ods|numbers)$/i.test(chosen.name)) {
       toast.error(
-        'Esse arquivo é uma planilha do Excel. Abra no Excel e use Arquivo → Salvar como → CSV UTF-8.',
+        'Esse formato não é aceito. Abra a planilha e use Arquivo → Salvar como → Pasta de Trabalho do Excel (.xlsx).',
       );
       return;
     }
-    if (!/\.(csv|txt)$/i.test(chosen.name)) {
-      toast.error('Use um arquivo .csv (no Excel: Salvar como → CSV UTF-8).');
+    if (!isXlsx && !/\.(csv|txt)$/i.test(chosen.name)) {
+      toast.error('Envie a planilha do Excel (.xlsx) ou um arquivo .csv.');
       return;
     }
-    const text = decodeCsvBytes(await chosen.arrayBuffer());
+    let text: string;
+    try {
+      text = isXlsx
+        ? rowsToCsv(await readXlsxRows(await chosen.arrayBuffer()))
+        : decodeCsvBytes(await chosen.arrayBuffer());
+    } catch {
+      toast.error(
+        'Não foi possível ler essa planilha. Salve de novo no Excel (.xlsx) e tente outra vez.',
+      );
+      return;
+    }
     setFile({ name: chosen.name, text });
     setPreview(null);
     setResult(null);
@@ -329,14 +350,14 @@ export function ImportWizard({
               ) : (
                 <FileUpIcon className="text-label-secondary size-8" />
               )}
-              <span className="text-[15px] font-medium">Escolher arquivo CSV</span>
+              <span className="text-[15px] font-medium">Escolher planilha (Excel ou CSV)</span>
               <span className="text-label-secondary text-[12px]">
-                Arquivo terminado em .csv, com uma linha por {copy.one}. Até{' '}
+                Arquivo .xlsx ou .csv, com uma linha por {copy.one}. Até{' '}
                 {IMPORT_LIMITS.maxRows.toLocaleString('pt-BR')} linhas.
               </span>
               <input
                 type="file"
-                accept=".csv,.txt,text/csv"
+                accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="sr-only"
                 onChange={onFile}
               />
