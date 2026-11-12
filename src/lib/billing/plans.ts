@@ -328,7 +328,8 @@ export const PLANS: Plan[] = [
  * as funcionalidades do plano base abaixo e uma franquia de IA própria do teste. Quem escolheu
  * o Básico durante o teste fica sem IA (a IA nunca é atribuída em silêncio ao Básico).
  */
-export const TRIAL_DAYS = 14;
+/** 1º mês grátis: conta nova usa sem pagar; a cobrança começa no fim do teste. */
+export const TRIAL_DAYS = 30;
 export const TRIAL_GRANT = {
   basePlan: 'profissional' as PlanId,
   /** Franquia de IA do teste — A DEFINIR (null bloqueia em produção). */
