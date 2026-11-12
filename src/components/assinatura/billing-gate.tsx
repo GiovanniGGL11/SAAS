@@ -17,7 +17,8 @@ export function BillingGate({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  if (!blocked || pathname.startsWith('/assinatura')) return <>{children}</>;
+  if (!blocked || pathname.startsWith('/assinatura') || pathname.startsWith('/comecar'))
+    return <>{children}</>;
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-24 text-center">
       <h1 className="text-[26px] font-bold tracking-tight">A assinatura precisa ser renovada</h1>

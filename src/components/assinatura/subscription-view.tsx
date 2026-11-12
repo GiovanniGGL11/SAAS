@@ -14,6 +14,7 @@ import { unwrapResult } from '@/lib/action-result';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { ADD_ONS, PLANS, getPlan, planPrice, type PlanId } from '@/lib/billing/plans';
 import { cn } from '@/lib/utils';
+import { TrialClaimCard } from '@/components/assinatura/trial-claim-card';
 import type { SubscriptionState } from '@/server/billing/subscription';
 import {
   cancelSubscriptionAction,
@@ -108,20 +109,25 @@ export function SubscriptionView({ state, companyName }: { state: State; company
         description="Seu plano do Atendafy, pagamento e período de teste."
       />
 
+      {state.trialPending && <TrialClaimCard />}
+
       <section className="bg-tile flex flex-wrap items-center justify-between gap-4 rounded-[22px] p-5">
         <div>
           <div className="text-label-secondary text-[13px]">{STATUS[state.status]}</div>
           <div className="text-[20px] font-semibold">
-            {state.status === 'TRIAL'
-              ? state.trialDaysLeft > 0
-                ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`
-                : 'O teste grátis terminou'
-              : current
-                ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${formatCurrencyBRL(planPrice(current))}/mês`
-                : '—'}
+            {state.status === 'TRIAL' && state.trialPending
+              ? '1º mês grátis a liberar'
+              : state.status === 'TRIAL'
+                ? state.trialDaysLeft > 0
+                  ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`
+                  : 'O teste grátis terminou'
+                : current
+                  ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${formatCurrencyBRL(planPrice(current))}/mês`
+                  : '—'}
           </div>
           <div className="text-label-secondary text-[13px]">
             {state.status === 'TRIAL' &&
+              !state.trialPending &&
               `Teste até ${date.format(new Date(state.trialEnd))}. Assinando agora, a 1ª cobrança vence no fim do teste.`}
             {state.status !== 'TRIAL' &&
               state.currentPeriodEnd &&

@@ -67,7 +67,12 @@ describe('assinatura do Atendafy (Asaas)', () => {
 
   it('teste grátis, bloqueio só com BILLING_ENFORCE e tolerância de atraso', () => {
     const now = new Date('2030-06-15T12:00:00Z');
-    const base = { subscriptionStatus: 'TRIAL' as const, plan: null, currentPeriodEnd: null };
+    const base = {
+      subscriptionStatus: 'TRIAL' as const,
+      plan: null,
+      currentPeriodEnd: null,
+      trialPending: false,
+    };
     expect(
       getSubscriptionState({ ...base, trialEndsAt: new Date(now.getTime() + 3 * day) }, now)
         .trialDaysLeft,
@@ -81,6 +86,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
       subscriptionStatus: 'PAST_DUE' as const,
       plan: 'essencial',
       trialEndsAt: expired.trialEndsAt,
+      trialPending: false,
       currentPeriodEnd: new Date(now.getTime() - 3 * day),
     };
     expect(getSubscriptionState(late, now).blocked).toBe(false);

@@ -47,7 +47,10 @@ export async function openDemoCompanyAction() {
       }));
 
     const company = await upsertCompanyFromClerkOrg({ id: org.id, name: org.name, slug: org.slug });
-    await prisma.company.update({ where: { id: company.id }, data: { isDemo: true } });
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { isDemo: true, trialPending: false },
+    });
     // Reabrir uma demonstração vazia (criação interrompida no meio) preenche de novo.
     if ((await prisma.service.count({ where: { companyId: company.id } })) === 0) {
       await seedDemoCompany(company.id, company.timezone);

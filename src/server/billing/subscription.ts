@@ -41,11 +41,16 @@ export type SubscriptionState = {
   currentPeriodEnd: Date | null;
   /** Sem acesso: teste acabou e não há assinatura em dia (só com BILLING_ENFORCE=true). */
   blocked: boolean;
+  /** Conta nova que ainda não liberou o 1º mês grátis. */
+  trialPending: boolean;
   configured: boolean;
 };
 
 export function getSubscriptionState(
-  company: Pick<Company, 'subscriptionStatus' | 'plan' | 'trialEndsAt' | 'currentPeriodEnd'>,
+  company: Pick<
+    Company,
+    'subscriptionStatus' | 'plan' | 'trialEndsAt' | 'currentPeriodEnd' | 'trialPending'
+  >,
   now = new Date(),
 ): SubscriptionState {
   const trialEnd = effectiveTrialEnd(company);
@@ -66,6 +71,7 @@ export function getSubscriptionState(
     trialDaysLeft,
     currentPeriodEnd: company.currentPeriodEnd,
     blocked: process.env.BILLING_ENFORCE === 'true' && billingConfigured() && !hasAccess,
+    trialPending: company.trialPending,
     configured: billingConfigured(),
   };
 }
