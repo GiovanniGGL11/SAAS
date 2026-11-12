@@ -441,7 +441,7 @@ export function ImportWizard({
             )}
             <div className="max-h-64 overflow-y-auto rounded-2xl border text-[13px]">
               <table className="w-full">
-                <thead className="bg-foreground/[0.04] text-label-secondary sticky top-0 text-left">
+                <thead className="bg-tile text-label-secondary sticky top-0 z-10 text-left">
                   <tr>
                     <th className="px-3 py-1.5 font-medium">Linha</th>
                     <th className="px-3 py-1.5 font-medium">Nome</th>
