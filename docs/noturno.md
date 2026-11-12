@@ -36,6 +36,7 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-12: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
 - 2026-11-10: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
 - 2026-11-09: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa. Prettier só acusa arquivos Markdown de `docs/` e o README (não alterados).
 - 2026-11-07: todos os itens concluídos e o branch já estava igual ao master (PR anterior incorporado). Execução só de manutenção: tsc e eslint limpos (só avisos antigos), `tests/csv.test.ts` passa; 15 arquivos vindos do master formatados com Prettier.
