@@ -59,9 +59,10 @@ describe('1º mês grátis: um por pessoa', () => {
   // IPs de documentação (RFC 5737), um por cenário: não colidem com nada real.
   const ip = (n: number) => `192.0.2.${n}`;
 
+  // Apaga 9 empresas: numa conexão lenta passa dos 30 s padrão.
   afterAll(async () => {
     for (const f of companies) await deleteTestCompany(f.company.id);
-  });
+  }, 180_000);
 
   it('libera 30 dias na primeira vez e não deixa liberar de novo na mesma empresa', async () => {
     const companyId = await fresh('ok');
