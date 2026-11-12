@@ -30,7 +30,13 @@ export function BookingSuccess({
   booking: Booked;
   /** Tipo de preço do serviço no catálogo ("a partir de", "sob consulta"). */
   priceKind?: string;
-  company: { name: string; timezone: string; address: string | null; mapUrl: string | null };
+  company: {
+    name: string;
+    timezone: string;
+    address: string | null;
+    mapUrl: string | null;
+    whatsappUrl?: string | null;
+  };
   onNewBooking: () => void;
 }) {
   const headingRef = React.useRef<HTMLHeadingElement>(null);
@@ -76,6 +82,8 @@ export function BookingSuccess({
             deposit={booking.deposit}
             full={booking.deposit.amount >= booking.price}
             timezone={company.timezone}
+            companyName={company.name}
+            whatsappUrl={company.whatsappUrl ?? null}
           />
         )}
 

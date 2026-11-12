@@ -11,18 +11,23 @@ import { getDepositStatusAction } from '@/server/actions/public-booking-actions'
 
 /**
  * PIX do sinal: QR code, copia e cola e o prazo. A tela confere sozinha a cada 5 segundos e mostra
- * "Sinal recebido" assim que o pagamento cai.
+ * "Sinal recebido" assim que o pagamento cai. Sem prazo (`expiresAt` null) é o PIX direto na chave
+ * do negócio: quem confirma é ele, então a tela pede o comprovante pelo WhatsApp.
  */
 export function DepositPayment({
   token,
   deposit,
   full = false,
   timezone,
+  companyName,
+  whatsappUrl,
 }: {
   token: string;
+  companyName: string;
+  whatsappUrl: string | null;
   /** O PIX cobre o valor todo (pagamento antecipado), não só um sinal. */
   full?: boolean;
-  deposit: { amount: number; qrImage: string; copyPaste: string; expiresAt: string };
+  deposit: { amount: number; qrImage: string; copyPaste: string; expiresAt: string | null };
   timezone: string;
 }) {
   const [copied, setCopied] = React.useState(false);
@@ -30,14 +35,21 @@ export function DepositPayment({
     queryKey: ['deposit-status', token],
     queryFn: () => getDepositStatusAction({ token }).then(unwrapResult),
     refetchInterval: (query) =>
-      query.state.data?.status === 'PENDING' || !query.state.data ? 5000 : false,
+      query.state.data?.status === 'PENDING' || !query.state.data
+        ? deposit.expiresAt === null
+          ? 15000
+          : 5000
+        : false,
   });
   const status = data?.status ?? 'PENDING';
-  const expires = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(deposit.expiresAt));
+  const manual = deposit.expiresAt === null;
+  const expires = deposit.expiresAt
+    ? new Intl.DateTimeFormat('pt-BR', {
+        timeZone: timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(deposit.expiresAt))
+    : null;
 
   if (status === 'PAID') {
     return (
@@ -62,14 +74,24 @@ export function DepositPayment({
   }
   return (
     <div className="border-foreground/[0.08] flex flex-col items-center gap-3 rounded-xl border p-4 text-center">
-      <p className="text-[15px]">
-        <strong>
-          Pague {full ? 'o valor de' : 'o sinal de'} {formatCurrencyBRL(deposit.amount)} por PIX até{' '}
-          {expires}
-        </strong>{' '}
-        para confirmar. Depois disso o horário é liberado.
-      </p>
-      {/* eslint-disable-next-line @next/next/no-img-element -- QR em base64 vindo da Asaas */}
+      {manual ? (
+        <p className="text-[15px]">
+          <strong>
+            Pague {full ? 'o valor de' : 'o sinal de'} {formatCurrencyBRL(deposit.amount)} por PIX
+          </strong>{' '}
+          direto para {companyName}. Seu horário fica reservado e é confirmado quando {companyName}{' '}
+          conferir o pagamento.
+        </p>
+      ) : (
+        <p className="text-[15px]">
+          <strong>
+            Pague {full ? 'o valor de' : 'o sinal de'} {formatCurrencyBRL(deposit.amount)} por PIX
+            até {expires}
+          </strong>{' '}
+          para confirmar. Depois disso o horário é liberado.
+        </p>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element -- QR em base64 (Asaas ou gerado aqui) */}
       <img
         src={`data:image/png;base64,${deposit.qrImage}`}
         alt="QR code do PIX"
@@ -88,9 +110,24 @@ export function DepositPayment({
         <CopyIcon className="size-4" />
         {copied ? 'Código copiado' : 'Copiar código PIX (copia e cola)'}
       </Button>
-      <p className="text-label-secondary text-[12px]">
-        Esta tela confirma sozinha quando o pagamento cair.
-      </p>
+      {manual ? (
+        <>
+          {whatsappUrl && (
+            <Button asChild variant="outline">
+              <a href={whatsappUrl} target="_blank" rel="noreferrer">
+                Enviar o comprovante pelo WhatsApp
+              </a>
+            </Button>
+          )}
+          <p className="text-label-secondary text-[12px]">
+            Esta tela mostra a confirmação assim que {companyName} marcar o pagamento como recebido.
+          </p>
+        </>
+      ) : (
+        <p className="text-label-secondary text-[12px]">
+          Esta tela confirma sozinha quando o pagamento cair.
+        </p>
+      )}
     </div>
   );
 }

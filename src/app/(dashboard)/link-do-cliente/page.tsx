@@ -63,7 +63,10 @@ export default async function LinkDoClientePage({
         whatsapp: company.whatsapp,
         googleReviewUrl: company.googleReviewUrl,
         deposit: {
-          connected: Boolean(company.asaasApiKey),
+          // Pronto para cobrar: chave PIX cadastrada (PIX direto) ou conta Asaas conectada.
+          connected: Boolean(
+            company.depositMethod === 'pix' ? company.pixKey : company.asaasApiKey,
+          ),
           percent: company.depositPercent,
           required: company.depositRequired,
         },

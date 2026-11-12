@@ -6,6 +6,7 @@ import { parseId } from '@/server/errors';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   createProfessional,
+  getProfessionalById,
   getProfessionalMonthlyProduction,
   listAllProfessionals,
   setProfessionalActive,
@@ -15,6 +16,7 @@ import { professionalInput, setProfessionalActiveInput } from '@/lib/validations
 import { serializeProfessional } from '@/lib/serialize';
 import { Prisma } from '@/generated/prisma/client';
 import { UserError } from '@/server/errors';
+import { assertProfessionalSlots } from '@/server/billing/features';
 
 function toFriendlyError(error: unknown): Error {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -41,6 +43,7 @@ export async function createProfessionalAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = professionalInput.parse(input);
     const { company } = await requireCompanyAdmin();
+    await assertProfessionalSlots(company);
 
     try {
       const professional = await createProfessional(company.id, {
@@ -80,6 +83,10 @@ export async function setProfessionalActiveAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = setProfessionalActiveInput.parse(input);
     const { company } = await requireCompanyAdmin();
+    if (parsed.active) {
+      const current = await getProfessionalById(company.id, parsed.id);
+      if (current && !current.active) await assertProfessionalSlots(company);
+    }
 
     await setProfessionalActive(company.id, parsed.id, parsed.active);
   });

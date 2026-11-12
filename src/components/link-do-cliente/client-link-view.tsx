@@ -209,7 +209,7 @@ function Overview({ data, goTo }: { data: ClientLinkData; goTo: (t: ClientLinkTa
       hint:
         data.deposit.connected && data.deposit.percent > 0
           ? `${data.deposit.percent === 100 ? 'Valor total' : `${data.deposit.percent}%`}, ${data.deposit.required ? 'obrigatório' : 'o cliente escolhe'}.`
-          : 'Hoje o cliente paga na hora do atendimento. Ative o PIX pela Asaas para cobrar ao marcar e reduzir faltas.',
+          : 'Hoje o cliente paga na hora do atendimento. Ative o PIX (direto na sua chave ou pela Asaas) para cobrar ao marcar e reduzir faltas.',
       tab: 'pagamento',
       optional: true,
     },

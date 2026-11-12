@@ -64,6 +64,10 @@ export type BookingCompany = {
   depositPercent: number;
   /** false: o cliente escolhe pagar agora por PIX ou no atendimento. */
   depositRequired: boolean;
+  /** PIX direto na chave do negócio: sem CPF, e quem confirma o pagamento é o negócio. */
+  depositManual: boolean;
+  /** WhatsApp do negócio, para mandar o comprovante. */
+  whatsappUrl: string | null;
 };
 type Booked = Extract<PublicBookingResult, { kind: 'booked' }>;
 /** O horário escolhido guarda o próprio dia: navegar por outra semana não o perde. */
@@ -124,9 +128,11 @@ export function BookingFlow({
   // Opcional: o cliente escolhe. Começa em "pagar agora", que é o que garante o horário.
   const [payNow, setPayNow] = React.useState(true);
   const needsDeposit = hasDeposit && (company.depositRequired || payNow);
+  // Só a Asaas pede CPF; o PIX direto na chave do negócio não.
+  const needsCpf = needsDeposit && !company.depositManual;
   const [cpf, setCpf] = React.useState('');
   const cpfDigits = cpf.replace(/\D/g, '');
-  const cpfError = needsDeposit && cpfDigits.length !== 11 ? 'Informe os 11 dígitos do CPF.' : null;
+  const cpfError = needsCpf && cpfDigits.length !== 11 ? 'Informe os 11 dígitos do CPF.' : null;
   const cpfRef = React.useRef<HTMLInputElement>(null);
   const [touched, setTouched] = React.useState({ name: false, phone: false });
   const [submitError, setSubmitError] = React.useState<string | null>(null);
@@ -254,7 +260,7 @@ export function BookingFlow({
         name,
         phone,
         website,
-        cpf: needsDeposit ? cpfDigits : undefined,
+        cpf: needsCpf ? cpfDigits : undefined,
         payNow: hasDeposit && !company.depositRequired ? payNow : undefined,
       }).then(unwrapResult),
     onSuccess: (result) => {
@@ -689,7 +695,7 @@ export function BookingFlow({
                     ))}
                   </fieldset>
                 )}
-                {needsDeposit && (
+                {needsCpf && (
                   <Field
                     id="booking-cpf"
                     label="CPF"

@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { toActionResult } from '@/server/action-result';
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import { completeOnboarding } from '@/server/data/onboarding';
+import { assertProfessionalSlots } from '@/server/billing/features';
 
 const time = z.string().regex(/^\d{2}:\d{2}$/, 'Horário inválido.');
 
@@ -41,6 +42,7 @@ export async function completeOnboardingAction(input: unknown) {
       })
       .parse(input);
     const { company } = await requireCompanyAdmin();
+    await assertProfessionalSlots(company, parsed.professionals.length);
     await completeOnboarding(company, parsed);
     revalidatePath('/dashboard');
     return { slug: company.slug };

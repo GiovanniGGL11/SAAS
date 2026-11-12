@@ -93,3 +93,29 @@ export async function companyHasFeature(companyId: string, key: FeatureKey): Pro
   });
   return company ? hasFeature(company, key) : false;
 }
+
+/**
+ * Barra cadastrar (ou reativar) profissionais além do limite do plano. Quem já passou do limite
+ * continua com a equipe que tem; só não acrescenta.
+ */
+export async function assertProfessionalSlots(
+  company: CompanyPlanFields & { id: string },
+  adding = 1,
+) {
+  const plan = getPlan(featureAccessFor(company).planId);
+  if (!plan || plan.maxProfessionals === null) return;
+  const active = await prisma.professional.count({
+    where: { companyId: company.id, active: true },
+  });
+  if (active + adding <= plan.maxProfessionals) return;
+  const bigger = PLANS.filter(
+    (p) =>
+      p.offered &&
+      p.checkoutEnabled &&
+      (p.maxProfessionals === null || p.maxProfessionals >= active + adding),
+  ).sort((a, b) => a.priceCents - b.priceCents)[0];
+  throw new UserError(
+    `O plano ${plan.name} inclui até ${plan.maxProfessionals} profissionais ativos.` +
+      (bigger ? ` Para ter mais, troque para o plano ${bigger.name} em Assinatura.` : ''),
+  );
+}

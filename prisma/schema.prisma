@@ -54,6 +54,15 @@ model Company {
   asaasSubscriptionId String?            @unique
   // Sinal por PIX no agendamento online: conta Asaas do próprio salão (chave cifrada).
   asaasApiKey         String?
+  // Conta Asaas criada pelo Atendafy (subconta): a chave acima não pode ser recuperada de novo.
+  asaasAccountId      String?
+  asaasWalletId       String?
+  // Como o pagamento adiantado é recebido: "asaas" (confirma sozinho) ou "pix" (chave do negócio, confirmação manual).
+  depositMethod       String             @default("asaas")
+  pixKey              String?
+  pixKeyType          String?
+  pixName             String?
+  pixCity             String?
   depositPercent      Int                @default(0)
   depositHoldMinutes  Int                @default(30)
   // true: o pagamento adiantado é obrigatório para reservar pelo link; false: o cliente escolhe pagar agora ou no atendimento.
@@ -2181,4 +2190,33 @@ model BillingWebhookEvent {
   createdAt      DateTime @default(now())
 
   @@index([subscriptionId])
+}
+
+/// Erros do servidor em produção (src/instrumentation.ts), para diagnosticar sem acesso aos logs da hospedagem. Sem cabeçalhos nem query string.
+model ServerErrorLog {
+  id        String   @id @default(cuid())
+  /// Código que aparece para o usuário ("ERROR 1475308693").
+  digest    String?
+  message   String
+  stack     String?
+  method    String
+  path      String
+  routePath String?
+  routeType String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([digest])
+}
+
+/// Avisos de cobrança já enviados (fim do teste, atraso): cada um sai uma vez só.
+model BillingNotice {
+  id        String   @id @default(cuid())
+  companyId String
+  kind      String
+  /// Chave única do aviso, ex.: "<empresa>:trial_3d:2026-11-10".
+  key       String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
 }
