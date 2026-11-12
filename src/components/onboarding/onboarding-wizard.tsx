@@ -126,10 +126,10 @@ export function OnboardingWizard({
                         setServices(toRows(s.value));
                       }}
                       className={cn(
-                        'rounded-2xl px-4 py-3 text-left text-[14px] font-medium ring-1 transition-colors',
+                        'rounded-2xl px-4 py-3 text-left text-[14px] font-medium ring-1 transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.98]',
                         segment === s.value
                           ? 'bg-system-blue/[0.08] ring-system-blue ring-2'
-                          : 'bg-tile hover:ring-foreground/10 ring-transparent',
+                          : 'bg-tile hover:bg-system-blue/[0.06] hover:ring-system-blue/40 ring-transparent hover:-translate-y-px hover:shadow-[0_8px_20px_-14px_rgb(0_0_0/0.35)]',
                       )}
                     >
                       {s.label}
