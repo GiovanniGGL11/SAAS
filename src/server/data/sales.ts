@@ -111,8 +111,9 @@ export async function savePackagePlan(
   companyId: string,
   id: string | null,
   data: PackagePlanInput,
+  db: Db | typeof prisma = prisma,
 ) {
-  const service = await prisma.service.findFirst({
+  const service = await db.service.findFirst({
     where: { id: data.serviceId, companyId },
     select: { id: true },
   });
@@ -125,10 +126,62 @@ export async function savePackagePlan(
     validityDays: data.recurring ? null : (data.validityDays ?? null),
     recurring: data.recurring,
   };
-  if (!id) return prisma.packagePlan.create({ data: { companyId, ...fields } });
+  if (!id) return db.packagePlan.create({ data: { companyId, ...fields } });
   // Mudar o plano vale para as próximas vendas; quem já comprou fica com o que comprou.
-  const result = await prisma.packagePlan.updateMany({ where: { id, companyId }, data: fields });
+  const result = await db.packagePlan.updateMany({ where: { id, companyId }, data: fields });
   if (result.count === 0) throw new UserError('Plano não encontrado.');
+}
+
+/** Serviço criado no próprio cadastro do pacote: um novo ou a soma de outros ("A + B"). */
+export type PackageServiceInput = {
+  name: string;
+  durationMinutes: number;
+  /** Preço avulso de uma sessão (referência para o desconto do pacote). */
+  price: number;
+  /** Serviços somados neste (vazio = serviço novo). */
+  combineIds?: string[];
+};
+
+/** Categoria dos serviços criados pelos pacotes: aparecem em Serviços, separados dos demais. */
+export const PACKAGE_SERVICE_CATEGORY = 'Pacotes';
+
+/**
+ * Cria o serviço do pacote e o plano juntos (nada fica pela metade). O serviço é interno: a equipe
+ * agenda as sessões, mas ele não aparece no agendamento online.
+ */
+export async function savePackagePlanWithNewService(
+  companyId: string,
+  id: string | null,
+  plan: Omit<PackagePlanInput, 'serviceId'>,
+  newService: PackageServiceInput,
+): Promise<{ serviceId: string; serviceName: string }> {
+  return prisma.$transaction(async (tx) => {
+    const combineIds = [...new Set(newService.combineIds ?? [])];
+    const parts = combineIds.length
+      ? await tx.service.findMany({
+          where: { companyId, id: { in: combineIds } },
+          select: { id: true, name: true, color: true },
+        })
+      : [];
+    if (parts.length !== combineIds.length) throw new UserError('Serviço não encontrado.');
+    if (combineIds.length === 1) throw new UserError('Escolha ao menos 2 serviços para juntar.');
+    const ordered = combineIds.map((cid) => parts.find((p) => p.id === cid)!);
+    const service = await tx.service.create({
+      data: {
+        companyId,
+        name: newService.name.trim(),
+        description: ordered.length ? `Junta: ${ordered.map((p) => p.name).join(' + ')}.` : null,
+        category: PACKAGE_SERVICE_CATEGORY,
+        durationMinutes: newService.durationMinutes,
+        price: newService.price,
+        color: ordered[0]?.color ?? '#5E5CE6',
+        publicVisible: false,
+      },
+      select: { id: true, name: true },
+    });
+    await savePackagePlan(companyId, id, { ...plan, serviceId: service.id }, tx);
+    return { serviceId: service.id, serviceName: service.name };
+  });
 }
 
 export async function setPackagePlanActive(companyId: string, id: string, active: boolean) {

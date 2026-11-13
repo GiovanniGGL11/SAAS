@@ -12,6 +12,7 @@ import {
   listOpenTab,
   receiveTab,
   savePackagePlan,
+  savePackagePlanWithNewService,
   sellGiftCard,
   sellPackage,
   sellProducts,
@@ -177,5 +178,70 @@ describe('pacotes, vale-presente, balcão e fiado', () => {
       where: { companyId, category: 'Assinaturas', status: 'PENDING' },
     });
     expect(pending.map((t) => Number(t.amount))).toEqual([150]);
+  });
+
+  it('pacote com serviço próprio: junta dois serviços num só (interno, categoria Pacotes) e cria o plano junto', async () => {
+    const extra = await prisma.service.create({
+      data: {
+        companyId,
+        name: 'Hidratação',
+        durationMinutes: 30,
+        price: 40,
+        color: '#22c55e',
+      },
+    });
+    const created = await savePackagePlanWithNewService(
+      companyId,
+      null,
+      { name: 'Combo do mês', sessions: 4, price: 300, recurring: true },
+      {
+        name: `${fixture.service.name} + Hidratação`,
+        durationMinutes: 90,
+        price: 90,
+        combineIds: [fixture.service.id, extra.id],
+      },
+    );
+    const service = await prisma.service.findUniqueOrThrow({ where: { id: created.serviceId } });
+    expect(service).toMatchObject({
+      companyId,
+      category: 'Pacotes',
+      durationMinutes: 90,
+      publicVisible: false,
+      active: true,
+    });
+    expect(Number(service.price)).toBe(90);
+    expect(service.description).toBe(`Junta: ${fixture.service.name} + Hidratação.`);
+    const plan = await prisma.packagePlan.findFirstOrThrow({ where: { companyId } });
+    expect(plan).toMatchObject({ serviceId: service.id, sessions: 4, recurring: true });
+
+    // Só um serviço para "juntar" ou serviço de outra empresa: nada é criado.
+    await expect(
+      savePackagePlanWithNewService(
+        companyId,
+        null,
+        { name: 'X', sessions: 1, price: 10, recurring: false },
+        { name: 'X', durationMinutes: 30, price: 10, combineIds: [extra.id] },
+      ),
+    ).rejects.toThrow(/ao menos 2/);
+    await expect(
+      savePackagePlanWithNewService(
+        companyId,
+        null,
+        { name: 'X', sessions: 1, price: 10, recurring: false },
+        { name: 'X', durationMinutes: 30, price: 10, combineIds: [extra.id, 'outra_empresa'] },
+      ),
+    ).rejects.toThrow(/não encontrado/);
+    expect(await prisma.service.count({ where: { companyId, category: 'Pacotes' } })).toBe(1);
+
+    // Serviço novo (sem juntar), no pacote comum.
+    const single = await savePackagePlanWithNewService(
+      companyId,
+      null,
+      { name: 'Pacote 10 sessões', sessions: 10, price: 500, recurring: false },
+      { name: 'Sessão completa', durationMinutes: 60, price: 60 },
+    );
+    expect(
+      await prisma.service.findUniqueOrThrow({ where: { id: single.serviceId } }),
+    ).toMatchObject({ name: 'Sessão completa', description: null, publicVisible: false });
   });
 });
