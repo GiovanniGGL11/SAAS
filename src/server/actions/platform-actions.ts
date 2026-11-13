@@ -9,13 +9,17 @@ import { PLANS } from '@/lib/billing/plans';
 import { toActionResult } from '@/server/action-result';
 import { UserError } from '@/server/errors';
 import { isPlatformAdmin } from '@/server/platform/overview';
+import { isFreshSignIn } from '@/lib/platform-security';
 
 /** "Sem prazo" grava esta data (bem no futuro) — dá para tirar a qualquer momento. */
 const NO_END = new Date('2100-01-01T00:00:00Z');
 
 async function requirePlatformAdmin() {
-  const { userId } = await auth();
+  const { userId, factorVerificationAge } = await auth();
   if (!userId || !isPlatformAdmin(userId)) throw new UserError('Sem permissão.');
+  if (!isFreshSignIn(factorVerificationAge)) {
+    throw new UserError('Por segurança, entre de novo para continuar (recarregue a página).');
+  }
   return userId;
 }
 

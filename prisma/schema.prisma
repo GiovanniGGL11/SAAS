@@ -145,6 +145,18 @@ model Company {
   trialClaims               TrialClaim[]
 }
 
+/// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
+model PlatformAccess {
+  id        String   @id @default(cuid())
+  userId    String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
 model WebhookEvent {
   id           String   @id @default(cuid())
   clerkEventId String   @unique

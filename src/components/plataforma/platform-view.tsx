@@ -81,6 +81,21 @@ export type PlatformData = {
     }[];
   } | null;
   plans: { id: string; name: string; price: number }[];
+  /** Últimas aberturas do painel (null = não deu para ler o histórico). */
+  accesses:
+    | {
+        id: string;
+        at: string;
+        ip: string | null;
+        device: string;
+        /** Feito pela conta que está vendo agora. */
+        mine: boolean;
+        /** Este acesso, o de agora. */
+        current: boolean;
+      }[]
+    | null;
+  /** O painel pede login de novo depois deste tempo. */
+  sessionMaxMinutes: number;
   costTotals: {
     revenue: number;
     aiCost: number;
@@ -1051,6 +1066,50 @@ export function PlatformView({ data }: { data: PlatformData }) {
             </>
           ) : (
             <Empty>Não foi possível consultar o Clerk agora.</Empty>
+          )}
+
+          <SectionTitle
+            title="Acessos a este painel"
+            subtitle={`Cada abertura do painel fica registrada. Se aparecer um aparelho ou lugar que não é seu, troque a senha da sua conta. Por segurança, o painel pede para entrar de novo a cada ${data.sessionMaxMinutes === 60 ? '1 hora' : `${data.sessionMaxMinutes} minutos`}.`}
+          />
+          {data.accesses?.length ? (
+            <DataList
+              rows={data.accesses}
+              rowKey={(a) => a.id}
+              title={(a) => dateTimeFmt.format(new Date(a.at))}
+              titleLabel="Quando"
+              columns={[
+                {
+                  label: 'Aparelho',
+                  cell: (a) => (
+                    <span className="inline-flex items-center gap-2">
+                      {a.device}
+                      {a.current && (
+                        <span className="bg-system-green/12 text-system-green rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                          Agora
+                        </span>
+                      )}
+                    </span>
+                  ),
+                },
+                { label: 'IP', cell: (a) => a.ip ?? '—' },
+                {
+                  label: 'Conta',
+                  cell: (a) =>
+                    a.mine ? (
+                      'Você'
+                    ) : (
+                      <span className="text-system-red font-semibold">Outra conta de dono</span>
+                    ),
+                },
+              ]}
+            />
+          ) : (
+            <Empty>
+              {data.accesses
+                ? 'Nenhum acesso registrado ainda.'
+                : 'Não foi possível ler o histórico de acessos agora.'}
+            </Empty>
           )}
         </div>
       )}

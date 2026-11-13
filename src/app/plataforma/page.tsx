@@ -11,7 +11,15 @@ import {
   isPlatformAdmin,
   summarizeCompanies,
 } from '@/server/platform/overview';
+import {
+  PLATFORM_SESSION_MAX_MINUTES,
+  getPlatformAccesses,
+  isFreshSignIn,
+  recordPlatformAccess,
+} from '@/server/platform/security';
+import { describeDevice } from '@/lib/platform-security';
 import { PlatformView, type PlatformData } from '@/components/plataforma/platform-view';
+import { PlatformReauth } from '@/components/plataforma/platform-reauth';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Plataforma', robots: { index: false, follow: false } };
@@ -20,14 +28,19 @@ const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
 /** Painel do dono do Atendafy. Só para quem está em PLATFORM_ADMIN_USER_IDS; para os demais, 404. */
 export default async function PlataformaPage() {
-  const { userId } = await auth();
-  if (!isPlatformAdmin(userId)) notFound();
+  const { userId, factorVerificationAge } = await auth();
+  if (!userId || !isPlatformAdmin(userId)) notFound();
+  if (!isFreshSignIn(factorVerificationAge)) {
+    return <PlatformReauth maxMinutes={PLATFORM_SESSION_MAX_MINUTES} />;
+  }
 
   const now = new Date();
-  const [companies, revenue, users] = await Promise.all([
+  await recordPlatformAccess(userId, now);
+  const [companies, revenue, users, accesses] = await Promise.all([
     getPlatformCompanies(now),
     getPlatformRevenue(now),
     getPlatformUsers(),
+    getPlatformAccesses(),
   ]);
   const summary = summarizeCompanies(companies, now);
   const costs = await getPlatformCosts(companies, now);
@@ -117,6 +130,16 @@ export default async function PlataformaPage() {
         lastSignInAt: iso(u.lastSignInAt),
       })),
     },
+    accesses:
+      accesses?.map((a) => ({
+        id: a.id,
+        at: a.createdAt.toISOString(),
+        ip: a.ip,
+        device: describeDevice(a.userAgent),
+        mine: a.userId === userId,
+        current: a.createdAt.getTime() === now.getTime(),
+      })) ?? null,
+    sessionMaxMinutes: PLATFORM_SESSION_MAX_MINUTES,
     costTotals,
     usdRate: usdToBrlRate(),
     plans: PLANS.filter((p) => p.offered).map((p) => ({
