@@ -63,7 +63,8 @@ export type GridBlock = {
 
 export type ScreenPoint = { x: number; y: number };
 
-const PIXELS_PER_HOUR = 64;
+/** 80 px por hora: um atendimento de 30 min cabe nome e horário sem cortar. */
+const PIXELS_PER_HOUR = 80;
 const SLOT_MINUTES = 15;
 
 type GridHours = { startHour: number; endHour: number };
@@ -190,9 +191,17 @@ function DraggableAppointment({
   const isInactive = appointment.status === 'CANCELED' || appointment.status === 'NO_SHOW';
   const isDone = appointment.status === 'DONE';
   const color = colorFor(appointment);
-  // Cor cheia e texto branco, como os eventos do Google. Falta e cancelado ficam só no contorno;
-  // concluído fica esmaecido, como evento que já passou.
+  // Como o Calendário do iPhone: fundo claro na cor, faixa cheia à esquerda e texto escuro.
+  // Falta e cancelado ficam só no contorno tracejado; concluído fica esmaecido.
   const solid = !isInactive;
+  // Quantas linhas cabem inteiras (cada uma ~15 px, mais o respiro de cima e de baixo): o que
+  // não cabe some, em vez de aparecer cortado pela metade.
+  const lines = Math.max(1, Math.floor((resizedHeight - 8) / 15));
+  const timeLabel = `${formatTimeInTz(appointment.startAt, timezone)}${
+    resizeDeltaPx !== null
+      ? ` – ${formatMinutes(utcToMinutesSinceMidnight(appointment.startAt, timezone) + Math.round(resizedHeight / minutesToTop(1)))}`
+      : ''
+  }`;
 
   function startResize(event: React.PointerEvent) {
     event.stopPropagation();
@@ -229,27 +238,35 @@ function DraggableAppointment({
         onContextMenu(appointment, { x: event.clientX, y: event.clientY });
       }}
       className={cn(
-        'group/card absolute overflow-hidden rounded-[10px] px-2 py-1 text-left text-xs shadow-sm ring-1 ring-black/5 transition-[box-shadow,transform] duration-200 hover:z-30 hover:shadow-lg',
-        solid ? 'text-white' : 'bg-background text-foreground border-2 border-dashed',
-        isDone && 'opacity-60',
+        'group/card text-foreground absolute overflow-hidden rounded-[8px] py-[3px] pr-1.5 pl-2.5 text-left text-[12px] leading-[15px] transition-[box-shadow,transform,filter] duration-200 hover:z-30 hover:shadow-lg hover:brightness-[0.97]',
+        solid ? 'shadow-[0_1px_2px_rgb(0_0_0/0.06)]' : 'bg-background border-2 border-dashed',
+        isDone && 'opacity-55',
         isDragging && 'z-50 scale-[1.02] opacity-90 shadow-xl',
         resizeDeltaPx !== null && 'z-50 shadow-xl',
         appointment.status === 'NO_SHOW' && 'line-through decoration-1 opacity-70',
       )}
       style={{
-        top: item.top,
-        height: resizedHeight,
+        // 1 px de respiro em cima e embaixo: atendimentos seguidos não grudam.
+        top: item.top + 1,
+        height: resizedHeight - 2,
         left: `calc(${(item.lane / item.totalLanes) * 100}% + 2px)`,
         width: `calc(${100 / item.totalLanes}% - 4px)`,
-        backgroundColor: solid ? color : undefined,
+        backgroundColor: solid ? `color-mix(in oklab, ${color} 18%, var(--background))` : undefined,
         borderColor: solid ? undefined : color,
         transform: CSS.Translate.toString(transform),
       }}
     >
+      {solid && (
+        <span
+          className="absolute inset-y-0 left-0 w-[3px]"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+      )}
       <div className="flex items-center gap-1">
         {/* Colorindo por profissional, o status vira a bolinha; colorindo por status, vice-versa. */}
         <span
-          className={cn('size-2 shrink-0 rounded-full', solid && 'ring-1 ring-white/80')}
+          className="size-[7px] shrink-0 rounded-full"
           style={{
             backgroundColor:
               colorMode === 'professional'
@@ -258,32 +275,36 @@ function DraggableAppointment({
           }}
           aria-hidden
         />
-        <span className="truncate font-semibold">{appointment.client.name}</span>
+        {/* Uma linha só: horário e nome juntos. */}
+        {lines === 1 && (
+          <span className="text-label-secondary shrink-0 tabular-nums">{timeLabel}</span>
+        )}
+        <span
+          className="truncate font-semibold"
+          style={
+            solid ? { color: `color-mix(in oklab, ${color} 45%, var(--foreground))` } : undefined
+          }
+        >
+          {appointment.client.name}
+        </span>
         {appointment.isFirstVisit && (
-          <SparklesIcon
-            className={cn('size-3 shrink-0', solid ? 'text-white' : 'text-system-indigo')}
-            aria-label="Cliente novo"
-          />
+          <SparklesIcon className="text-system-indigo size-3 shrink-0" aria-label="Cliente novo" />
         )}
         {appointment.notes && (
           <StickyNoteIcon
-            className={cn('size-3 shrink-0', solid ? 'text-white/85' : 'text-muted-foreground')}
+            className="text-label-secondary size-3 shrink-0"
             aria-label="Tem observação"
           />
         )}
       </div>
-      <div className={cn('truncate', solid ? 'text-white/85' : 'text-muted-foreground')}>
-        {formatTimeInTz(appointment.startAt, timezone)}
-        {resizeDeltaPx !== null &&
-          ` – ${formatMinutes(utcToMinutesSinceMidnight(appointment.startAt, timezone) + Math.round(resizedHeight / minutesToTop(1)))}`}{' '}
-        · {appointment.serviceNameSnapshot}
-      </div>
-      {resizedHeight > 44 && (
-        <div
-          className={cn('truncate font-medium', solid ? 'text-white/85' : 'text-label-secondary')}
-        >
-          {STATUS_LABELS[appointment.status]}
-          <span className="font-normal"> · {formatCurrencyBRL(appointment.priceSnapshot)}</span>
+      {lines >= 2 && (
+        <div className="text-label-secondary truncate">
+          <span className="tabular-nums">{timeLabel}</span> · {appointment.serviceNameSnapshot}
+        </div>
+      )}
+      {lines >= 3 && (
+        <div className="text-label-secondary truncate">
+          {STATUS_LABELS[appointment.status]} · {formatCurrencyBRL(appointment.priceSnapshot)}
         </div>
       )}
       {/* Alça de redimensionar: aparece ao passar o mouse na borda de baixo. */}
@@ -294,9 +315,7 @@ function DraggableAppointment({
         onClick={(event) => event.stopPropagation()}
         className="absolute right-0 bottom-0 left-0 flex h-2 cursor-ns-resize items-center justify-center opacity-0 group-hover/card:opacity-100"
       >
-        <span
-          className={cn('h-0.5 w-6 rounded-full', solid ? 'bg-white/80' : 'bg-foreground/40')}
-        />
+        <span className="bg-foreground/30 h-0.5 w-6 rounded-full" />
       </span>
     </button>
   );
