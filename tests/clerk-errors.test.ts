@@ -13,9 +13,26 @@ describe('erros do Clerk no cadastro', () => {
       getClerkErrorMessage({
         code: 'form_password_length_too_short',
         message: 'is too short',
-        longMessage: 'Passwords must be 15 characters or more.',
+        longMessage: 'Passwords must be 8 characters or more.',
       }),
-    ).toContain(`${PASSWORD_MIN_LENGTH} caracteres`);
+    ).toBe('A senha precisa ter pelo menos 8 caracteres.');
+    // Se o Clerk estiver com outro mínimo, a mensagem usa o número dele.
+    expect(
+      getClerkErrorMessage({
+        code: 'api_response_error',
+        errors: [
+          {
+            code: 'form_password_length_too_short',
+            longMessage: 'Passwords must be 15 characters or more.',
+          },
+        ],
+      }),
+    ).toContain('15 caracteres');
+    // Sem número no texto: usa o mínimo do site.
+    expect(getClerkErrorMessage({ code: 'form_password_length_too_short' })).toContain(
+      `${PASSWORD_MIN_LENGTH} caracteres`,
+    );
+    expect(PASSWORD_MIN_LENGTH).toBe(8);
     expect(getClerkErrorMessage({ code: 'form_identifier_exists', message: 'taken' })).toMatch(
       /Já existe uma conta/,
     );
