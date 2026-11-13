@@ -4,6 +4,7 @@ import {
   CalendarClockIcon,
   CheckCircle2Icon,
   ChevronRightIcon,
+  ClipboardCheckIcon,
   HandCoinsIcon,
   PackageIcon,
   ReceiptIcon,
@@ -23,6 +24,16 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export function AttentionCard({ overview, isAdmin }: { overview: Overview; isAdmin: boolean }) {
   const t = overview.tomorrowDate;
   const items = [
+    overview.toClose > 0 && {
+      icon: ClipboardCheckIcon,
+      color: '#ff9500',
+      text:
+        overview.toClose === 1
+          ? '1 atendimento já passou e não foi fechado'
+          : `${overview.toClose} atendimentos já passaram e não foram fechados`,
+      action: 'Fechar',
+      href: '/agenda/fechar',
+    },
     overview.tomorrowUnconfirmed > 0 && {
       icon: CalendarClockIcon,
       color: '#ff9500',
