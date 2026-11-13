@@ -36,6 +36,7 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-13: manutenção. Master trouxe planos/IA, plataforma, cadastro pelo link e agenda (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown (inclui `docs/planos-e-ia.md`, do master, não alterado).
 - 2026-11-12: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
 - 2026-11-10: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
 - 2026-11-09: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa. Prettier só acusa arquivos Markdown de `docs/` e o README (não alterados).
