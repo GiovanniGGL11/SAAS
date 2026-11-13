@@ -122,3 +122,13 @@ Modelos (categoria **Utilidade**, idioma **Português (BR)**), com estes nomes e
 - `atendafy_lembrete`: `Olá, {{1}}! Lembrete do seu horário de amanhã em {{2}}: {{3}}. Para confirmar ou cancelar, acesse {{4}} — até lá!`
 
 {{1}} nome, {{2}} salão, {{3}} dia, hora, serviço e profissional, {{4}} link de confirmação.
+
+## Custos no painel da plataforma
+
+/plataforma → Custos: por empresa, no mês, o custo estimado de IA (`AiUsageEvent.estimatedCostMicros`,
+preço em `AI_PROVIDER_PRICING`; modelo sem preço usa `DEFAULT_AI_PRICING`), do WhatsApp oficial
+(`OFFICIAL_WHATSAPP_COST_USD` por mensagem) e a taxa da Asaas (`ASAAS_FEE_BRL`), contra a receita
+mensal; dólar em `USD_BRL_RATE` (padrão 5,50). Teste e cortesia não pagam e podem aparecer negativos.
+Os valores reais ficam nas faturas do Google e da Meta. Revisar o preço do Gemini em janeiro/2027
+(o atual é promocional até 31/12/2026).
+

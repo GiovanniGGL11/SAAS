@@ -1,10 +1,11 @@
 import { notFound } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 
-import { PLANS, getPlan, planPrice } from '@/lib/billing/plans';
+import { PLANS, getPlan, planPrice, usdToBrlRate } from '@/lib/billing/plans';
 import {
   SITUATION_LABEL,
   getPlatformCompanies,
+  getPlatformCosts,
   getPlatformRevenue,
   getPlatformUsers,
   isPlatformAdmin,
@@ -29,6 +30,29 @@ export default async function PlataformaPage() {
     getPlatformUsers(),
   ]);
   const summary = summarizeCompanies(companies, now);
+  const costs = await getPlatformCosts(companies, now);
+  const zero = {
+    revenue: 0,
+    aiCredits: 0,
+    aiQuestions: 0,
+    aiCost: 0,
+    waMessages: 0,
+    waCost: 0,
+    fee: 0,
+    profit: 0,
+  };
+  const costTotals = [...costs.values()].reduce(
+    (t, c) => ({
+      revenue: t.revenue + c.revenue,
+      aiCost: t.aiCost + c.aiCost,
+      waCost: t.waCost + c.waCost,
+      fee: t.fee + c.fee,
+      profit: t.profit + c.profit,
+      aiQuestions: t.aiQuestions + c.aiQuestions,
+      waMessages: t.waMessages + c.waMessages,
+    }),
+    { revenue: 0, aiCost: 0, waCost: 0, fee: 0, profit: 0, aiQuestions: 0, waMessages: 0 },
+  );
 
   const data: PlatformData = {
     generatedAt: now.toISOString(),
@@ -82,6 +106,7 @@ export default async function PlataformaPage() {
               }
             : null,
         billing: (c.asaasCustomerId && revenue?.byCustomer.get(c.asaasCustomerId)) || null,
+        costs: costs.get(c.id) ?? zero,
       };
     }),
     users: users && {
@@ -92,6 +117,8 @@ export default async function PlataformaPage() {
         lastSignInAt: iso(u.lastSignInAt),
       })),
     },
+    costTotals,
+    usdRate: usdToBrlRate(),
     plans: PLANS.filter((p) => p.offered).map((p) => ({
       id: p.id,
       name: p.name,

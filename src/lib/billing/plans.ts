@@ -405,14 +405,31 @@ export const ADD_ONS: AddOn[] = [
   },
 ];
 
-/** Preço estimado do provedor por 1 milhão de tokens (para estimar custo; não é cobrança). */
-export const AI_PROVIDER_PRICING: Record<
-  string,
-  { inputPerMillion: number; outputPerMillion: number; currency: 'USD' }
-> = {
-  // Referência provisória do Gemini Flash; ajuste quando trocar de modelo.
-  'gemini-flash-latest': { inputPerMillion: 0.3, outputPerMillion: 2.5, currency: 'USD' },
+type ProviderPrice = { inputPerMillion: number; outputPerMillion: number; currency: 'USD' };
+
+/**
+ * Preço do provedor por 1 milhão de tokens (para estimar custo; não é cobrança). O apelido
+ * "gemini-flash-latest" segue o Flash mais novo: em nov/2026, US$ 0,75 / US$ 3,75 (preço
+ * promocional até 31/12/2026 — revisar em janeiro em ai.google.dev/pricing).
+ */
+export const AI_PROVIDER_PRICING: Record<string, ProviderPrice> = {
+  'gemini-flash-latest': { inputPerMillion: 0.75, outputPerMillion: 3.75, currency: 'USD' },
 };
+
+/** Modelo sem preço cadastrado: estima pelo Flash, para o custo nunca aparecer zerado. */
+export const DEFAULT_AI_PRICING: ProviderPrice = AI_PROVIDER_PRICING['gemini-flash-latest'];
+
+/** Custo por mensagem de utilidade no WhatsApp oficial (Meta, Brasil), em dólar — estimativa. */
+export const OFFICIAL_WHATSAPP_COST_USD = 0.008;
+
+/** Taxa da Asaas por cobrança recebida (PIX), em reais. */
+export const ASAAS_FEE_BRL = 1.99;
+
+/** Dólar para estimar custos em reais (USD_BRL_RATE na Vercel; senão 5,50). */
+export function usdToBrlRate(): number {
+  const rate = Number(process.env.USD_BRL_RATE);
+  return Number.isFinite(rate) && rate > 0 ? rate : 5.5;
+}
 
 export function getPlan(id: string | null | undefined): Plan | undefined {
   return PLANS.find((p) => p.id === id);
