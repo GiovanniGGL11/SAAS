@@ -409,11 +409,12 @@ type ProviderPrice = { inputPerMillion: number; outputPerMillion: number; curren
 
 /**
  * Preço do provedor por 1 milhão de tokens (para estimar custo; não é cobrança). O apelido
- * "gemini-flash-latest" segue o Flash mais novo: em nov/2026, US$ 0,75 / US$ 3,75 (preço
- * promocional até 31/12/2026 — revisar em janeiro em ai.google.dev/pricing).
+ * "gemini-flash-latest" segue o Flash mais novo (3.8): preço CHEIO de US$ 1,50 / US$ 7,50, que vale
+ * a partir de 01/01/2027. Até 31/12/2026 o Google cobra a metade (promoção), então a estimativa
+ * fica acima do gasto real até lá — de propósito, para nada mudar quando a promoção acabar.
  */
 export const AI_PROVIDER_PRICING: Record<string, ProviderPrice> = {
-  'gemini-flash-latest': { inputPerMillion: 0.75, outputPerMillion: 3.75, currency: 'USD' },
+  'gemini-flash-latest': { inputPerMillion: 1.5, outputPerMillion: 7.5, currency: 'USD' },
 };
 
 /** Modelo sem preço cadastrado: estima pelo Flash, para o custo nunca aparecer zerado. */

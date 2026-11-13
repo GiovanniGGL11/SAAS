@@ -70,6 +70,7 @@ describe('custos por empresa no painel da plataforma', () => {
     expect(estimateCostMicros('modelo-novo', usage).micros).toBe(
       estimateCostMicros('gemini-flash-latest', usage).micros,
     );
-    expect(estimateCostMicros('gemini-flash-latest', usage).micros).toBe(750_000);
+    // Preço cheio (sem a promoção que acaba em 31/12/2026).
+    expect(estimateCostMicros('gemini-flash-latest', usage).micros).toBe(1_500_000);
   });
 });

@@ -129,6 +129,6 @@ Modelos (categoria **Utilidade**, idioma **Português (BR)**), com estes nomes e
 preço em `AI_PROVIDER_PRICING`; modelo sem preço usa `DEFAULT_AI_PRICING`), do WhatsApp oficial
 (`OFFICIAL_WHATSAPP_COST_USD` por mensagem) e a taxa da Asaas (`ASAAS_FEE_BRL`), contra a receita
 mensal; dólar em `USD_BRL_RATE` (padrão 5,50). Teste e cortesia não pagam e podem aparecer negativos.
-Os valores reais ficam nas faturas do Google e da Meta. Revisar o preço do Gemini em janeiro/2027
-(o atual é promocional até 31/12/2026).
+Os valores reais ficam nas faturas do Google e da Meta. O Gemini é estimado pelo preço cheio
+(US$ 1,50 / US$ 7,50, a partir de 01/01/2027); até 31/12/2026 o gasto real é a metade.
 
