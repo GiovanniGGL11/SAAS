@@ -2,6 +2,8 @@
 
 import { useAuth } from '@clerk/nextjs';
 import { PackagePlans } from '@/components/servicos/package-plans';
+import { UpgradeCard } from '@/components/assinatura/upgrade-card';
+import type { UpgradeOffer } from '@/lib/billing/upgrade';
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,9 +43,37 @@ function formatDuration(minutes: number): string {
   return rest ? `${hours}h ${rest}min` : `${hours}h`;
 }
 
-export function ServiceList({ initialServices }: { initialServices: SerializedService[] }) {
+export type ServicesTab = 'services' | 'packages' | 'subscriptions';
+
+const TAB_PARAM: Record<ServicesTab, string | null> = {
+  services: null,
+  packages: 'pacotes',
+  subscriptions: 'assinaturas',
+};
+
+export function ServiceList({
+  initialServices,
+  initialTab = 'services',
+  packagesOffer = null,
+}: {
+  initialServices: SerializedService[];
+  initialTab?: ServicesTab;
+  /** Pacotes e assinaturas fora do plano: mostra a oferta de upgrade nessas abas. */
+  packagesOffer?: UpgradeOffer | null;
+}) {
   const isAdmin = useAuth().orgRole === 'org:admin';
   const queryClient = useQueryClient();
+  const [tab, setTab] = React.useState<ServicesTab>(initialTab);
+
+  function changeTab(next: ServicesTab) {
+    setTab(next);
+    // A aba fica no endereço (?aba=assinaturas): dá para voltar direto e mandar o link.
+    const url = new URL(window.location.href);
+    const param = TAB_PARAM[next];
+    if (param) url.searchParams.set('aba', param);
+    else url.searchParams.delete('aba');
+    window.history.replaceState(window.history.state, '', url);
+  }
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [editingService, setEditingService] = React.useState<SerializedService | null>(null);
   const [search, setSearch] = React.useState('');
@@ -93,6 +123,45 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
   });
   const activeCount = services.filter((service) => service.active).length;
 
+  const tabs = (
+    <SegmentedControl
+      value={tab}
+      onValueChange={changeTab}
+      options={[
+        { value: 'services', label: 'Serviços' },
+        { value: 'packages', label: 'Pacotes' },
+        { value: 'subscriptions', label: 'Assinaturas' },
+      ]}
+    />
+  );
+
+  if (tab !== 'services') {
+    const subscriptions = tab === 'subscriptions';
+    return (
+      <div className="flex flex-col gap-5">
+        <PageHeader
+          title={subscriptions ? 'Assinaturas' : 'Pacotes'}
+          description={
+            subscriptions
+              ? 'Serviços recorrentes: o cliente paga todo mês e tem sessões por mês.'
+              : 'Várias sessões de um serviço, vendidas de uma vez.'
+          }
+        />
+        {tabs}
+        {packagesOffer ? (
+          <UpgradeCard offer={packagesOffer} />
+        ) : (
+          <PackagePlans
+            key={tab}
+            kind={subscriptions ? 'subscription' : 'package'}
+            services={services}
+            isAdmin={isAdmin}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -105,6 +174,7 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
           </Button>
         }
       />
+      {tabs}
 
       <ListToolbar>
         <SearchField
@@ -245,8 +315,6 @@ export function ServiceList({ initialServices }: { initialServices: SerializedSe
       </Surface>
 
       <ServiceDrawer open={drawerOpen} onOpenChange={setDrawerOpen} service={editingService} />
-
-      <PackagePlans services={services} isAdmin={isAdmin} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PackageIcon, PlusIcon } from 'lucide-react';
+import { PackageIcon, PlusIcon, RepeatIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -33,20 +33,52 @@ function parseMoney(value: string): number {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 
-/** Pacotes ("10 cortes por R$ 400") e assinaturas ("4 cortes por mês"): o admin cria, a recepção vende. */
+type Kind = 'package' | 'subscription';
+
+const COPY: Record<
+  Kind,
+  { title: string; text: string; create: string; empty: React.ReactNode; Icon: typeof PackageIcon }
+> = {
+  package: {
+    title: 'Pacotes',
+    text: 'Várias sessões vendidas de uma vez, para usar quando quiser (com ou sem validade). Vendidos no Caixa ou na ficha do cliente; cada sessão é usada na hora de cobrar o atendimento.',
+    create: 'Novo pacote',
+    empty: <>Nenhum pacote ainda. Ex.: &ldquo;4 cortes por R$ 160&rdquo;.</>,
+    Icon: PackageIcon,
+  },
+  subscription: {
+    title: 'Assinaturas',
+    text: 'Serviço recorrente: o cliente paga por mês e tem um número de sessões por mês. Todo mês a assinatura renova sozinha, as sessões voltam a zero e a mensalidade fica a receber no fiado do cliente. Vendidas no Caixa ou na ficha do cliente.',
+    create: 'Nova assinatura',
+    empty: (
+      <>
+        Nenhuma assinatura ainda. Ex.: &ldquo;Clube do corte: 4 cortes por mês por R$ 150&rdquo; ou
+        &ldquo;Mensalidade de pilates: 8 aulas por mês&rdquo;.
+      </>
+    ),
+    Icon: RepeatIcon,
+  },
+};
+
+/** Pacotes ("10 cortes por R$ 400") ou assinaturas ("4 cortes por mês"): o admin cria, a recepção vende. */
 export function PackagePlans({
+  kind,
   services,
   isAdmin,
 }: {
+  kind: Kind;
   services: SerializedService[];
   isAdmin: boolean;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = React.useState<Plan | 'new' | null>(null);
-  const { data } = useQuery({
+  const subscription = kind === 'subscription';
+  const copy = COPY[kind];
+  const { data: all } = useQuery({
     queryKey: ['package-plans'],
     queryFn: () => listPackagePlansAction(),
   });
+  const data = all?.filter((p) => p.recurring === subscription);
   const toggle = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setPackagePlanActiveAction(input).then(unwrapResult),
@@ -57,26 +89,19 @@ export function PackagePlans({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-[20px] font-bold tracking-[-0.02em]">Pacotes e assinaturas</h2>
-          <p className="text-label-secondary text-[14px]">
-            Vendidos no Caixa ou na ficha do cliente; cada sessão é usada na hora de cobrar o
-            atendimento.
-          </p>
-        </div>
+        <p className="text-label-secondary max-w-2xl text-[14px]">{copy.text}</p>
         {isAdmin && (
-          <Button variant="outline" onClick={() => setEditing('new')}>
+          <Button onClick={() => setEditing('new')}>
             <PlusIcon className="size-4" />
-            Novo plano
+            {copy.create}
           </Button>
         )}
       </div>
       <Surface>
         {!data || data.length === 0 ? (
           <div className="text-label-secondary flex items-center gap-3 p-5 text-[14px]">
-            <PackageIcon className="size-5" />
-            Nenhum plano ainda. Ex.: &ldquo;4 cortes por R$ 160&rdquo; ou &ldquo;Clube: 4 cortes por
-            mês por R$ 150&rdquo;.
+            <copy.Icon className="size-5 shrink-0" />
+            <span>{copy.empty}</span>
           </div>
         ) : (
           <ul className="divide-foreground/[0.06] divide-y">
@@ -91,14 +116,7 @@ export function PackagePlans({
                   onClick={() => setEditing(p)}
                   className="min-w-0 flex-1 text-left"
                 >
-                  <div className="flex items-center gap-2 font-medium">
-                    {p.name}
-                    {p.recurring && (
-                      <span className="bg-system-blue/12 text-system-blue rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                        Assinatura
-                      </span>
-                    )}
-                  </div>
+                  <div className="font-medium">{p.name}</div>
                   <div className="text-label-secondary text-[13px]">
                     {p.sessions}× {p.serviceName}
                     {p.recurring
@@ -128,6 +146,7 @@ export function PackagePlans({
       </Surface>
       {editing !== null && (
         <PlanDialog
+          recurring={subscription}
           plan={editing === 'new' ? null : editing}
           services={services.filter((s) => s.active)}
           onClose={() => setEditing(null)}
@@ -142,17 +161,18 @@ export function PackagePlans({
 }
 
 function PlanDialog({
+  recurring,
   plan,
   services,
   onClose,
   onSaved,
 }: {
+  recurring: boolean;
   plan: Plan | null;
   services: SerializedService[];
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [recurring, setRecurring] = React.useState(plan?.recurring ?? false);
   const [name, setName] = React.useState(plan?.name ?? '');
   const [serviceId, setServiceId] = React.useState(plan?.serviceId ?? services[0]?.id ?? '');
   const [sessions, setSessions] = React.useState(String(plan?.sessions ?? 4));
@@ -179,7 +199,12 @@ function PlanDialog({
         recurring,
       }).then(unwrapResult),
     onSuccess: () => {
-      toast.success(plan ? 'Plano atualizado (vale para as próximas vendas).' : 'Plano criado.');
+      const noun = recurring ? 'Assinatura' : 'Pacote';
+      toast.success(
+        plan
+          ? `${noun} atualizad${recurring ? 'a' : 'o'} (vale para as próximas vendas).`
+          : `${noun} criad${recurring ? 'a' : 'o'}.`,
+      );
       onSaved();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -189,9 +214,19 @@ function PlanDialog({
     <Dialog open onOpenChange={(open: boolean) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{plan ? 'Editar plano' : 'Novo plano'}</DialogTitle>
+          <DialogTitle>
+            {recurring
+              ? plan
+                ? 'Editar assinatura'
+                : 'Nova assinatura'
+              : plan
+                ? 'Editar pacote'
+                : 'Novo pacote'}
+          </DialogTitle>
           <DialogDescription>
-            Pacote: sessões para usar quando quiser. Assinatura: sessões por mês, renova sozinha.
+            {recurring
+              ? 'Sessões por mês com mensalidade. Renova sozinha todo mês até ser cancelada.'
+              : 'Sessões para usar quando quiser, pagas de uma vez.'}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -201,24 +236,6 @@ function PlanDialog({
             save.mutate();
           }}
         >
-          <div className="bg-foreground/[0.06] flex rounded-full p-0.5 text-[13px]">
-            {[
-              [false, 'Pacote'],
-              [true, 'Assinatura mensal'],
-            ].map(([value, label]) => (
-              <button
-                key={String(value)}
-                type="button"
-                onClick={() => setRecurring(value as boolean)}
-                className={cn(
-                  'flex-1 rounded-full py-1.5 font-medium',
-                  recurring === value && 'bg-background shadow-sm',
-                )}
-              >
-                {label as string}
-              </button>
-            ))}
-          </div>
           <label className="flex flex-col gap-1.5">
             <span className="font-medium">Nome</span>
             <Input
