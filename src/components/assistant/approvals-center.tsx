@@ -227,7 +227,7 @@ function ApprovalCard({
           {rejecting ? (
             <div className="flex flex-wrap items-center gap-2">
               <Input
-                className="min-w-0 flex-1"
+                className="min-w-[12rem] flex-1"
                 placeholder="Motivo (opcional)"
                 maxLength={500}
                 value={note}

@@ -148,7 +148,7 @@ export function TasksCard() {
         }}
       >
         <Input
-          className="min-w-0 flex-1"
+          className="min-w-[12rem] flex-1"
           placeholder="Nova tarefa"
           maxLength={160}
           value={title}

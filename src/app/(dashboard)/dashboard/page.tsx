@@ -38,6 +38,7 @@ import { listAppointmentsInRange } from '@/server/data/appointments';
 import { addDays, getTodayInTz, startOfCalendarDateUtc } from '@/lib/time';
 import { DailySummaryCard } from '@/components/dashboard/daily-summary-card';
 import { TasksCard } from '@/components/dashboard/tasks-card';
+import { MobileSections } from '@/components/layout/mobile-sections';
 
 function greetingFor(timezone: string, now: Date) {
   const hour = Number(
@@ -224,8 +225,8 @@ export default async function DashboardPage({
   // Mesma janela e mesma regra do gráfico; sem agendamentos suficientes não há "pico" a apontar.
   const { peak, sample: peakSample } = findPeakHour(busiestHours);
 
-  return (
-    <div className="flex w-full flex-col gap-4 md:gap-5">
+  const todaySection = (
+    <>
       {serviceCount === 0 && professionalCount === 0 ? (
         // Conta nova e vazia: o assistente monta serviços, equipe, horário e link de uma vez.
         <Link
@@ -254,23 +255,19 @@ export default async function DashboardPage({
         subtitle="O dia de hoje, o que precisa de atenção e como o negócio está indo."
       />
       <UnitsLink />
-
       <TodayStrip overview={overview} showMoney />
-
       <div className="grid grid-cols-1 items-start gap-4 md:gap-5 lg:grid-cols-2">
         <AttentionCard overview={overview} isAdmin aiCredits={aiCredits} />
-        <GoalCard
-          goal={goal}
-          revenue={month.revenue}
-          projection={month.projection}
-          dayOfMonth={month.dayOfMonth}
-          totalDays={month.totalDays}
-        />
+        {agendaCard}
       </div>
-
       {followUp}
+      {returnsCard}
+    </>
+  );
 
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+  const resultsSection = (
+    <>
+      <div className="flex flex-wrap items-end justify-between gap-3 md:mt-4">
         <div>
           <h2 className="text-[22px] font-bold tracking-[-0.02em] md:text-[26px]">
             Como o negócio está indo
@@ -282,7 +279,6 @@ export default async function DashboardPage({
         </div>
         <PeriodPicker value={preset} />
       </div>
-
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-5 lg:grid-cols-4">
         <KpiTile
           index={0}
@@ -364,8 +360,7 @@ export default async function DashboardPage({
           hint="Atendidos pela primeira vez no período."
         />
       </div>
-
-      <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-4 md:gap-5 lg:grid-cols-3">
         <AppleTile index={0} interactive={false} className="lg:col-span-2">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -380,26 +375,13 @@ export default async function DashboardPage({
           </div>
           <RevenueChart data={revenueByDay} />
         </AppleTile>
-        <div className="flex flex-col gap-4 md:gap-5">
-          {returnsCard}
-          <LapsedClientsCard
-            clients={overview.lapsed.top}
-            total={overview.lapsed.count}
-            withHistory={overview.lapsed.withHistory}
-          />
-        </div>
+        <LapsedClientsCard
+          clients={overview.lapsed.top}
+          total={overview.lapsed.count}
+          withHistory={overview.lapsed.withHistory}
+        />
       </div>
-
-      <TeamPerformance
-        team={insights.team}
-        goals={teamGoals}
-        ratings={reviews.byProfessional}
-        overallRating={
-          reviews.average === null ? null : { average: reviews.average, count: reviews.count }
-        }
-      />
-
-      <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-4 md:gap-5 lg:grid-cols-3">
         <AppleTile interactive={false} className="lg:col-span-2">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -424,8 +406,37 @@ export default async function DashboardPage({
             </div>
           )}
         </AppleTile>
-        {agendaCard}
+        <GoalCard
+          goal={goal}
+          revenue={month.revenue}
+          projection={month.projection}
+          dayOfMonth={month.dayOfMonth}
+          totalDays={month.totalDays}
+        />
       </div>
-    </div>
+    </>
+  );
+
+  return (
+    <MobileSections
+      sections={[
+        { id: 'hoje', label: 'Hoje', content: todaySection },
+        { id: 'resultados', label: 'Resultados', content: resultsSection },
+        {
+          id: 'equipe',
+          label: 'Equipe',
+          content: (
+            <TeamPerformance
+              team={insights.team}
+              goals={teamGoals}
+              ratings={reviews.byProfessional}
+              overallRating={
+                reviews.average === null ? null : { average: reviews.average, count: reviews.count }
+              }
+            />
+          ),
+        },
+      ]}
+    />
   );
 }
