@@ -43,7 +43,12 @@ const COPY: Record<
     title: 'Pacotes',
     text: 'Várias sessões vendidas de uma vez, para usar quando quiser (com ou sem validade). Vendidos no Caixa ou na ficha do cliente; cada sessão é usada na hora de cobrar o atendimento.',
     create: 'Novo pacote',
-    empty: <>Nenhum pacote ainda. Ex.: &ldquo;4 cortes por R$ 160&rdquo;.</>,
+    empty: (
+      <>
+        Nenhum pacote ainda. Ex.: &ldquo;Pacote de 10 sessões&rdquo;, &ldquo;5 aulas&rdquo; ou
+        &ldquo;4 atendimentos com desconto&rdquo; — pagos de uma vez, usados aos poucos.
+      </>
+    ),
     Icon: PackageIcon,
   },
   subscription: {
@@ -52,15 +57,16 @@ const COPY: Record<
     create: 'Nova assinatura',
     empty: (
       <>
-        Nenhuma assinatura ainda. Ex.: &ldquo;Clube do corte: 4 cortes por mês por R$ 150&rdquo; ou
-        &ldquo;Mensalidade de pilates: 8 aulas por mês&rdquo;.
+        Nenhuma assinatura ainda. Ex.: &ldquo;Plano mensal: 4 sessões por mês&rdquo;,
+        &ldquo;Mensalidade: 8 aulas por mês&rdquo; ou &ldquo;Clube: 2 atendimentos por mês&rdquo; —
+        o cliente paga todo mês e usa as sessões do mês.
       </>
     ),
     Icon: RepeatIcon,
   },
 };
 
-/** Pacotes ("10 cortes por R$ 400") ou assinaturas ("4 cortes por mês"): o admin cria, a recepção vende. */
+/** Pacotes ("10 sessões por R$ 400") ou assinaturas ("4 sessões por mês"): o admin cria, a recepção vende. */
 export function PackagePlans({
   kind,
   services,
@@ -241,7 +247,7 @@ function PlanDialog({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={recurring ? 'Clube do corte' : '4 cortes'}
+              placeholder={recurring ? 'Ex.: Plano mensal' : 'Ex.: Pacote 10 sessões'}
               required
             />
           </label>
