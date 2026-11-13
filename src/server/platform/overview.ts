@@ -1,7 +1,7 @@
 import { clerkClient } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/db';
-import { getPlan, monthlyPriceCents } from '@/lib/billing/plans';
+import { chargeCents, getPlan, monthlyPriceCents } from '@/lib/billing/plans';
 import type { Company } from '@/generated/prisma/client';
 import { PAID_STATUSES, asaasRequest } from '@/server/billing/asaas';
 import { getSubscriptionState } from '@/server/billing/subscription';
@@ -45,7 +45,7 @@ type CompanyRow = Pick<
   | 'trialPending'
   | 'currentPeriodEnd'
 > &
-  Partial<Pick<Company, 'courtesyUntil'>> & { activeProfessionals?: number };
+  Partial<Pick<Company, 'courtesyUntil' | 'billingCycle'>> & { activeProfessionals?: number };
 
 export function situationOf(company: CompanyRow, now: Date): CompanySituation {
   if (company.subscriptionStatus === 'ACTIVE') return 'paying';
@@ -71,7 +71,12 @@ export function summarizeCompanies(companies: CompanyRow[], now: Date) {
     // Receita recorrente: quem paga ou está só atrasado (ainda é assinante). Cortesia não entra.
     if (situation === 'paying' || situation === 'past_due') {
       const plan = getPlan(company.plan);
-      mrr += plan ? monthlyPriceCents(plan, company.activeProfessionals ?? 0) / 100 : 0;
+      const pros = company.activeProfessionals ?? 0;
+      mrr += !plan
+        ? 0
+        : company.billingCycle === 'YEARLY'
+          ? chargeCents(plan, pros, 'YEARLY') / 1200
+          : monthlyPriceCents(plan, pros) / 100;
     }
     if (situation === 'trial') {
       const daysLeft = getSubscriptionState(company, now).trialDaysLeft;
@@ -243,6 +248,7 @@ export async function getPlatformCompanies(now: Date) {
       courtesyPlan: true,
       courtesyNote: true,
       asaasCustomerId: true,
+      billingCycle: true,
     },
     orderBy: { createdAt: 'desc' },
   });

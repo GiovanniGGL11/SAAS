@@ -4,9 +4,10 @@ import {
   PAST_DUE_GRACE_DAYS,
   effectiveTrialEnd,
   getPlan,
-  monthlyPriceCents,
   professionalsLimitLabel,
   type PlanId,
+  chargeCents,
+  type BillingCycle,
 } from '@/lib/billing/plans';
 import { UserError } from '@/server/errors';
 import {
@@ -95,19 +96,20 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 async function subscriptionCharge(
   plan: NonNullable<ReturnType<typeof getPlan>>,
   companyId: string,
+  cycle: BillingCycle,
 ) {
   const active = plan.extraProfessionalCents
     ? await prisma.professional.count({ where: { companyId, active: true } })
     : 0;
-  const cents = monthlyPriceCents(plan, active);
+  const cents = chargeCents(plan, active, cycle);
   const extra =
-    cents > plan.priceCents && plan.includedProfessionals !== undefined
-      ? active - plan.includedProfessionals
+    plan.includedProfessionals !== undefined && plan.extraProfessionalCents
+      ? Math.max(0, active - plan.includedProfessionals)
       : 0;
   return {
     value: cents / 100,
     description:
-      `Atendafy — plano ${plan.name}` +
+      `Atendafy — plano ${plan.name}${cycle === 'YEARLY' ? ' anual' : ''}` +
       (extra > 0
         ? ` + ${extra} ${extra === 1 ? 'profissional extra' : 'profissionais extras'}`
         : ''),
@@ -121,8 +123,16 @@ async function subscriptionCharge(
  */
 export async function startSubscription(
   company: Company,
-  input: { planId: PlanId; name: string; cpfCnpj: string; email: string; phone?: string | null },
+  input: {
+    planId: PlanId;
+    name: string;
+    cpfCnpj: string;
+    email: string;
+    phone?: string | null;
+    cycle?: BillingCycle;
+  },
 ) {
+  const cycle = input.cycle ?? 'MONTHLY';
   const plan = getPlan(input.planId);
   if (!plan) throw new UserError('Plano não encontrado.');
   // Preço ainda não publicado (ou plano antigo): a contratação fica fechada.
@@ -149,17 +159,23 @@ export async function startSubscription(
       ).id;
     const trialEnd = effectiveTrialEnd(company);
     const firstDue = trialEnd.getTime() > Date.now() ? trialEnd : new Date();
-    const charge = await subscriptionCharge(plan, company.id);
+    const charge = await subscriptionCharge(plan, company.id, cycle);
     const subscription = await createSubscription(key, {
       customer: customerId,
       value: charge.value,
       nextDueDate: ymd(firstDue),
       description: charge.description,
       externalReference: company.id,
+      cycle,
     });
     await prisma.company.update({
       where: { id: company.id },
-      data: { asaasCustomerId: customerId, asaasSubscriptionId: subscription.id, plan: plan.id },
+      data: {
+        asaasCustomerId: customerId,
+        asaasSubscriptionId: subscription.id,
+        plan: plan.id,
+        billingCycle: cycle,
+      },
     });
     const payments = await listSubscriptionPayments(key, subscription.id);
     const pending = payments.data.find((p) => p.status === 'PENDING' || p.status === 'OVERDUE');
@@ -207,7 +223,7 @@ export async function changeSubscriptionPlan(company: Company, planId: PlanId) {
     await updateSubscription(
       apiKey(),
       company.asaasSubscriptionId,
-      await subscriptionCharge(plan, company.id),
+      await subscriptionCharge(plan, company.id, cycleOf(company.billingCycle)),
     );
   } catch (error) {
     if (error instanceof AsaasError) throw new UserError(`A Asaas recusou: ${error.message}`);
@@ -224,7 +240,7 @@ export async function syncSubscriptionValue(companyId: string) {
   if (!billingConfigured()) return;
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { plan: true, asaasSubscriptionId: true, subscriptionStatus: true },
+    select: { plan: true, asaasSubscriptionId: true, subscriptionStatus: true, billingCycle: true },
   });
   const plan = getPlan(company?.plan);
   if (!company?.asaasSubscriptionId || company.subscriptionStatus === 'CANCELED') return;
@@ -232,7 +248,7 @@ export async function syncSubscriptionValue(companyId: string) {
   await updateSubscription(
     apiKey(),
     company.asaasSubscriptionId,
-    await subscriptionCharge(plan, companyId),
+    await subscriptionCharge(plan, companyId, cycleOf(company.billingCycle)),
   );
 }
 
@@ -276,9 +292,13 @@ type AsaasWebhook = {
   subscription?: { id?: string };
 };
 
-function addMonth(ymdDate: string): Date {
+const cycleOf = (value: string | null | undefined): BillingCycle =>
+  value === 'YEARLY' ? 'YEARLY' : 'MONTHLY';
+
+/** Até quando uma cobrança paga vale: 1 mês, ou 1 ano no plano anual. */
+function addPeriod(ymdDate: string, cycle: BillingCycle): Date {
   const d = new Date(`${ymdDate}T12:00:00-03:00`);
-  d.setMonth(d.getMonth() + 1);
+  d.setMonth(d.getMonth() + (cycle === 'YEARLY' ? 12 : 1));
   return d;
 }
 
@@ -327,7 +347,10 @@ async function applyBillingEvent(
   switch (payload.event) {
     case 'PAYMENT_CONFIRMED':
     case 'PAYMENT_RECEIVED': {
-      const periodEnd = addMonth(dueDate ?? new Date().toISOString().slice(0, 10));
+      const periodEnd = addPeriod(
+        dueDate ?? new Date().toISOString().slice(0, 10),
+        cycleOf(company.billingCycle),
+      );
       await prisma.company.update({
         where: { id: company.id },
         data: {
@@ -343,7 +366,11 @@ async function applyBillingEvent(
     }
     case 'PAYMENT_OVERDUE': {
       // O período desta cobrança já está pago (evento atrasado ou reenviado): nada muda.
-      if (dueDate && company.currentPeriodEnd && company.currentPeriodEnd >= addMonth(dueDate)) {
+      if (
+        dueDate &&
+        company.currentPeriodEnd &&
+        company.currentPeriodEnd >= addPeriod(dueDate, cycleOf(company.billingCycle))
+      ) {
         return 'ignored';
       }
       if (company.subscriptionStatus === 'CANCELED') return 'ignored';

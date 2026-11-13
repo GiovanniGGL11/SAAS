@@ -12,6 +12,7 @@ import { sealSecret } from '@/server/secret-box';
 import {
   checkZapiConnection,
   getZapiConfig,
+  officialAllowance,
   scheduleCampaignSend,
   sendOnce,
 } from '@/server/whatsapp/automation';
@@ -22,7 +23,7 @@ const TOGGLES = ['waAutoConfirm', 'waAutoReminder', 'waAutoReview', 'waAutoBirth
 /** O que a tela mostra: nunca devolve o token, só se ele existe. */
 export async function getWhatsappSettingsAction() {
   const { company } = await requireCompanyAdmin();
-  const [full, recent] = await Promise.all([
+  const [full, recent, official] = await Promise.all([
     prisma.company.findUniqueOrThrow({
       where: { id: company.id },
       select: {
@@ -41,6 +42,7 @@ export async function getWhatsappSettingsAction() {
       take: 20,
       select: { id: true, kind: true, phone: true, status: true, error: true, createdAt: true },
     }),
+    officialAllowance(company.id),
   ]);
   return {
     configured: Boolean(full.zapiInstanceId && full.zapiToken),
@@ -53,6 +55,8 @@ export async function getWhatsappSettingsAction() {
       waAutoBirthday: full.waAutoBirthday,
     },
     recent,
+    /** Confirmação e lembrete pelo WhatsApp oficial do Atendafy (incluídos no plano). */
+    official,
   };
 }
 

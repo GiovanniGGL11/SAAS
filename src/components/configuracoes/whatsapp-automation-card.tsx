@@ -220,6 +220,40 @@ export function WhatsappAutomationCard() {
         </div>
       </form>
 
+      {data && !data.configured && data.official.ready && data.official.included > 0 && (
+        <div className="bg-system-green/[0.07] ring-system-green/20 flex flex-col gap-2 rounded-2xl p-4 ring-1">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-[15px] font-semibold">Incluído no seu plano</span>
+            <span className="text-label-secondary text-[12px] tabular-nums">
+              {data.official.used} de {data.official.included} mensagens este mês
+            </span>
+          </div>
+          <p className="text-label-secondary text-[12px]">
+            Mesmo sem conectar o número do salão, a confirmação e o lembrete saem pelo WhatsApp
+            oficial do Atendafy, em nome do seu salão — sem custo extra. Avaliação e parabéns
+            precisam da conexão acima.
+          </p>
+          <ul className="divide-foreground/[0.06] divide-y">
+            {AUTOMATIONS.filter((a) => a.key === 'waAutoConfirm' || a.key === 'waAutoReminder').map(
+              (a) => (
+                <li key={a.key} className="flex items-center justify-between gap-4 py-2.5">
+                  <div>
+                    <div className="text-[14px] font-medium">{a.title}</div>
+                    <div className="text-label-secondary text-[12px]">{a.hint}</div>
+                  </div>
+                  <Switch
+                    checked={data.toggles[a.key]}
+                    disabled={toggle.isPending}
+                    aria-label={a.title}
+                    onCheckedChange={(enabled: boolean) => toggle.mutate({ key: a.key, enabled })}
+                  />
+                </li>
+              ),
+            )}
+          </ul>
+        </div>
+      )}
+
       {data?.configured && (
         <>
           <ul className="divide-foreground/[0.06] divide-y">

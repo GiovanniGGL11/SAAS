@@ -113,6 +113,8 @@ export type Plan = {
   includedProfessionals?: number;
   /** Valor mensal por profissional ativo além dos incluídos. */
   extraProfessionalCents?: number;
+  /** Confirmações e lembretes por mês pelo WhatsApp oficial do Atendafy (0 = não inclui). */
+  includedWhatsappMessages: number;
   maxUnits: number | null;
   features: Record<FeatureKey, boolean>;
   ai: AiPlanEntitlements;
@@ -216,6 +218,7 @@ export const PLANS: Plan[] = [
     offered: true,
     checkoutEnabled: true,
     maxProfessionals: 1,
+    includedWhatsappMessages: 0,
     maxUnits: 1,
     features: ESSENTIAL_FEATURES,
     ai: NO_AI,
@@ -238,6 +241,8 @@ export const PLANS: Plan[] = [
     offered: true,
     checkoutEnabled: true,
     maxProfessionals: 4,
+    // ~R$ 0,04 cada (modelo de utilidade da Meta): no máximo uns R$ 16 por mês.
+    includedWhatsappMessages: 400,
     maxUnits: 1,
     features: FULL_FEATURES,
     ai: {
@@ -277,6 +282,7 @@ export const PLANS: Plan[] = [
     maxProfessionals: null,
     includedProfessionals: 10,
     extraProfessionalCents: 1000,
+    includedWhatsappMessages: 1200,
     maxUnits: null,
     features: PRO_FEATURES,
     ai: {
@@ -316,6 +322,7 @@ export const PLANS: Plan[] = [
     checkoutEnabled: false,
     legacy: true,
     maxProfessionals: null,
+    includedWhatsappMessages: 400,
     maxUnits: null,
     features: { ...FULL_FEATURES, multiUnit: true },
     ai: {
@@ -345,6 +352,8 @@ export const PLANS: Plan[] = [
 export const TRIAL_DAYS = 15;
 export const TRIAL_GRANT = {
   basePlan: 'profissional' as PlanId,
+  /** Confirmações e lembretes pelo WhatsApp do Atendafy durante o teste. */
+  includedWhatsappMessages: 50,
   /** Limite de IA no teste grátis: cerca de 50 perguntas, para conhecer o assistente. */
   aiMonthlyUnits: 150 as number | null,
 };
@@ -422,6 +431,21 @@ export function monthlyPriceCents(
   }
   const extra = Math.max(0, activeProfessionals - plan.includedProfessionals);
   return plan.priceCents + extra * plan.extraProfessionalCents;
+}
+
+export type BillingCycle = 'MONTHLY' | 'YEARLY';
+
+/** Desconto do plano anual (pago de uma vez). */
+export const ANNUAL_DISCOUNT = 0.2;
+
+/** Valor de cada cobrança: a mensalidade, ou 12 mensalidades com o desconto do anual. */
+export function chargeCents(
+  plan: Pick<Plan, 'priceCents' | 'includedProfessionals' | 'extraProfessionalCents'>,
+  activeProfessionals: number,
+  cycle: BillingCycle,
+): number {
+  const monthly = monthlyPriceCents(plan, activeProfessionals);
+  return cycle === 'YEARLY' ? Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT)) : monthly;
 }
 
 /** "1 profissional" ou "até 3 profissionais" (para as mensagens de limite). */

@@ -102,3 +102,23 @@ mensagem) ainda não está integrada.
 - Teste grátis: `TRIAL_DAYS` = 15.
 - No teste, a Assinatura mostra o que a empresa já usou do Profissional
   (`src/server/billing/trial-usage.ts`), com o botão para continuar nele.
+
+## Plano anual
+
+Mensal ou anual com `ANNUAL_DISCOUNT` (20%), cobrado de uma vez (`chargeCents`, ciclo `YEARLY` na
+Asaas). `Company.billingCycle` guarda o ciclo; o pagamento confirmado estende o período em 1 ano.
+Troca de plano e profissionais extras do Pro recalculam o valor no mesmo ciclo.
+
+## Confirmação e lembrete incluídos (WhatsApp oficial do Atendafy)
+
+Sem a Z-API do salão, a confirmação ao marcar e o lembrete da véspera saem pelo número do Atendafy
+na API oficial da Meta (`src/server/whatsapp/cloud-api.ts`), até `includedWhatsappMessages` por mês
+(Profissional 400, Pro 1.200, teste 50; Básico 0). Avaliação e parabéns continuam só pela Z-API.
+Desligado até configurar `WHATSAPP_CLOUD_TOKEN` e `WHATSAPP_CLOUD_PHONE_ID`.
+
+Modelos (categoria **Utilidade**, idioma **Português (BR)**), com estes nomes e textos:
+
+- `atendafy_confirmacao`: `Olá, {{1}}! Seu horário em {{2}} está marcado: {{3}}. Para confirmar ou cancelar, acesse {{4}} — até lá!`
+- `atendafy_lembrete`: `Olá, {{1}}! Lembrete do seu horário de amanhã em {{2}}: {{3}}. Para confirmar ou cancelar, acesse {{4}} — até lá!`
+
+{{1}} nome, {{2}} salão, {{3}} dia, hora, serviço e profissional, {{4}} link de confirmação.
