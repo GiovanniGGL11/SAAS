@@ -65,8 +65,8 @@ describe('painel da plataforma', () => {
       trial_pending: 1,
       trial_ended: 1,
     });
-    // Profissional 74,90 + Básico 39,90 (cancelada não conta).
-    expect(s.mrr).toBe(114.8);
+    // Profissional 79,90 + Básico 39,90 (cancelada não conta).
+    expect(s.mrr).toBe(119.8);
     expect(s.endingSoon.map((c) => c.id)).toEqual(['teste']);
     expect([s.newLast7, s.newLast30]).toEqual([1, 1]);
   });

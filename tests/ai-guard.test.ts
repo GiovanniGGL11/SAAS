@@ -5,7 +5,7 @@ import { resolveEntitlements } from '@/lib/billing/entitlements';
 import { buildAiSession, type AiSession } from '@/server/ai/access';
 import { handleAssistantMessage } from '@/server/ai/assistant-service';
 import { cancelProposal, confirmProposal } from '@/server/ai/proposals';
-import { reserveUnits, settleReservation } from '@/server/ai/quota';
+import { reserveUnits, settleReservation, usagePeriod } from '@/server/ai/quota';
 import { readOnlyToolbox, assistantToolbox } from '@/server/assistant/run';
 import { adjustStock } from '@/server/data/stock';
 import { NO_GRANT, resolveFormAccess } from '@/server/data/form-permissions';
@@ -118,19 +118,25 @@ describe('IA: planos, franquia e execução segura', () => {
     expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).quantity).toBe(4);
   });
 
-  it('franquia não definida em produção bloqueia antes do provedor', async () => {
+  it('limite do mês esgotado em produção bloqueia antes do provedor', async () => {
     await setPlan(a.company.id, 'profissional');
     const company = await prisma.company.findUniqueOrThrow({ where: { id: a.company.id } });
     const session = buildAiSession({ company, userId: 'user_dono', isAdmin: true });
-    const production = {
-      ...session,
-      entitlements: resolveEntitlements(company, { production: true }),
-    };
+    const entitlements = resolveEntitlements(company, { production: true });
+    expect(entitlements.ai.available.assistant).toBe(true);
+    const period = usagePeriod(company.timezone);
+    await prisma.aiUsagePeriod.create({
+      data: { companyId: company.id, period, usedUnits: entitlements.ai.monthlyUnits },
+    });
     const calls = installFakeGemini([[{ text: 'não deveria' }]]);
     await expect(
-      handleAssistantMessage({ session: production, messages: [{ role: 'user', text: 'oi' }] }),
-    ).rejects.toThrow(/franquia de IA do seu plano ainda não foi configurada/);
+      handleAssistantMessage({
+        session: { ...session, entitlements },
+        messages: [{ role: 'user', text: 'oi' }],
+      }),
+    ).rejects.toThrow(/franquia de IA deste mês acabou/);
     expect(calls).toHaveLength(0);
+    await prisma.aiUsagePeriod.deleteMany({ where: { companyId: company.id } });
   });
 
   it('Profissional: "12 cremes por R$ 240" vira prévia; confirmar duas vezes registra uma entrada, sem pagamento', async () => {
@@ -211,8 +217,10 @@ describe('IA: planos, franquia e execução segura', () => {
     await expect(confirmProposal(await sessionFor(b.company.id), proposals[0].id)).rejects.toThrow(
       'Proposta não encontrada.',
     );
+    // Outra pessoa da equipe (não administradora) não aprova proposta de quem pediu; administrador
+    // aprova a de qualquer pessoa (regra das aprovações).
     await expect(
-      confirmProposal(await sessionFor(a.company.id, 'user_outro'), proposals[0].id),
+      confirmProposal(await sessionFor(a.company.id, 'user_outro', false), proposals[0].id),
     ).rejects.toThrow('Proposta não encontrada.');
     // Membro da equipe não lança pagamento no financeiro (mesma regra da tela).
     const member = await sessionFor(a.company.id, 'user_membro', false);

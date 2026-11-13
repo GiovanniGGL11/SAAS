@@ -114,7 +114,9 @@ export type Plan = {
   ai: AiPlanEntitlements;
   /** Adicionais que podem ser contratados neste plano. */
   addOns: AddOnId[];
-  /** Destaques mostrados na tela de planos — só o que existe de verdade hoje. */
+  /** Para quem é o plano, numa linha (aparece abaixo do preço). */
+  tagline: string;
+  /** Destaques mostrados na tela de planos — só o que existe de verdade hoje, sem jargão. */
   highlights: string[];
 };
 
@@ -214,19 +216,20 @@ export const PLANS: Plan[] = [
     features: ESSENTIAL_FEATURES,
     ai: NO_AI,
     addOns: [],
+    tagline: 'Para quem trabalha sozinho ou em dupla',
     highlights: [
       'Até 2 profissionais',
-      'Agenda e agendamento online',
+      'Agenda e agendamento pelo link',
+      'Mensagem pronta no WhatsApp com um toque',
       'Comanda, caixa e financeiro',
       'Clientes, fidelidade e estoque',
-      'Tarefas e lembretes internos',
-      'Não inclui inteligência artificial',
+      'Tarefas e lembretes da equipe',
     ],
   },
   {
     id: 'profissional',
     name: 'Profissional',
-    priceCents: 7490,
+    priceCents: 7990,
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
@@ -239,23 +242,25 @@ export const PLANS: Plan[] = [
       assistedActions: true,
       aiAutomations: false,
       autoExecution: false,
-      monthlyUnits: null, // A DEFINIR (decisão comercial pendente)
+      // ~1 a 6 consultas ao modelo por pergunta: cerca de 200 perguntas por mês. Mesmo usando
+      // tudo e com o Gemini mais caro, o plano continua dando lucro (conta em docs/planos-e-ia.md).
+      monthlyUnits: 600,
       maxAudioSecondsPerCommand: 30,
       maxAudioMinutesPerMonth: 60,
       maxStepsPerRequest: 6,
       maxRequestSeconds: 60,
     },
     addOns: ['whatsapp_ai'],
+    tagline: 'Para equipes de até 8 pessoas',
     highlights: [
       'Até 8 profissionais',
       'Tudo do Básico',
+      'Campanhas para chamar clientes de volta',
       'Comissões, metas e relatórios',
-      'WhatsApp automático e campanhas',
-      'Pacotes, assinaturas e fichas',
-      'CRM de oportunidades e orçamentos com link para o cliente aprovar',
-      'Campos personalizados',
-      'Lista de espera com convites e área do cliente completa',
-      'Assistente de IA por texto, com sua aprovação antes de alterar dados',
+      'Pacotes, assinaturas e fichas de atendimento',
+      'Orçamentos que o cliente aprova pelo link',
+      'Lista de espera e área do cliente',
+      'Funil de vendas e campos próprios na ficha',
     ],
   },
   {
@@ -264,8 +269,7 @@ export const PLANS: Plan[] = [
     priceCents: 14990,
     currency: 'BRL',
     offered: true,
-    // Preço ainda não publicado na Asaas: a contratação fica fechada até a decisão final.
-    checkoutEnabled: false,
+    checkoutEnabled: true,
     maxProfessionals: null,
     maxUnits: null,
     features: PRO_FEATURES,
@@ -275,21 +279,23 @@ export const PLANS: Plan[] = [
       assistedActions: true,
       aiAutomations: true,
       autoExecution: true,
-      monthlyUnits: null, // A DEFINIR — maior que a do Profissional
+      // Cerca de 500 perguntas por mês.
+      monthlyUnits: 1500,
       maxAudioSecondsPerCommand: 30,
       maxAudioMinutesPerMonth: 180,
       maxStepsPerRequest: 8,
       maxRequestSeconds: 90,
     },
     addOns: ['whatsapp_ai'],
+    tagline: 'Para redes, várias unidades ou equipes grandes',
     highlights: [
       'Profissionais ilimitados',
       'Tudo do Profissional',
       'Várias unidades num painel só',
-      'Rotinas que você autoriza: renovação de pacotes e lista de espera automática',
-      'Resumo do dia automático e resultados das automações',
-      'Margem por serviço',
-      'Assistente de IA com franquia maior que a do Profissional',
+      'Renovação de pacotes e lista de espera no automático',
+      'Resumo do dia pronto toda manhã',
+      'Lucro de cada serviço e indicadores avançados',
+      'Serviços em andamento e regras automáticas de tarefas',
     ],
   },
   {
@@ -312,13 +318,14 @@ export const PLANS: Plan[] = [
       assistedActions: true,
       aiAutomations: false,
       autoExecution: false,
-      monthlyUnits: null,
+      monthlyUnits: 600,
       maxAudioSecondsPerCommand: 30,
       maxAudioMinutesPerMonth: 60,
       maxStepsPerRequest: 6,
       maxRequestSeconds: 60,
     },
     addOns: ['whatsapp_ai'],
+    tagline: 'Plano anterior',
     highlights: ['Plano anterior, mantido para quem já assina'],
   },
 ];
@@ -332,8 +339,8 @@ export const PLANS: Plan[] = [
 export const TRIAL_DAYS = 30;
 export const TRIAL_GRANT = {
   basePlan: 'profissional' as PlanId,
-  /** Franquia de IA do teste — A DEFINIR (null bloqueia em produção). */
-  aiMonthlyUnits: null as number | null,
+  /** Limite de IA no teste grátis: cerca de 50 perguntas, para conhecer o assistente. */
+  aiMonthlyUnits: 150 as number | null,
 };
 
 /** Contas que já existiam quando a cobrança entrou: 30 dias a partir daqui. */

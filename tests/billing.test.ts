@@ -110,7 +110,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
     expect(sub.key).toBe('$aact_hmlg_chave_de_teste');
     expect(sub.body).toMatchObject({
       customer: 'cus_1',
-      value: 74.9,
+      value: 79.9,
       cycle: 'MONTHLY',
       billingType: 'UNDEFINED',
       externalReference: company.id,
@@ -213,7 +213,8 @@ describe('assinatura do Atendafy (Asaas)', () => {
     await expect(changeSubscriptionPlan(company, 'essencial')).rejects.toThrow(
       /até 2 profissionais/,
     );
-    await expect(changeSubscriptionPlan(company, 'pro')).rejects.toThrow(/não está disponível/);
+    // Plano antigo (fora de venda) não pode ser escolhido.
+    await expect(changeSubscriptionPlan(company, 'rede')).rejects.toThrow(/não está disponível/);
 
     await prisma.professional.updateMany({ where: { companyId: id }, data: { active: false } });
     await changeSubscriptionPlan(company, 'essencial');

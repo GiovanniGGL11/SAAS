@@ -7,8 +7,8 @@ Referência para quem mantém o Atendafy. Valores comerciais são **provisórios
 | O quê | Onde |
 | --- | --- |
 | Nome, preço (centavos), limites de profissionais/unidades, funcionalidades, IA incluída, adicionais, destaques da tela de planos | `src/lib/billing/plans.ts` → `PLANS` |
-| Liberar a contratação de um plano pela Asaas | `checkoutEnabled` do plano (Pro está `false`: preço não publicado) |
-| Franquia mensal de IA | `ai.monthlyUnits` de cada plano (`null` = a definir; **bloqueia em produção**) |
+| Liberar a contratação de um plano pela Asaas | `checkoutEnabled` do plano (Básico, Profissional e Pro liberados) |
+| Franquia mensal de IA | `ai.monthlyUnits` de cada plano: Profissional 600, Pro 1.500, teste 150 (`null` bloquearia em produção) |
 | Franquia do teste grátis e plano-base do teste | `TRIAL_GRANT` |
 | Valor provisório só para desenvolvimento | `DEV_PROVISIONAL_AI_UNITS` (nunca vale em produção) |
 | Tolerância de atraso | `PAST_DUE_GRACE_DAYS` |
@@ -63,3 +63,29 @@ Detalhes por etapa, dependências e pendências: `docs/evolucao-operacional.md`.
 ## Gestão completa (tarefas, comercial, serviços em andamento, indicações, regras, indicadores, catálogo)
 
 Recursos por plano, onde configurar, migrações e pendências: `docs/gestao-completa.md`.
+
+## Custo da IA no limite (novembro de 2026)
+
+Uma "unidade" é uma consulta ao Gemini; cada pergunta usa de 1 a 6 (≈3). Cada consulta leva ~4.000
+tokens fixos (instruções + 24 ferramentas) mais a conversa: estimado 5.000–8.000 de entrada e
+250–400 de saída. Dólar a R$ 5,50. O modelo é `gemini-flash-latest` (apelido: o preço muda com o
+Flash mais novo).
+
+| Cenário de preço (US$/1M entrada · saída) | Custo por consulta |
+| --- | --- |
+| 0,30 · 2,50 | R$ 0,012–0,019 |
+| 0,75 · 3,75 (provável; promocional até 31/12/2026) | R$ 0,026–0,041 |
+| 1,50 · 9,00 | R$ 0,054–0,086 |
+
+Lucro de quem usa **tudo** (preço − R$ 1,99 da Asaas − IA; sem impostos): Profissional (R$ 79,90,
+600) de R$ 26 a R$ 71; Pro (R$ 149,90, 1.500) de R$ 19 a R$ 130. Com os limites anteriores
+(1.000/3.000) o Pro podia dar prejuízo no cenário caro. Fixar um modelo específico no lugar do
+apelido evita mudança de preço sem aviso.
+
+## WhatsApp automático
+
+Adicional dos planos Profissional e Pro: o salão conecta o próprio número pela Z-API (Configurações
+→ WhatsApp) e a Z-API cobra direto dele. O Atendafy não cobra pelo envio. Sem a Z-API, a mensagem
+continua pronta no botão do WhatsApp (todos os planos). A API oficial da Meta (cobrança por
+mensagem) ainda não está integrada.
+
