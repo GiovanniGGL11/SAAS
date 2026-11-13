@@ -4,6 +4,7 @@ import { requireAdminPage } from '@/server/auth/require-current-company';
 import { listAllCoupons } from '@/server/data/coupons';
 import { serializeCoupon } from '@/lib/serialize';
 import { CampaignsShell } from '@/components/campanhas/campaigns-shell';
+import { upgradeOffer } from '@/server/billing/features';
 
 export const metadata = { title: 'Cupons' };
 
@@ -13,7 +14,13 @@ export default async function CampanhasPage() {
 
   return (
     <Suspense>
-      <CampaignsShell coupons={coupons.map(serializeCoupon)} />
+      <CampaignsShell
+        coupons={coupons.map(serializeCoupon)}
+        locked={{
+          mensagens: upgradeOffer(company, 'campaigns'),
+          indicacoes: upgradeOffer(company, 'referrals'),
+        }}
+      />
     </Suspense>
   );
 }

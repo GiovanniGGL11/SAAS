@@ -15,6 +15,8 @@ import { formatCurrencyBRL } from '@/lib/serialize';
 import { PLANS, getPlan, planPrice, type PlanId } from '@/lib/billing/plans';
 import { cn } from '@/lib/utils';
 import { TrialClaimCard } from '@/components/assinatura/trial-claim-card';
+import { pricePerDay } from '@/lib/billing/upgrade';
+import type { TrialUsageItem } from '@/server/billing/trial-usage';
 import type { SubscriptionState } from '@/server/billing/subscription';
 import {
   cancelSubscriptionAction,
@@ -59,7 +61,16 @@ function aiSummary(plan: (typeof PLANS)[number]): string {
 }
 
 /** Planos do Atendafy, teste grátis e pagamento pela Asaas (PIX, boleto ou cartão). */
-export function SubscriptionView({ state, companyName }: { state: State; companyName: string }) {
+export function SubscriptionView({
+  state,
+  companyName,
+  trialUsage = [],
+}: {
+  state: State;
+  companyName: string;
+  /** No teste: o que já usou do Profissional (some no Básico). */
+  trialUsage?: TrialUsageItem[];
+}) {
   const router = useRouter();
   const offered = PLANS.filter((p) => p.offered);
   const [selected, setSelected] = React.useState<PlanId>(() => {
@@ -125,6 +136,37 @@ export function SubscriptionView({ state, companyName }: { state: State; company
 
       {state.trialPending && !state.courtesyUntil && <TrialClaimCard />}
 
+      {trialUsage.length > 0 && (
+        <section className="bg-system-blue/[0.06] ring-system-blue/20 flex flex-col gap-3 rounded-[22px] p-5 ring-1">
+          <div>
+            <h2 className="text-[17px] font-semibold">No teste, você já usou</h2>
+            <p className="text-label-secondary text-[13px]">
+              Esses recursos são do plano Profissional. No Básico eles param de funcionar — os dados
+              ficam guardados.
+            </p>
+          </div>
+          <ul className="grid gap-1.5 text-[14px] sm:grid-cols-2">
+            {trialUsage.map((item) => (
+              <li key={item.label} className="flex items-center gap-2">
+                <CheckIcon className="text-system-green size-4 shrink-0" />
+                <span>
+                  <strong className="tabular-nums">{item.count}</strong> {item.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <Button
+            className="self-start"
+            onClick={() => {
+              setSelected('profissional');
+              document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            Continuar com o Profissional
+          </Button>
+        </section>
+      )}
+
       {state.courtesyUntil && state.status !== 'ACTIVE' && (
         <section className="bg-system-indigo/[0.07] ring-system-indigo/20 rounded-[22px] p-5 ring-1">
           <div className="text-[17px] font-semibold">Acesso cortesia</div>
@@ -186,7 +228,7 @@ export function SubscriptionView({ state, companyName }: { state: State; company
 
       {(!state.hasSubscription || active) && (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div id="planos" className="grid scroll-mt-24 gap-4 md:grid-cols-3">
             {offered.map((plan) => (
               <button
                 key={plan.id}
@@ -220,7 +262,10 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                     {formatCurrencyBRL(planPrice(plan))}
                   </span>
                   <span className="text-label-secondary text-[14px]">/mês</span>
-                  <p className="text-label-secondary text-[13px]">{plan.tagline}</p>
+                  <p className="text-label-secondary text-[12px]">
+                    ≈ {formatCurrencyBRL(pricePerDay(plan.priceCents))} por dia
+                  </p>
+                  <p className="text-label-secondary mt-1 text-[13px]">{plan.tagline}</p>
                 </div>
                 <div
                   className={cn(

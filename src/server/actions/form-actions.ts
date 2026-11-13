@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { listTeamMembers } from '@/server/team';
 import { toActionResult } from '@/server/action-result';
+import { assertFeature } from '@/server/billing/features';
 import { UserError, parseId } from '@/server/errors';
 import { appBaseUrl } from '@/server/app-url';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
@@ -109,6 +110,7 @@ export async function saveTemplateAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = templateInput.parse(input);
     const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
     requireAccess(access, 'canManage', 'gerenciar modelos');
     return saveTemplate(company.id, parsed.id, parsed, access.userId);
   });
@@ -118,6 +120,7 @@ export async function duplicateTemplateAction(rawId: unknown) {
   return toActionResult(async () => {
     const templateId = parseId(rawId);
     const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
     requireAccess(access, 'canManage', 'gerenciar modelos');
     return duplicateTemplate(company.id, templateId, access.userId);
   });
@@ -135,6 +138,7 @@ export async function setTemplateArchivedAction(input: unknown) {
 export async function createStarterAnamnesisAction() {
   return toActionResult(async () => {
     const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
     requireAccess(access, 'canManage', 'gerenciar modelos');
     return createStarterAnamnesis(company.id, access.userId);
   });
@@ -144,6 +148,7 @@ export async function createStarterTemplateAction(rawKey: unknown) {
   return toActionResult(async () => {
     const key = z.string().max(30).parse(rawKey);
     const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
     requireAccess(access, 'canManage', 'gerenciar modelos');
     const template = await createStarterTemplate(company.id, access.userId, key);
     return { id: template.id };
@@ -215,6 +220,7 @@ export async function requestEntryAction(input: unknown) {
       })
       .parse(input);
     const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
     const { entry, created } = await requestEntry(
       { companyId: company.id, userId: access.userId, ...parsed, source: 'manual' },
       access,
@@ -280,6 +286,7 @@ export async function createEntryLinkAction(rawId: unknown) {
   return toActionResult(async () => {
     const entryId = parseId(rawId);
     const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
     const { token, expiresAt } = await createEntryLink(company.id, access, entryId, FORM_LINK_DAYS);
     return { url: `${await appBaseUrl()}/ficha/${token}`, expiresAt: expiresAt.toISOString() };
   });
@@ -336,6 +343,7 @@ export async function requestAppointmentFormsAction(rawAppointmentId: unknown) {
   return toActionResult(async () => {
     const appointmentId = parseId(rawAppointmentId);
     const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
     requireAccess(access, 'canRequest', 'pedir fichas');
     return getAppointmentForms(company.id, appointmentId, { ensure: true, userId: access.userId });
   });

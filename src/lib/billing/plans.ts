@@ -233,7 +233,7 @@ export const PLANS: Plan[] = [
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
-    maxProfessionals: 8,
+    maxProfessionals: 3,
     maxUnits: 1,
     features: FULL_FEATURES,
     ai: {
@@ -251,9 +251,9 @@ export const PLANS: Plan[] = [
       maxRequestSeconds: 60,
     },
     addOns: ['whatsapp_ai'],
-    tagline: 'Para equipes de até 8 pessoas',
+    tagline: 'Para equipes pequenas, de até 3 profissionais',
     highlights: [
-      'Até 8 profissionais',
+      'Até 3 profissionais',
       'Tudo do Básico',
       'Campanhas para chamar clientes de volta',
       'Comissões, metas e relatórios',

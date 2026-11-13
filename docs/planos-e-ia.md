@@ -89,3 +89,15 @@ Adicional dos planos Profissional e Pro: o salão conecta o próprio número pel
 continua pronta no botão do WhatsApp (todos os planos). A API oficial da Meta (cobrança por
 mensagem) ainda não está integrada.
 
+
+## Travas por plano e incentivos para subir
+
+- Do Profissional, travados no servidor (`assertFeature`) e com convite na tela (`UpgradeCard`,
+  `upgradeOffer` em `src/server/billing/features.ts`): relatórios, comissões, campanhas,
+  indicações, fichas, pacotes e WhatsApp automático (inclusive o envio pela rotina). Do Pro: várias
+  unidades.
+- O convite mostra o plano mais barato que libera o recurso e quanto custa a mais por dia
+  (`buildUpgradeOffer` em `src/lib/billing/upgrade.ts`).
+- Limites de profissionais: Básico 2, Profissional 3, Pro sem limite.
+- No teste, a Assinatura mostra o que a empresa já usou do Profissional
+  (`src/server/billing/trial-usage.ts`), com o botão para continuar nele.

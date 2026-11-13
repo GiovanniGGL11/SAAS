@@ -3,6 +3,7 @@ import type { Company } from '@/generated/prisma/client';
 import { resolveEntitlements, type Entitlements } from '@/lib/billing/entitlements';
 import { PLANS, TRIAL_GRANT, getPlan, type FeatureKey, type PlanId } from '@/lib/billing/plans';
 import { UserError } from '@/server/errors';
+import { buildUpgradeOffer, type UpgradeOffer } from '@/lib/billing/upgrade';
 import { billingConfigured } from '@/server/billing/subscription';
 
 /*
@@ -75,6 +76,13 @@ export class FeatureUnavailableError extends UserError {
     super(featureBlockedMessage(feature));
     this.name = 'FeatureUnavailableError';
   }
+}
+
+/** Convite para o plano que libera o recurso — `null` quando o plano atual já inclui. */
+export function upgradeOffer(company: CompanyPlanFields, key: FeatureKey): UpgradeOffer | null {
+  const access = featureAccessFor(company);
+  if (access.features[key]) return null;
+  return buildUpgradeOffer(key, access.planId);
 }
 
 export function hasFeature(company: CompanyPlanFields, key: FeatureKey): boolean {

@@ -1,6 +1,7 @@
 import { after } from 'next/server';
 
 import { prisma } from '@/lib/db';
+import { companyHasFeature } from '@/server/billing/features';
 import { Prisma } from '@/generated/prisma/client';
 import { openSecret } from '@/server/secret-box';
 import { getStatus, sendText, type ZapiConfig } from '@/server/whatsapp/zapi';
@@ -34,6 +35,7 @@ export async function getZapiConfig(companyId: string): Promise<ZapiConfig | nul
     select: { zapiInstanceId: true, zapiToken: true, zapiClientToken: true },
   });
   if (!company?.zapiInstanceId || !company.zapiToken) return null;
+  if (!(await companyHasFeature(companyId, 'whatsappAutomation'))) return null;
   try {
     return {
       instanceId: company.zapiInstanceId,

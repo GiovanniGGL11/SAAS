@@ -27,6 +27,7 @@ import {
 export async function getReportAction(input: unknown) {
   const parsed = reportPresetInput.parse(input);
   const { company } = await requireCompanyAdmin();
+  assertFeature(company, 'reports');
   const range = resolveReportRange(parsed.preset, company.timezone);
 
   const [byProfessional, byService, byWeekday, cancellation] = await Promise.all([
