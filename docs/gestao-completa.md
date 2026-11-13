@@ -101,6 +101,8 @@ avaliações, com link para a origem. Valores só para administradores; filtro "
 | `20261022120000_marketing_opt_out` | aplicada |
 | `20261022150000_service_buffer` | aplicada |
 | `20261030090000_service_professionals` | aplicada |
+| `20261112150000_trial_claims` | aplicada |
+| `20261112190000_company_courtesy` (cortesia + cadastro pelo link) | a aplicar |
 
 ## Integrações necessárias
 
@@ -139,6 +141,12 @@ Página única com tudo o que o cliente vê: visão geral (link, copiar, abrir, 
 
 ### Quem faz cada serviço e preço por profissional (Serviços)
 No cadastro do serviço, com mais de um profissional: "Todos, mesmo preço" (padrão, como sempre) ou "Escolher profissionais e preços" — marca quem faz e, se quiser, um preço próprio para cada um (vazio = preço do serviço). O atendimento grava o preço de quem atende; a agenda e o link só oferecem quem faz o serviço; marcar ou mover para quem não faz é recusado. No link, cada profissional mostra o seu preço e "primeiro disponível" mostra "a partir de" quando os preços variam. Mover um atendimento mantém o preço combinado.
+
+### Cadastro pelo link (Link do cliente → Cadastro)
+Link `/cadastro/[slug]` para o cliente preencher a própria ficha. Nome e WhatsApp sempre; e-mail, nascimento, CPF, endereço (com CEP) e observações o negócio escolhe: não pedir, opcional ou obrigatório. Mesmo WhatsApp não duplica: só completa campos em branco, nunca troca o que existe, e a página não revela quem já é cliente. Promoções só com o "sim" do cliente. Limite por IP e armadilha para robôs.
+
+### Painel da plataforma (/plataforma, só o dono do Atendafy)
+Acesso por `PLATFORM_ADMIN_USER_IDS` (ids do Clerk); para os demais, 404. Tópicos: visão geral, faturamento (Asaas: recebido, a receber, atrasado, saldo e quanto cada empresa pagou), empresas (situação, uso, cortesia), testes e usuários. **Cortesia**: acesso a um plano sem pagar até uma data (ou sem prazo), registrado na auditoria; vale como assinatura para os recursos e não entra na receita recorrente.
 
 ## Pendências
 

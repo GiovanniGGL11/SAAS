@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { addDays, calendarDateToUtc, getTodayInTz, utcToCalendarDate } from '@/lib/time';
 import { currentMonthKey, daysInMonth, monthRange } from '@/lib/month';
 import { DEFAULT_DAY_WINDOW } from '@/server/data/appointments';
+import { countAppointmentsToClose } from '@/server/data/to-close';
 import { listLapsedClients } from '@/server/data/clients';
 import { listLowStockProducts } from '@/server/data/stock';
 
@@ -325,6 +326,7 @@ export async function getTodayOverview(companyId: string, timezone: string) {
     lowStock,
     birthdays,
     tab,
+    toClose,
   ] = await Promise.all([
     prisma.appointment.groupBy({
       by: ['status'],
@@ -363,6 +365,8 @@ export async function getTodayOverview(companyId: string, timezone: string) {
       where: { companyId, type: 'INCOME', status: 'PENDING', clientId: { not: null } },
       _sum: { amount: true },
     }),
+    // Horários que já passaram e continuam em aberto (não contam como visita até fechar).
+    countAppointmentsToClose(companyId, now),
   ]);
 
   const byStatus = Object.fromEntries(todayRows.map((r) => [r.status, r])) as Record<
@@ -381,6 +385,7 @@ export async function getTodayOverview(companyId: string, timezone: string) {
       active.reduce((sum, s) => sum + Number(byStatus[s]?._sum.priceSnapshot ?? 0), 0),
     ),
     tomorrowUnconfirmed,
+    toClose,
     weekOccupancy: nextWeek.rate,
     cashOpen: cash !== null,
     billsDue: { count: billsDue._count._all, amount: cents(Number(billsDue._sum.amount ?? 0)) },

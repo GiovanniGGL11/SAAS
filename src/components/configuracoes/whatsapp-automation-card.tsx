@@ -134,6 +134,11 @@ export function WhatsappAutomationCard() {
             z-api.io, conecte o celular do salão pelo QR code e cole aqui o ID, o token e o
             Client-Token (Segurança da conta).
           </p>
+          <p className="text-label-secondary mt-1.5 text-[12px]">
+            <strong className="text-foreground">Quem cobra:</strong> a Z-API cobra direto de você,
+            conforme o plano dela. O Atendafy não cobra nada pelo envio automático. Sem a Z-API, a
+            mensagem continua pronta no botão do WhatsApp de cada atendimento.
+          </p>
         </div>
       </div>
 

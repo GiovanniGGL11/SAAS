@@ -41,19 +41,32 @@ export type SubscriptionState = {
   currentPeriodEnd: Date | null;
   /** Sem acesso: teste acabou e não há assinatura em dia (só com BILLING_ENFORCE=true). */
   blocked: boolean;
+  /** Conta nova que ainda não liberou o 1º mês grátis. */
+  trialPending: boolean;
+  /** Acesso cortesia (sem pagar) em vigor: até quando. */
+  courtesyUntil: Date | null;
   configured: boolean;
 };
 
 export function getSubscriptionState(
-  company: Pick<Company, 'subscriptionStatus' | 'plan' | 'trialEndsAt' | 'currentPeriodEnd'>,
+  company: Pick<
+    Company,
+    'subscriptionStatus' | 'plan' | 'trialEndsAt' | 'currentPeriodEnd' | 'trialPending'
+  > &
+    Partial<Pick<Company, 'courtesyUntil'>>,
   now = new Date(),
 ): SubscriptionState {
+  const courtesyUntil =
+    company.courtesyUntil && company.courtesyUntil.getTime() > now.getTime()
+      ? company.courtesyUntil
+      : null;
   const trialEnd = effectiveTrialEnd(company);
   const trialDaysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / 86_400_000));
   const periodOk = company.currentPeriodEnd
     ? company.currentPeriodEnd.getTime() + PAST_DUE_GRACE_DAYS * 86_400_000 > now.getTime()
     : false;
   const hasAccess =
+    courtesyUntil !== null ||
     trialDaysLeft > 0 ||
     company.subscriptionStatus === 'ACTIVE' ||
     // Atrasou: alguns dias de tolerância; cancelou: vale até o fim do período pago.
@@ -66,6 +79,8 @@ export function getSubscriptionState(
     trialDaysLeft,
     currentPeriodEnd: company.currentPeriodEnd,
     blocked: process.env.BILLING_ENFORCE === 'true' && billingConfigured() && !hasAccess,
+    trialPending: company.trialPending,
+    courtesyUntil,
     configured: billingConfigured(),
   };
 }

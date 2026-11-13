@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { siteUrl } from '@/lib/site-url';
+import { SEO_KEYWORDS } from '@/lib/seo';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppClerkProvider } from '@/components/clerk-provider';
 import { QueryProvider } from '@/components/query-provider';
@@ -20,9 +21,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: 'Atendafy — agenda, agendamento online e financeiro para negócios de hora marcada',
+  // O título e a descrição começam pelo que as pessoas buscam ("sistema de agendamento online").
+  title: 'Atendafy — Sistema de agendamento online, agenda e financeiro para negócios',
   description:
-    'Seus clientes marcam sozinhos, confirmam pelo WhatsApp e você cobra, fecha o caixa e vê o lucro do mês. Para salões, barbearias, clínicas, consultórios, estúdios, pet shops, aulas e todo negócio que atende com hora marcada.',
+    'Sistema de agendamento online: seus clientes marcam sozinhos pelo link, confirmam pelo WhatsApp e você cobra, fecha o caixa e vê o lucro do mês. Para salões, barbearias, clínicas, consultórios, estúdios, pet shops, aulas e todo negócio que atende com hora marcada.',
+  // O Google não usa a meta keywords para ranquear; outros buscadores ainda leem. As palavras que
+  // contam estão no título, na descrição e nos textos da página inicial.
+  keywords: SEO_KEYWORDS,
+  alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     locale: 'pt_BR',

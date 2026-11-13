@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { CheckIcon } from 'lucide-react';
+import { CheckIcon, MessageCircleIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { PageHeader } from '@/components/layout/page';
@@ -12,8 +12,9 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { unwrapResult } from '@/lib/action-result';
 import { formatCurrencyBRL } from '@/lib/serialize';
-import { ADD_ONS, PLANS, getPlan, planPrice, type PlanId } from '@/lib/billing/plans';
+import { PLANS, getPlan, planPrice, type PlanId } from '@/lib/billing/plans';
 import { cn } from '@/lib/utils';
+import { TrialClaimCard } from '@/components/assinatura/trial-claim-card';
 import type { SubscriptionState } from '@/server/billing/subscription';
 import {
   cancelSubscriptionAction,
@@ -42,6 +43,20 @@ const INVOICE_STATUS: Record<string, string> = {
   REFUND_REQUESTED: 'Estorno pedido',
   CHARGEBACK_REQUESTED: 'Contestada',
 };
+
+/** "cerca de 300": cada pergunta usa de 1 a 6 consultas ao modelo (~3 em média). */
+function approxQuestions(units: number | null): number {
+  return Math.max(50, Math.floor((units ?? 0) / 3 / 100) * 100);
+}
+
+/** O que a IA faz em cada plano, em uma frase sem jargão. */
+function aiSummary(plan: (typeof PLANS)[number]): string {
+  if (!plan.ai.assistant) return 'Sem assistente de IA.';
+  const questions = approxQuestions(plan.ai.monthlyUnits).toLocaleString('pt-BR');
+  return plan.ai.autoExecution
+    ? `Assistente de IA com mais uso: cerca de ${questions} perguntas por mês. Inclui as rotinas automáticas, que você liga quando quiser.`
+    : `Assistente de IA: pergunte sobre agenda, caixa e clientes e peça alterações — nada muda sem a sua aprovação. Cerca de ${questions} perguntas por mês.`;
+}
 
 /** Planos do Atendafy, teste grátis e pagamento pela Asaas (PIX, boleto ou cartão). */
 export function SubscriptionView({ state, companyName }: { state: State; companyName: string }) {
@@ -108,20 +123,38 @@ export function SubscriptionView({ state, companyName }: { state: State; company
         description="Seu plano do Atendafy, pagamento e período de teste."
       />
 
+      {state.trialPending && !state.courtesyUntil && <TrialClaimCard />}
+
+      {state.courtesyUntil && state.status !== 'ACTIVE' && (
+        <section className="bg-system-indigo/[0.07] ring-system-indigo/20 rounded-[22px] p-5 ring-1">
+          <div className="text-[17px] font-semibold">Acesso cortesia</div>
+          <p className="text-label-secondary text-[13px]">
+            O Atendafy liberou o seu acesso sem cobrança{' '}
+            {new Date(state.courtesyUntil).getUTCFullYear() >= 2099
+              ? 'por tempo indeterminado'
+              : `até ${date.format(new Date(state.courtesyUntil))}`}
+            . Você pode assinar quando quiser.
+          </p>
+        </section>
+      )}
+
       <section className="bg-tile flex flex-wrap items-center justify-between gap-4 rounded-[22px] p-5">
         <div>
           <div className="text-label-secondary text-[13px]">{STATUS[state.status]}</div>
           <div className="text-[20px] font-semibold">
-            {state.status === 'TRIAL'
-              ? state.trialDaysLeft > 0
-                ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`
-                : 'O teste grátis terminou'
-              : current
-                ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${formatCurrencyBRL(planPrice(current))}/mês`
-                : '—'}
+            {state.status === 'TRIAL' && state.trialPending
+              ? '1º mês grátis a liberar'
+              : state.status === 'TRIAL'
+                ? state.trialDaysLeft > 0
+                  ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`
+                  : 'O teste grátis terminou'
+                : current
+                  ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${formatCurrencyBRL(planPrice(current))}/mês`
+                  : '—'}
           </div>
           <div className="text-label-secondary text-[13px]">
             {state.status === 'TRIAL' &&
+              !state.trialPending &&
               `Teste até ${date.format(new Date(state.trialEnd))}. Assinando agora, a 1ª cobrança vence no fim do teste.`}
             {state.status !== 'TRIAL' &&
               state.currentPeriodEnd &&
@@ -187,6 +220,7 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                     {formatCurrencyBRL(planPrice(plan))}
                   </span>
                   <span className="text-label-secondary text-[14px]">/mês</span>
+                  <p className="text-label-secondary text-[13px]">{plan.tagline}</p>
                 </div>
                 <div
                   className={cn(
@@ -196,11 +230,7 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                       : 'bg-foreground/[0.04] text-label-secondary',
                   )}
                 >
-                  {!plan.ai.assistant
-                    ? 'Sem inteligência artificial.'
-                    : plan.ai.autoExecution
-                      ? 'Assistente de IA com franquia maior. Automações e execução automática autorizada: em preparação.'
-                      : 'Assistente de IA por texto: consulta e prepara alterações que só valem com a sua aprovação.'}
+                  {aiSummary(plan)}
                 </div>
                 <ul className="flex flex-col gap-1.5 text-[14px]">
                   {plan.highlights.map((h) => (
@@ -221,20 +251,46 @@ export function SubscriptionView({ state, companyName }: { state: State; company
 
           <div className="text-label-secondary flex flex-col gap-1 text-[13px]">
             <p>
-              Os planos com IA têm franquia mensal de uso; ao atingir o limite, a IA pausa até o mês
-              seguinte e o restante do sistema continua funcionando. Nada é cobrado além do plano
-              sem contratação.
+              O assistente de IA tem um limite de perguntas por mês. Se acabar, ele volta no mês
+              seguinte; o resto do sistema continua normal e nada é cobrado a mais.
             </p>
-            <p>
-              Comandos de voz e automações com IA estão em preparação e serão liberados nos planos
-              com IA quando estiverem prontos.
-            </p>
-            {ADD_ONS.map((addOn) => (
-              <p key={addOn.id}>
-                Adicional em preparação: {addOn.name} (planos com IA; preço e limites a definir).
-              </p>
-            ))}
           </div>
+
+          {/* WhatsApp automático: adicional à parte, cobrado pelo serviço de conexão (não por nós). */}
+          <section className="flex flex-col gap-3 rounded-[22px] bg-[#25d366]/[0.07] p-5 ring-1 ring-[#25d366]/25">
+            <div className="flex items-start gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white">
+                <MessageCircleIcon className="size-4.5" />
+              </span>
+              <div>
+                <h3 className="text-[16px] font-semibold">
+                  Adicional: WhatsApp automático{' '}
+                  <span className="text-label-secondary text-[13px] font-normal">
+                    · planos Profissional e Pro
+                  </span>
+                </h3>
+                <p className="text-label-secondary text-[13px]">
+                  Confirmação ao marcar, lembrete na véspera, pedido de avaliação e parabéns saem
+                  sozinhos, do número do seu salão.
+                </p>
+              </div>
+            </div>
+            <ul className="flex flex-col gap-1.5 text-[13px] leading-snug">
+              <li>
+                <strong>Como funciona:</strong> você conecta o WhatsApp do salão a um serviço de
+                conexão (hoje, a Z-API) e liga as mensagens que quiser em Configurações → WhatsApp.
+              </li>
+              <li>
+                <strong>Quem cobra:</strong> o serviço de conexão cobra direto de você, conforme o
+                plano dele. <strong>O Atendafy não cobra nada por isso</strong> e não fica com
+                nenhuma parte.
+              </li>
+              <li>
+                <strong>Sem o adicional:</strong> as mensagens continuam prontas — é só tocar no
+                botão do WhatsApp e enviar.
+              </li>
+            </ul>
+          </section>
 
           {active && selected !== state.plan && (
             <Button

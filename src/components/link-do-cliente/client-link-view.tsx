@@ -28,12 +28,15 @@ import { PublicProfileCard } from '@/components/configuracoes/public-profile-car
 import { DepositCard } from '@/components/configuracoes/deposit-card';
 import { ClientAreaCard } from '@/components/configuracoes/client-area-card';
 import { GoogleReviewCard } from '@/components/configuracoes/google-review-card';
+import { SelfSignupCard } from '@/components/link-do-cliente/self-signup-card';
+import type { SignupConfig } from '@/lib/self-signup';
 import { setServicePublicVisibleAction } from '@/server/actions/service-actions';
 
 const TABS = [
   { value: 'visao', label: 'Visão geral' },
   { value: 'agendamento', label: 'Agendamento' },
   { value: 'servicos', label: 'Serviços no link' },
+  { value: 'cadastro', label: 'Cadastro' },
   { value: 'pagina', label: 'Página' },
   { value: 'pagamento', label: 'Pagamento' },
   { value: 'area', label: 'Área do cliente' },
@@ -89,6 +92,7 @@ export type ClientLinkData = {
   googleReviewUrl: string | null;
   deposit: { connected: boolean; percent: number; required: boolean };
   services: ClientLinkService[];
+  signup: { enabled: boolean; fields: SignupConfig; url: string };
 };
 
 /**
@@ -142,6 +146,13 @@ export function ClientLinkView({
         />
       )}
       {tab === 'servicos' && <ServicesInLink services={data.services} />}
+      {tab === 'cadastro' && (
+        <SelfSignupCard
+          initialEnabled={data.signup.enabled}
+          initialFields={data.signup.fields}
+          url={data.signup.url}
+        />
+      )}
       {tab === 'pagina' && <PublicProfileCard hasLogo={data.hasLogo} initial={data.profile} />}
       {tab === 'pagamento' && <DepositCard />}
       {tab === 'area' && (

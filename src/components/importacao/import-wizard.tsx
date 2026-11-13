@@ -2,12 +2,22 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileUpIcon, Loader2Icon } from 'lucide-react';
+import { ChevronDownIcon, DownloadIcon, FileUpIcon, Loader2Icon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
-import { IMPORT_LIMITS, type ImportKind, type Mapping } from '@/lib/import';
+import {
+  IMPORT_FIELDS,
+  IMPORT_LIMITS,
+  decodeCsvBytes,
+  importTemplate,
+  type ImportKind,
+  type Mapping,
+} from '@/lib/import';
 import { cn } from '@/lib/utils';
+import { buildXlsx } from '@/lib/xlsx';
+import { readXlsxRows, rowsToCsv } from '@/lib/xlsx-read';
+import { withNetworkRetry } from '@/lib/network-retry';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -61,10 +71,151 @@ const REPORT_LABEL = {
   failed: 'Falhou',
 };
 
-const KIND_TEXT: Record<ImportKind, { title: string; noun: string; queryKey: string }> = {
-  clients: { title: 'Importar clientes', noun: 'clientes', queryKey: 'clients' },
-  products: { title: 'Importar produtos', noun: 'produtos', queryKey: 'products' },
+const KIND_TEXT: Record<
+  ImportKind,
+  { title: string; noun: string; one: string; queryKey: string; exportHint: string }
+> = {
+  clients: {
+    title: 'Importar clientes',
+    noun: 'clientes',
+    one: 'cliente',
+    queryKey: 'clients',
+    exportHint: '"Exportar clientes" (ou "Relatório de clientes")',
+  },
+  products: {
+    title: 'Importar produtos',
+    noun: 'produtos',
+    one: 'produto',
+    queryKey: 'products',
+    exportHint: '"Exportar produtos" (ou "Relatório de estoque")',
+  },
 };
+
+/** Baixa a planilha modelo do Excel (títulos em destaque, colunas largas, tudo centralizado). */
+function downloadTemplate(kind: ImportKind) {
+  const { header, rows } = importTemplate(kind);
+  const title = KIND_TEXT[kind].noun[0].toUpperCase() + KIND_TEXT[kind].noun.slice(1);
+  const blob = new Blob([buildXlsx(title, header, rows) as BlobPart], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `modelo-${KIND_TEXT[kind].noun}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * O que é um CSV e como conseguir o arquivo — muita gente nunca ouviu falar. A explicação curta
+ * fica sempre à vista; o exemplo e o passo a passo abrem pela setinha.
+ */
+function CsvHelp({ kind }: { kind: ImportKind }) {
+  const [open, setOpen] = React.useState(false);
+  const copy = KIND_TEXT[kind];
+  const fields = IMPORT_FIELDS[kind];
+  const { header, rows } = importTemplate(kind);
+  const example = [header, ...rows];
+  // Na tabela de exemplo, só as colunas preenchidas no exemplo (fica legível no celular).
+  const shown = fields
+    .map((f, i) => ({ label: f.label, i }))
+    .filter(({ i }) => example.slice(1).some((row) => row[i]))
+    .slice(0, 4);
+  return (
+    <div className="bg-foreground/[0.03] flex flex-col gap-3 rounded-2xl p-4 text-[13px] leading-snug">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex flex-col gap-1 text-left"
+      >
+        <span className="flex w-full items-center justify-between gap-2">
+          <span className="text-[14px] font-semibold">Que arquivo posso enviar?</span>
+          <ChevronDownIcon
+            className={cn(
+              'text-label-secondary size-4 shrink-0 transition-transform',
+              open && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </span>
+        <span className="text-label-secondary">
+          Uma planilha do Excel (.xlsx) ou um arquivo CSV, que é uma planilha num formato simples
+          que qualquer sistema exporta. Cada <strong>linha</strong> é um {copy.one} e cada{' '}
+          <strong>coluna</strong> é uma informação. A primeira linha tem o nome das colunas.
+        </span>
+        {!open && (
+          <span className="text-system-blue text-[12px] font-medium">
+            Ver exemplo e como conseguir o arquivo
+          </span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[12px]">
+              <thead>
+                <tr>
+                  {shown.map(({ label, i }) => (
+                    <th key={i} className="border-foreground/10 border-b px-2 py-1 font-semibold">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-label-secondary">
+                {example.slice(1).map((row, r) => (
+                  <tr key={r}>
+                    {shown.map(({ i }) => (
+                      <td key={i} className="px-2 py-1 whitespace-nowrap">
+                        {row[i] || '—'}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3 className="text-[14px] font-semibold">Como conseguir o arquivo</h3>
+            <ul className="text-label-secondary mt-1 flex list-disc flex-col gap-1 pl-5">
+              <li>
+                <strong className="text-foreground">Vindo de outro sistema:</strong> procure a opção{' '}
+                {copy.exportHint}, escolha Excel ou CSV e envie o arquivo aqui.
+              </li>
+              <li>
+                <strong className="text-foreground">Tenho no Excel:</strong> é só enviar o arquivo
+                (.xlsx). Se for um arquivo antigo (.xls), abra e use Arquivo → Salvar como →{' '}
+                <em>Pasta de Trabalho do Excel (.xlsx)</em>.
+              </li>
+              <li>
+                <strong className="text-foreground">Tenho no Google Planilhas:</strong> Arquivo →
+                Fazer download → <em>Microsoft Excel (.xlsx)</em> e envie aqui.
+              </li>
+              <li>
+                <strong className="text-foreground">Começando do zero:</strong> baixe a planilha
+                modelo (já vem com os títulos e dois exemplos), preencha e envie aqui.
+              </li>
+            </ul>
+          </div>
+          <p className="text-label-secondary">
+            Só o <strong className="text-foreground">nome</strong> é obrigatório. Se as colunas do
+            seu arquivo tiverem outros nomes, no próximo passo você diz qual é qual.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => downloadTemplate(kind)}
+          >
+            <DownloadIcon className="size-4" /> Baixar planilha modelo
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
 
 /**
  * Importação assistida: arquivo → colunas → prévia (novos, duplicados, erros) → confirmar →
@@ -98,7 +249,8 @@ export function ImportWizard({
   };
 
   const analyze = useMutation({
-    mutationFn: (text: string) => analyzeImportAction({ kind, text }).then(unwrapResult),
+    mutationFn: (text: string) =>
+      withNetworkRetry(() => analyzeImportAction({ kind, text })).then(unwrapResult),
     onSuccess: (data) => {
       setAnalysis(data);
       setMapping(data.mapping);
@@ -106,19 +258,25 @@ export function ImportWizard({
     onError: (e: Error) => toast.error(e.message),
   });
   const check = useMutation({
-    mutationFn: () => previewImportAction({ kind, text: file!.text, mapping }).then(unwrapResult),
+    mutationFn: () =>
+      withNetworkRetry(() => previewImportAction({ kind, text: file!.text, mapping })).then(
+        unwrapResult,
+      ),
     onSuccess: setPreview,
     onError: (e: Error) => toast.error(e.message),
   });
   const run = useMutation({
+    // Repetir é seguro: o mesmo arquivo com as mesmas opções não é importado duas vezes.
     mutationFn: () =>
-      runImportAction({
-        kind,
-        text: file!.text,
-        mapping,
-        fileName: file!.name,
-        duplicateMode: mode,
-      }).then(unwrapResult),
+      withNetworkRetry(() =>
+        runImportAction({
+          kind,
+          text: file!.text,
+          mapping,
+          fileName: file!.name,
+          duplicateMode: mode,
+        }),
+      ).then(unwrapResult),
     onSuccess: (data) => {
       setResult(data);
       queryClient.invalidateQueries({ queryKey: [copy.queryKey] });
@@ -131,15 +289,33 @@ export function ImportWizard({
     const chosen = event.target.files?.[0];
     event.target.value = '';
     if (!chosen) return;
-    if (chosen.size > IMPORT_LIMITS.maxBytes) {
+    const isXlsx = /\.xlsx$/i.test(chosen.name);
+    // O .xlsx é compactado: o limite vale depois de convertido (o servidor confere de novo).
+    if (chosen.size > (isXlsx ? 5 * IMPORT_LIMITS.maxBytes : IMPORT_LIMITS.maxBytes)) {
       toast.error('Arquivo grande demais. Divida em partes de até 5.000 linhas.');
       return;
     }
-    if (!/\.(csv|txt)$/i.test(chosen.name)) {
-      toast.error('Use um arquivo .csv (no Excel: Salvar como → CSV).');
+    if (/\.(xls|ods|numbers)$/i.test(chosen.name)) {
+      toast.error(
+        'Esse formato não é aceito. Abra a planilha e use Arquivo → Salvar como → Pasta de Trabalho do Excel (.xlsx).',
+      );
       return;
     }
-    const text = await chosen.text();
+    if (!isXlsx && !/\.(csv|txt)$/i.test(chosen.name)) {
+      toast.error('Envie a planilha do Excel (.xlsx) ou um arquivo .csv.');
+      return;
+    }
+    let text: string;
+    try {
+      text = isXlsx
+        ? rowsToCsv(await readXlsxRows(await chosen.arrayBuffer()))
+        : decodeCsvBytes(await chosen.arrayBuffer());
+    } catch {
+      toast.error(
+        'Não foi possível ler essa planilha. Salve de novo no Excel (.xlsx) e tente outra vez.',
+      );
+      return;
+    }
     setFile({ name: chosen.name, text });
     setPreview(null);
     setResult(null);
@@ -167,19 +343,27 @@ export function ImportWizard({
         </DialogHeader>
 
         {step === 1 && (
-          <label className="border-foreground/15 hover:bg-foreground/[0.03] flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
-            {analyze.isPending ? (
-              <Loader2Icon className="text-label-secondary size-8 animate-spin" />
-            ) : (
-              <FileUpIcon className="text-label-secondary size-8" />
-            )}
-            <span className="text-[15px] font-medium">Escolher arquivo CSV</span>
-            <span className="text-label-secondary text-[12px]">
-              Planilha salva como CSV (separada por ; ou ,), com cabeçalho. Até{' '}
-              {IMPORT_LIMITS.maxRows.toLocaleString('pt-BR')} linhas.
-            </span>
-            <input type="file" accept=".csv,.txt,text/csv" className="sr-only" onChange={onFile} />
-          </label>
+          <div className="flex flex-col gap-4">
+            <label className="border-foreground/15 hover:bg-foreground/[0.03] flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center">
+              {analyze.isPending ? (
+                <Loader2Icon className="text-label-secondary size-8 animate-spin" />
+              ) : (
+                <FileUpIcon className="text-label-secondary size-8" />
+              )}
+              <span className="text-[15px] font-medium">Escolher planilha (Excel ou CSV)</span>
+              <span className="text-label-secondary text-[12px]">
+                Arquivo .xlsx ou .csv, com uma linha por {copy.one}. Até{' '}
+                {IMPORT_LIMITS.maxRows.toLocaleString('pt-BR')} linhas.
+              </span>
+              <input
+                type="file"
+                accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="sr-only"
+                onChange={onFile}
+              />
+            </label>
+            <CsvHelp kind={kind} />
+          </div>
         )}
 
         {step === 2 && analysis && (
@@ -257,7 +441,7 @@ export function ImportWizard({
             )}
             <div className="max-h-64 overflow-y-auto rounded-2xl border text-[13px]">
               <table className="w-full">
-                <thead className="bg-foreground/[0.04] text-label-secondary sticky top-0 text-left">
+                <thead className="bg-tile text-label-secondary sticky top-0 z-10 text-left">
                   <tr>
                     <th className="px-3 py-1.5 font-medium">Linha</th>
                     <th className="px-3 py-1.5 font-medium">Nome</th>

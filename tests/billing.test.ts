@@ -67,7 +67,12 @@ describe('assinatura do Atendafy (Asaas)', () => {
 
   it('teste grátis, bloqueio só com BILLING_ENFORCE e tolerância de atraso', () => {
     const now = new Date('2030-06-15T12:00:00Z');
-    const base = { subscriptionStatus: 'TRIAL' as const, plan: null, currentPeriodEnd: null };
+    const base = {
+      subscriptionStatus: 'TRIAL' as const,
+      plan: null,
+      currentPeriodEnd: null,
+      trialPending: false,
+    };
     expect(
       getSubscriptionState({ ...base, trialEndsAt: new Date(now.getTime() + 3 * day) }, now)
         .trialDaysLeft,
@@ -81,6 +86,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
       subscriptionStatus: 'PAST_DUE' as const,
       plan: 'essencial',
       trialEndsAt: expired.trialEndsAt,
+      trialPending: false,
       currentPeriodEnd: new Date(now.getTime() - 3 * day),
     };
     expect(getSubscriptionState(late, now).blocked).toBe(false);
@@ -104,7 +110,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
     expect(sub.key).toBe('$aact_hmlg_chave_de_teste');
     expect(sub.body).toMatchObject({
       customer: 'cus_1',
-      value: 74.9,
+      value: 79.9,
       cycle: 'MONTHLY',
       billingType: 'UNDEFINED',
       externalReference: company.id,
@@ -207,7 +213,8 @@ describe('assinatura do Atendafy (Asaas)', () => {
     await expect(changeSubscriptionPlan(company, 'essencial')).rejects.toThrow(
       /até 2 profissionais/,
     );
-    await expect(changeSubscriptionPlan(company, 'pro')).rejects.toThrow(/não está disponível/);
+    // Plano antigo (fora de venda) não pode ser escolhido.
+    await expect(changeSubscriptionPlan(company, 'rede')).rejects.toThrow(/não está disponível/);
 
     await prisma.professional.updateMany({ where: { companyId: id }, data: { active: false } });
     await changeSubscriptionPlan(company, 'essencial');

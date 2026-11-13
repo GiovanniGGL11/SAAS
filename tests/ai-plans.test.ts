@@ -28,12 +28,20 @@ describe('configuração central dos planos', () => {
     expect(new Set(PLANS.map((p) => p.id)).size).toBe(PLANS.length);
     expect(PLANS.filter((p) => p.offered).map((p) => [p.id, p.name, p.priceCents])).toEqual([
       ['essencial', 'Básico', 3990],
-      ['profissional', 'Profissional', 7490],
+      ['profissional', 'Profissional', 7990],
       ['pro', 'Pro', 14990],
     ]);
     expect(getPlan('rede')).toMatchObject({ legacy: true, offered: false, checkoutEnabled: false });
-    // Preço do Pro ainda não publicado: não dá para contratar.
-    expect(getPlan('pro')!.checkoutEnabled).toBe(false);
+    // Os três oferecidos podem ser contratados.
+    expect(PLANS.filter((p) => p.offered).every((p) => p.checkoutEnabled)).toBe(true);
+    // Todo plano com IA tem limite definido: nenhum fica com a IA bloqueada em produção.
+    for (const plan of PLANS.filter((p) => p.ai.assistant)) {
+      expect(plan.ai.monthlyUnits).toBeGreaterThan(0);
+    }
+    expect(getPlan('pro')!.ai.monthlyUnits!).toBeGreaterThan(
+      getPlan('profissional')!.ai.monthlyUnits!,
+    );
+    expect(TRIAL_GRANT.aiMonthlyUnits).toBeGreaterThan(0);
     for (const plan of PLANS) expect(Number.isInteger(plan.priceCents)).toBe(true);
   });
 
@@ -63,22 +71,16 @@ describe('direitos efetivos', () => {
     expect(effectiveAutonomy('AUTO_RULES', e)).toBe('SUGGEST');
   });
 
-  it('Profissional: franquia não definida bloqueia em produção e usa o valor provisório só em desenvolvimento', () => {
+  it('Profissional: assistente e voz liberados em produção com o limite do plano; sem rotinas automáticas', () => {
     const prod = resolve({ plan: 'profissional' }, true);
-    expect(prod.ai.available.assistant).toBe(false);
-    expect(prod.ai.reasons.assistant).toBe('quota_not_configured');
+    expect(prod.ai.available.assistant).toBe(true);
+    expect(prod.ai.available.voice).toBe(true);
+    expect(prod.ai.monthlyUnits).toBe(getPlan('profissional')!.ai.monthlyUnits);
+    expect(prod.ai.provisionalUnits).toBe(false);
     // Executar o que já foi aprovado não consome IA.
     expect(prod.ai.available.assistedActions).toBe(true);
-
-    const dev = resolve({ plan: 'profissional' });
-    expect(dev.ai.available.assistant).toBe(true);
-    expect(dev.ai.provisionalUnits).toBe(true);
-    // Voz (ditado) vem junto com o assistente; em produção, sem franquia, fica bloqueada também.
-    expect(dev.ai.available.voice).toBe(true);
-    expect(prod.ai.available.voice).toBe(false);
-    expect(prod.ai.reasons.voice).toBe('quota_not_configured');
-    expect(dev.ai.available.autoExecution).toBe(false);
-    expect(dev.ai.reasons.autoExecution).toBe('not_in_plan');
+    expect(prod.ai.available.autoExecution).toBe(false);
+    expect(prod.ai.reasons.autoExecution).toBe('not_in_plan');
   });
 
   it('Pro: execução automática de rotinas autorizadas existe e não depende da franquia de IA', () => {
@@ -88,7 +90,7 @@ describe('direitos efetivos', () => {
     // Mesmo em produção sem franquia definida: as rotinas não chamam o modelo.
     const prodPro = resolve({ plan: 'pro' }, true);
     expect(prodPro.ai.available.autoExecution).toBe(true);
-    expect(prodPro.ai.available.assistant).toBe(false);
+    expect(prodPro.ai.available.assistant).toBe(true);
     expect(effectiveAutonomy('AUTO_RULES', pro)).toBe('AUTO_RULES');
     expect(effectiveAutonomy('SUGGEST', pro)).toBe('SUGGEST');
     // Profissional nunca chega a AUTO_RULES.

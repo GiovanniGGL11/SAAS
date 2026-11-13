@@ -48,6 +48,16 @@ model Company {
   // Assinatura do Atendafy (cobrança pela Asaas da plataforma).
   subscriptionStatus  SubscriptionStatus @default(TRIAL)
   trialEndsAt         DateTime?
+  /// Conta nova: o 1º mês grátis só vale depois de conferir os dados (um teste por pessoa).
+  trialPending        Boolean            @default(false)
+  /// Cortesia dada pelo dono do Atendafy (painel /plataforma): acesso ao plano sem pagar até a data.
+  courtesyUntil       DateTime?
+  courtesyPlan        String?
+  courtesyNote        String?
+  /// Cadastro pelo link (/cadastro/[slug]): o cliente preenche a própria ficha.
+  selfSignupEnabled   Boolean            @default(false)
+  /// Campos pedidos: { email|birthDate|cpf|address|notes: "off" | "optional" | "required" }.
+  selfSignupFields    Json?
   plan                String?
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?
@@ -130,6 +140,7 @@ model Company {
   automationRules           AutomationRule[]
   periodGoals               PeriodGoal[]
   serviceProfessionals      ServiceProfessional[]
+  trialClaims               TrialClaim[]
 }
 
 model WebhookEvent {
@@ -2218,5 +2229,19 @@ model BillingNotice {
   key       String   @unique
   createdAt DateTime @default(now())
 
+  @@index([companyId])
+}
+
+/// Quem já usou o 1º mês grátis: conta, e-mail, CPF/CNPJ, celular e rede (IP), só como hash.
+model TrialClaim {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  /// user | email | document | phone | ip
+  kind      String
+  valueHash String
+  createdAt DateTime @default(now())
+
+  @@index([kind, valueHash])
   @@index([companyId])
 }

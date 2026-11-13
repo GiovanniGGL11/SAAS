@@ -7,6 +7,7 @@ import {
   listProfessionalsWithoutSchedule,
 } from '@/server/data/public-booking';
 import { ClientLinkView } from '@/components/link-do-cliente/client-link-view';
+import { parseSignupConfig } from '@/lib/self-signup';
 
 export const metadata = { title: 'Link do cliente' };
 
@@ -71,6 +72,11 @@ export default async function LinkDoClientePage({
           required: company.depositRequired,
         },
         services: services.map((s) => ({ ...s, price: Number(s.price) })),
+        signup: {
+          enabled: company.selfSignupEnabled,
+          fields: parseSignupConfig(company.selfSignupFields),
+          url: `${baseUrl}/cadastro/${company.slug}`,
+        },
       }}
     />
   );

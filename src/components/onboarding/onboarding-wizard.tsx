@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { unwrapResult } from '@/lib/action-result';
 import { cn } from '@/lib/utils';
-import { SEGMENTS, SERVICE_TEMPLATES, type Segment } from '@/lib/onboarding/templates';
+import { SEGMENT_GROUPS, SERVICE_TEMPLATES, type Segment } from '@/lib/onboarding/templates';
 import { completeOnboardingAction } from '@/server/actions/onboarding-actions';
 
 type ServiceRow = { name: string; duration: string; price: string; selected: boolean };
@@ -108,24 +108,35 @@ export function OnboardingWizard({
 
       {step === 0 && (
         <div className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {SEGMENTS.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => {
-                  setSegment(s.value);
-                  setServices(toRows(s.value));
-                }}
-                className={cn(
-                  'rounded-2xl px-4 py-4 text-left text-[15px] font-medium ring-1 transition-colors',
-                  segment === s.value
-                    ? 'bg-system-blue/[0.08] ring-system-blue ring-2'
-                    : 'bg-tile hover:ring-foreground/10 ring-transparent',
+          <div className="flex flex-col gap-4">
+            {SEGMENT_GROUPS.map((group) => (
+              <div key={group.title || 'outro'} className="flex flex-col gap-2">
+                {group.title && (
+                  <span className="text-label-secondary text-[12px] font-semibold tracking-wide uppercase">
+                    {group.title}
+                  </span>
                 )}
-              >
-                {s.label}
-              </button>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {group.items.map((s) => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => {
+                        setSegment(s.value);
+                        setServices(toRows(s.value));
+                      }}
+                      className={cn(
+                        'rounded-2xl px-4 py-3 text-left text-[14px] font-medium ring-1 transition-[background-color,box-shadow,transform] duration-200 active:scale-[0.98]',
+                        segment === s.value
+                          ? 'bg-system-blue/[0.08] ring-system-blue ring-2'
+                          : 'bg-tile hover:bg-system-blue/[0.06] hover:ring-system-blue/40 ring-transparent hover:-translate-y-px hover:shadow-[0_8px_20px_-14px_rgb(0_0_0/0.35)]',
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
           {segment && (

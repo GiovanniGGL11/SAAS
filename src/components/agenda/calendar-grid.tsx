@@ -63,7 +63,8 @@ export type GridBlock = {
 
 export type ScreenPoint = { x: number; y: number };
 
-const PIXELS_PER_HOUR = 64;
+/** 80 px por hora: um atendimento de 30 min cabe nome e horário sem cortar. */
+const PIXELS_PER_HOUR = 80;
 const SLOT_MINUTES = 15;
 
 type GridHours = { startHour: number; endHour: number };
@@ -190,9 +191,17 @@ function DraggableAppointment({
   const isInactive = appointment.status === 'CANCELED' || appointment.status === 'NO_SHOW';
   const isDone = appointment.status === 'DONE';
   const color = colorFor(appointment);
-  // Cor cheia e texto branco, como os eventos do Google. Falta e cancelado ficam só no contorno;
-  // concluído fica esmaecido, como evento que já passou.
+  // Como o Calendário do iPhone: fundo claro na cor, faixa cheia à esquerda e texto escuro.
+  // Falta e cancelado ficam só no contorno tracejado; concluído fica esmaecido.
   const solid = !isInactive;
+  // Quantas linhas cabem inteiras (cada uma ~15 px, mais o respiro de cima e de baixo): o que
+  // não cabe some, em vez de aparecer cortado pela metade.
+  const lines = Math.max(1, Math.floor((resizedHeight - 8) / 15));
+  const timeLabel = `${formatTimeInTz(appointment.startAt, timezone)}${
+    resizeDeltaPx !== null
+      ? ` – ${formatMinutes(utcToMinutesSinceMidnight(appointment.startAt, timezone) + Math.round(resizedHeight / minutesToTop(1)))}`
+      : ''
+  }`;
 
   function startResize(event: React.PointerEvent) {
     event.stopPropagation();
@@ -229,27 +238,35 @@ function DraggableAppointment({
         onContextMenu(appointment, { x: event.clientX, y: event.clientY });
       }}
       className={cn(
-        'group/card absolute overflow-hidden rounded-[10px] px-2 py-1 text-left text-xs shadow-sm ring-1 ring-black/5 transition-[box-shadow,transform] duration-200 hover:z-30 hover:shadow-lg',
-        solid ? 'text-white' : 'bg-background text-foreground border-2 border-dashed',
-        isDone && 'opacity-60',
+        'group/card text-foreground absolute overflow-hidden rounded-[8px] py-[3px] pr-1.5 pl-2.5 text-left text-[12px] leading-[15px] transition-[box-shadow,transform,filter] duration-200 hover:z-30 hover:shadow-lg hover:brightness-[0.97]',
+        solid ? 'shadow-[0_1px_2px_rgb(0_0_0/0.06)]' : 'bg-background border-2 border-dashed',
+        isDone && 'opacity-55',
         isDragging && 'z-50 scale-[1.02] opacity-90 shadow-xl',
         resizeDeltaPx !== null && 'z-50 shadow-xl',
         appointment.status === 'NO_SHOW' && 'line-through decoration-1 opacity-70',
       )}
       style={{
-        top: item.top,
-        height: resizedHeight,
+        // 1 px de respiro em cima e embaixo: atendimentos seguidos não grudam.
+        top: item.top + 1,
+        height: resizedHeight - 2,
         left: `calc(${(item.lane / item.totalLanes) * 100}% + 2px)`,
         width: `calc(${100 / item.totalLanes}% - 4px)`,
-        backgroundColor: solid ? color : undefined,
+        backgroundColor: solid ? `color-mix(in oklab, ${color} 18%, var(--background))` : undefined,
         borderColor: solid ? undefined : color,
         transform: CSS.Translate.toString(transform),
       }}
     >
+      {solid && (
+        <span
+          className="absolute inset-y-0 left-0 w-[3px]"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+      )}
       <div className="flex items-center gap-1">
         {/* Colorindo por profissional, o status vira a bolinha; colorindo por status, vice-versa. */}
         <span
-          className={cn('size-2 shrink-0 rounded-full', solid && 'ring-1 ring-white/80')}
+          className="size-[7px] shrink-0 rounded-full"
           style={{
             backgroundColor:
               colorMode === 'professional'
@@ -258,32 +275,36 @@ function DraggableAppointment({
           }}
           aria-hidden
         />
-        <span className="truncate font-semibold">{appointment.client.name}</span>
+        {/* Uma linha só: horário e nome juntos. */}
+        {lines === 1 && (
+          <span className="text-label-secondary shrink-0 tabular-nums">{timeLabel}</span>
+        )}
+        <span
+          className="truncate font-semibold"
+          style={
+            solid ? { color: `color-mix(in oklab, ${color} 45%, var(--foreground))` } : undefined
+          }
+        >
+          {appointment.client.name}
+        </span>
         {appointment.isFirstVisit && (
-          <SparklesIcon
-            className={cn('size-3 shrink-0', solid ? 'text-white' : 'text-system-indigo')}
-            aria-label="Cliente novo"
-          />
+          <SparklesIcon className="text-system-indigo size-3 shrink-0" aria-label="Cliente novo" />
         )}
         {appointment.notes && (
           <StickyNoteIcon
-            className={cn('size-3 shrink-0', solid ? 'text-white/85' : 'text-muted-foreground')}
+            className="text-label-secondary size-3 shrink-0"
             aria-label="Tem observação"
           />
         )}
       </div>
-      <div className={cn('truncate', solid ? 'text-white/85' : 'text-muted-foreground')}>
-        {formatTimeInTz(appointment.startAt, timezone)}
-        {resizeDeltaPx !== null &&
-          ` – ${formatMinutes(utcToMinutesSinceMidnight(appointment.startAt, timezone) + Math.round(resizedHeight / minutesToTop(1)))}`}{' '}
-        · {appointment.serviceNameSnapshot}
-      </div>
-      {resizedHeight > 44 && (
-        <div
-          className={cn('truncate font-medium', solid ? 'text-white/85' : 'text-label-secondary')}
-        >
-          {STATUS_LABELS[appointment.status]}
-          <span className="font-normal"> · {formatCurrencyBRL(appointment.priceSnapshot)}</span>
+      {lines >= 2 && (
+        <div className="text-label-secondary truncate">
+          <span className="tabular-nums">{timeLabel}</span> · {appointment.serviceNameSnapshot}
+        </div>
+      )}
+      {lines >= 3 && (
+        <div className="text-label-secondary truncate">
+          {STATUS_LABELS[appointment.status]} · {formatCurrencyBRL(appointment.priceSnapshot)}
         </div>
       )}
       {/* Alça de redimensionar: aparece ao passar o mouse na borda de baixo. */}
@@ -294,9 +315,7 @@ function DraggableAppointment({
         onClick={(event) => event.stopPropagation()}
         className="absolute right-0 bottom-0 left-0 flex h-2 cursor-ns-resize items-center justify-center opacity-0 group-hover/card:opacity-100"
       >
-        <span
-          className={cn('h-0.5 w-6 rounded-full', solid ? 'bg-white/80' : 'bg-foreground/40')}
-        />
+        <span className="bg-foreground/30 h-0.5 w-6 rounded-full" />
       </span>
     </button>
   );
@@ -456,14 +475,14 @@ export function CalendarGrid({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div
         ref={scrollRef}
-        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1"
+        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] snap-x snap-mandatory scroll-pl-11 overflow-auto overscroll-x-contain rounded-[22px] ring-1 md:snap-none md:scroll-pl-14"
       >
-        <div className="bg-background sticky left-0 z-20 w-14 shrink-0 border-r">
-          <div className="bg-background sticky top-0 z-10 h-16 border-b" />
+        <div className="bg-background sticky left-0 z-20 w-11 shrink-0 border-r md:w-14">
+          <div className="bg-background sticky top-0 z-10 h-14 border-b md:h-16" />
           {hourMarks.map((hour, index) => (
             <div
               key={hour}
-              className="text-muted-foreground relative border-b text-right text-xs"
+              className="text-muted-foreground relative border-b text-right text-[11px] md:text-xs"
               style={{ height: PIXELS_PER_HOUR }}
             >
               {/* As outras horas ficam centradas na linha; a primeira desce para dentro da faixa, senão o
@@ -491,16 +510,16 @@ export function CalendarGrid({
               ref={(el) => {
                 if (el) columnWidthRef.current = el.offsetWidth;
               }}
-              className="relative min-w-40 flex-1 border-r last:border-r-0"
+              className="relative min-w-[max(8.5rem,calc((100vw-5.25rem)/2))] flex-1 snap-start border-r last:border-r-0 md:min-w-40"
             >
               {/* Cabeçalho como o do Google Agenda: dia da semana pequeno, número grande num círculo
                   (cheio quando é hoje). Na visão Dia, a coluna é o profissional. */}
-              <div className="bg-background/85 sticky top-0 z-10 flex h-16 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md">
+              <div className="bg-background/85 sticky top-0 z-10 flex h-14 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md md:h-16">
                 {!column.sublabel && column.accentColor ? (
                   // Visão Dia, "agenda por pessoas": avatar de iniciais, nome e o total do dia.
                   <div className="flex max-w-full items-center gap-2 px-2">
                     <span
-                      className="flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white md:size-8 md:text-[12px]"
                       style={{ backgroundColor: column.accentColor }}
                       aria-hidden
                     >

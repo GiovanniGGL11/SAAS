@@ -17,7 +17,17 @@ import { billingConfigured } from '@/server/billing/subscription';
 type CompanyPlanFields = Pick<
   Company,
   'plan' | 'subscriptionStatus' | 'trialEndsAt' | 'currentPeriodEnd'
->;
+> &
+  Partial<Pick<Company, 'courtesyUntil' | 'courtesyPlan'>>;
+
+const PLAN_FIELDS = {
+  plan: true,
+  subscriptionStatus: true,
+  trialEndsAt: true,
+  currentPeriodEnd: true,
+  courtesyUntil: true,
+  courtesyPlan: true,
+} as const;
 
 export type FeatureAccess = {
   planId: PlanId | null;
@@ -80,7 +90,7 @@ export function assertFeature(company: CompanyPlanFields, key: FeatureKey) {
 export async function assertCompanyFeature(companyId: string, key: FeatureKey) {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { plan: true, subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+    select: PLAN_FIELDS,
   });
   if (!company) throw new UserError('Empresa não encontrada.');
   assertFeature(company, key);
@@ -89,7 +99,7 @@ export async function assertCompanyFeature(companyId: string, key: FeatureKey) {
 export async function companyHasFeature(companyId: string, key: FeatureKey): Promise<boolean> {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { plan: true, subscriptionStatus: true, trialEndsAt: true, currentPeriodEnd: true },
+    select: PLAN_FIELDS,
   });
   return company ? hasFeature(company, key) : false;
 }

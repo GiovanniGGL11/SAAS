@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { Prisma } from '@/generated/prisma/client';
 import type { OpportunityStageKind } from '@/generated/prisma/client';
 import { normalizePhone } from '@/lib/phone';
+import { findClientByPhone } from '@/server/data/client-match';
 import { UserError } from '@/server/errors';
 import { recordAuditLog } from '@/server/data/audit';
 
@@ -158,11 +159,12 @@ async function assertServices(companyId: string, ids: string[]) {
   return unique;
 }
 
-/** Cliente pelo telefone exato (sem duplicar quem já existe). */
+/** Cliente pelo telefone, em qualquer formato (sem duplicar quem já existe). */
 async function clientByPhone(companyId: string, phone: string | null | undefined) {
   const digits = normalizePhone(phone);
   if (!digits || digits.length < 10) return null;
-  return prisma.client.findFirst({ where: { companyId, phone: digits }, select: { id: true } });
+  const client = await findClientByPhone(companyId, digits);
+  return client ? { id: client.id } : null;
 }
 
 export async function createOpportunity(
