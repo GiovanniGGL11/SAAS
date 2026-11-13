@@ -58,7 +58,8 @@ export async function sendAssistantMessageAction(input: unknown) {
       messages,
       formAccess: await formAccessOrUndefined(),
     });
-    return { reply: reply.reply, proposals: reply.proposals };
+    // Créditos gastos nesta resposta (consultas ao modelo), para a pessoa acompanhar.
+    return { reply: reply.reply, proposals: reply.proposals, credits: reply.calls };
   });
 }
 
@@ -105,7 +106,13 @@ export async function getAiStatusAction() {
         session.entitlements.ai.monthlyUnits,
       )
     : null;
-  return { ...summary, isAdmin: session.isAdmin, usage };
+  return {
+    ...summary,
+    isAdmin: session.isAdmin,
+    usage,
+    /** Administrador que ainda não está no plano com mais créditos. */
+    canUpgradeCredits: session.isAdmin && session.entitlements.planId !== 'pro',
+  };
 }
 
 export async function getAiSettingsAction() {

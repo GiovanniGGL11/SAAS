@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { unwrapResult } from '@/lib/action-result';
 import { AUTONOMY_LABEL, type AutonomyMode } from '@/lib/billing/entitlements';
 import { Button } from '@/components/ui/button';
+import { AiCreditsMeter } from '@/components/assistant/ai-credits-meter';
 import {
   getAiSettingsAction,
   getAiStatusAction,
@@ -93,28 +94,12 @@ export function AiSettingsCard() {
             </p>
           )}
           {status.usage && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-[13px]">
-                <span>Uso de IA neste mês</span>
-                <span className="tabular-nums">
-                  {status.usage.used} de {status.usage.limit}
-                </span>
-              </div>
-              <div
-                className="bg-foreground/[0.08] h-1.5 overflow-hidden rounded-full"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={status.usage.limit}
-                aria-valuenow={status.usage.used}
-                aria-label="Uso de IA neste mês"
-              >
-                <div
-                  className="bg-system-blue h-full"
-                  style={{
-                    width: `${status.usage.limit ? Math.min(100, (status.usage.used / status.usage.limit) * 100) : 0}%`,
-                  }}
-                />
-              </div>
+            <div className="bg-background flex flex-col gap-1 rounded-2xl p-4">
+              <AiCreditsMeter
+                usage={status.usage}
+                variant="full"
+                canUpgrade={status.canUpgradeCredits}
+              />
               {status.provisionalUnits && (
                 <p className="text-label-secondary text-[12px]">
                   Limite provisório de desenvolvimento: a franquia do plano ainda não foi definida.

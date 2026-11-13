@@ -64,9 +64,10 @@ function approxQuestions(units: number | null): number {
 function aiSummary(plan: (typeof PLANS)[number]): string {
   if (!plan.ai.assistant) return 'Sem assistente de IA.';
   const questions = approxQuestions(plan.ai.monthlyUnits).toLocaleString('pt-BR');
+  const credits = (plan.ai.monthlyUnits ?? 0).toLocaleString('pt-BR');
   return plan.ai.autoExecution
-    ? `Assistente de IA com mais uso: cerca de ${questions} perguntas por mês. Inclui as rotinas automáticas, que você liga quando quiser.`
-    : `Assistente de IA: pergunte sobre agenda, caixa e clientes e peça alterações — nada muda sem a sua aprovação. Cerca de ${questions} perguntas por mês.`;
+    ? `Assistente de IA com mais uso: ${credits} créditos por mês (cerca de ${questions} perguntas). Inclui as rotinas automáticas, que você liga quando quiser.`
+    : `Assistente de IA: pergunte sobre agenda, caixa e clientes e peça alterações — nada muda sem a sua aprovação. ${credits} créditos por mês (cerca de ${questions} perguntas).`;
 }
 
 /** Planos do Atendafy, teste grátis e pagamento pela Asaas (PIX, boleto ou cartão). */
@@ -343,8 +344,9 @@ export function SubscriptionView({
 
           <div className="text-label-secondary flex flex-col gap-1 text-[13px]">
             <p>
-              O assistente de IA tem um limite de perguntas por mês. Se acabar, ele volta no mês
-              seguinte; o resto do sistema continua normal e nada é cobrado a mais.
+              Os créditos de IA renovam todo dia 1º. Você acompanha quanto sobra no próprio
+              assistente; se acabar, ele volta no mês seguinte, o resto do sistema continua normal e
+              nada é cobrado a mais.
             </p>
           </div>
 

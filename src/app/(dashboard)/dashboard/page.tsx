@@ -17,6 +17,8 @@ import { REPORT_PRESETS, type ReportPreset } from '@/lib/validations/report';
 import { PeriodPicker } from '@/components/dashboard/period-picker';
 import { TodayStrip } from '@/components/dashboard/today-strip';
 import { AttentionCard } from '@/components/dashboard/attention-card';
+import { featureAccessFor } from '@/server/billing/features';
+import { getUsageSummary } from '@/server/ai/quota';
 import { GoalCard } from '@/components/dashboard/goal-card';
 import { MIN_PEAK_SAMPLE, findPeakHour } from '@/lib/dashboard-rules';
 import { TeamPerformance } from '@/components/dashboard/team-performance';
@@ -85,12 +87,17 @@ export default async function DashboardPage({
   const range = resolveReportRange(preset, company.timezone);
 
   const today = getTodayInTz(company.timezone);
-  const [overview, todayAppointments] = await Promise.all([
+  // Créditos de IA do mês (só nos planos com assistente): aviso quando estiver acabando.
+  const ai = featureAccessFor(company).entitlements.ai;
+  const [overview, todayAppointments, aiCredits] = await Promise.all([
     getTodayOverview(company.id, company.timezone),
     listAppointmentsInRange(company.id, {
       startAt: startOfCalendarDateUtc(today, company.timezone),
       endAt: startOfCalendarDateUtc(addDays(today, 1), company.timezone),
     }),
+    ai.included?.assistant && ai.monthlyUnits > 0
+      ? getUsageSummary(company.id, company.timezone, ai.monthlyUnits)
+      : Promise.resolve(null),
   ]);
 
   const [serviceCount, professionalCount, availabilityCount, clientCount, appointmentCount] =
@@ -191,7 +198,7 @@ export default async function DashboardPage({
         />
         <TodayStrip overview={overview} showMoney={false} />
         <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-2">
-          <AttentionCard overview={overview} isAdmin={false} />
+          <AttentionCard overview={overview} isAdmin={false} aiCredits={aiCredits} />
           {agendaCard}
         </div>
         {followUp}
@@ -251,7 +258,7 @@ export default async function DashboardPage({
       <TodayStrip overview={overview} showMoney />
 
       <div className="grid grid-cols-1 items-start gap-4 md:gap-5 lg:grid-cols-2">
-        <AttentionCard overview={overview} isAdmin />
+        <AttentionCard overview={overview} isAdmin aiCredits={aiCredits} />
         <GoalCard
           goal={goal}
           revenue={month.revenue}

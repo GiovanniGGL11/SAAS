@@ -8,6 +8,7 @@ import {
   HandCoinsIcon,
   PackageIcon,
   ReceiptIcon,
+  SparklesIcon,
   UserRoundXIcon,
   VaultIcon,
 } from 'lucide-react';
@@ -15,15 +16,37 @@ import {
 import { AppleTile, TileEyebrow } from '@/components/dashboard/apple-tile';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { getTodayOverview } from '@/server/data/insights';
+import { creditsInfo, type CreditsUsage } from '@/lib/ai-credits';
 
 type Overview = Awaited<ReturnType<typeof getTodayOverview>>;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Pendências do dia, cada uma com o atalho para resolver. Some quando está tudo em dia. */
-export function AttentionCard({ overview, isAdmin }: { overview: Overview; isAdmin: boolean }) {
+export function AttentionCard({
+  overview,
+  isAdmin,
+  aiCredits = null,
+}: {
+  overview: Overview;
+  isAdmin: boolean;
+  /** Créditos de IA do mês: aparece quando passa de 80% (ou acaba). */
+  aiCredits?: CreditsUsage | null;
+}) {
   const t = overview.tomorrowDate;
+  const credits = aiCredits ? creditsInfo(aiCredits) : null;
   const items = [
+    credits &&
+      credits.percent >= 80 && {
+        icon: SparklesIcon,
+        color: credits.level === 'empty' ? '#ff3b30' : '#ff9500',
+        text:
+          credits.level === 'empty'
+            ? `Os créditos de IA do mês acabaram — renovam em ${credits.renewsOn}`
+            : `Você já usou ${credits.percent}% dos créditos de IA do mês (≈ ${credits.questionsLeft} perguntas restantes)`,
+        action: isAdmin ? 'Ver consumo' : 'Ver',
+        href: '/configuracoes',
+      },
     overview.toClose > 0 && {
       icon: ClipboardCheckIcon,
       color: '#ff9500',
