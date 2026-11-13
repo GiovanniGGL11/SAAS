@@ -3,12 +3,7 @@ import { utcToMinutesSinceMidnight, type CalendarDate } from '@/lib/time';
 
 const ROLLING_WINDOW_DAYS = 30;
 
-function percentDelta(current: number, previous: number): number | null {
-  if (previous === 0) return current === 0 ? 0 : null;
-  return ((current - previous) / previous) * 100;
-}
-
-export { percentDelta };
+export { percentDelta } from '@/lib/dashboard-rules';
 
 export type DailyRevenue = { date: CalendarDate; label: string; revenue: number };
 
