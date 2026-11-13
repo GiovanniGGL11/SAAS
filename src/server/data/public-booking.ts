@@ -3,6 +3,7 @@ import { clerkClient } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/db';
 import { normalizePhone } from '@/lib/phone';
+import { findClientByPhone } from '@/server/data/client-match';
 import { validateBookingName, validateBookingPhone } from '@/lib/booking';
 import { addDays, calendarDateToUtc, utcToCalendarDate, type CalendarDate } from '@/lib/time';
 import { UserError } from '@/server/errors';
@@ -335,9 +336,9 @@ export async function createPublicBooking(params: {
     throw new UserError('Data fora do período de agendamento.');
   }
 
-  const existingClient = await prisma.client.findFirst({
-    where: { companyId: params.companyId, phone },
-  });
+  // Mesmo celular em qualquer formato (com ou sem 55, com ou sem o 9): fica no cadastro que já
+  // existe, e o atendimento entra no histórico dele.
+  const existingClient = await findClientByPhone(params.companyId, phone);
   // O mesmo pedido de novo (duplo clique, nova tentativa depois de falha de rede): devolve a
   // reserva que já foi feita, em vez de acusar conflito com ela mesma.
   if (existingClient) {
@@ -393,9 +394,7 @@ export async function createPublicBooking(params: {
       .create({ data: { companyId: params.companyId, name: params.name.trim(), phone } })
       .catch(async (error) => {
         // Dois pedidos ao mesmo tempo com o mesmo telefone: o outro acabou de criar o cadastro.
-        const again = await prisma.client.findFirst({
-          where: { companyId: params.companyId, phone },
-        });
+        const again = await findClientByPhone(params.companyId, phone);
         if (again) return again;
         throw error;
       }));

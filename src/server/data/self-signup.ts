@@ -7,6 +7,7 @@ import {
   type SignupInput,
 } from '@/lib/self-signup';
 import { UserError } from '@/server/errors';
+import { findClientByPhone } from '@/server/data/client-match';
 
 /** Empresa com o cadastro pelo link ligado (a página pública some quando está desligado). */
 export async function getSignupCompany(slug: string) {
@@ -47,7 +48,7 @@ export async function submitSelfSignup(
   if (!phone) throw new SignupValidationError({ phone: 'Confira o WhatsApp.' });
 
   const data = { ...values, phone };
-  const existing = await prisma.client.findFirst({ where: { companyId, phone } });
+  const existing = await findClientByPhone(companyId, phone);
   if (existing) {
     const fill: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(data)) {
