@@ -100,11 +100,10 @@ describe('avisos de cobrança e limite de profissionais', () => {
     );
     await prisma.company.update({ where: { id }, data: { plan: 'profissional' } });
     company = await prisma.company.findUniqueOrThrow({ where: { id } });
-    await assertProfessionalSlots(company, 2); // 3 no Profissional
-    await expect(assertProfessionalSlots(company, 3)).rejects.toThrow(/até 3.*plano Pro/);
+    await assertProfessionalSlots(company, 3); // 4 no Profissional
+    await expect(assertProfessionalSlots(company, 4)).rejects.toThrow(/até 4.*plano Pro/);
     await prisma.company.update({ where: { id }, data: { plan: 'pro' } });
     company = await prisma.company.findUniqueOrThrow({ where: { id } });
-    await assertProfessionalSlots(company, 3); // 4 no Pro
-    await expect(assertProfessionalSlots(company, 4)).rejects.toThrow(/até 4 profissionais\.$/);
+    await assertProfessionalSlots(company, 50); // Pro: sem limite
   });
 });

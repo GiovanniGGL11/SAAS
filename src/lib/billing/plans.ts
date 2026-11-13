@@ -233,7 +233,7 @@ export const PLANS: Plan[] = [
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
-    maxProfessionals: 3,
+    maxProfessionals: 4,
     maxUnits: 1,
     features: FULL_FEATURES,
     ai: {
@@ -251,9 +251,9 @@ export const PLANS: Plan[] = [
       maxRequestSeconds: 60,
     },
     addOns: ['whatsapp_ai'],
-    tagline: 'Para equipes pequenas, de até 3 profissionais',
+    tagline: 'Para equipes pequenas, de até 4 profissionais',
     highlights: [
-      'Até 3 profissionais',
+      'Até 4 profissionais',
       'Tudo do Básico',
       'Campanhas para chamar clientes de volta',
       'Comissões, metas e relatórios',
@@ -270,7 +270,7 @@ export const PLANS: Plan[] = [
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
-    maxProfessionals: 4,
+    maxProfessionals: null,
     maxUnits: null,
     features: PRO_FEATURES,
     ai: {
@@ -287,9 +287,9 @@ export const PLANS: Plan[] = [
       maxRequestSeconds: 90,
     },
     addOns: ['whatsapp_ai'],
-    tagline: 'Para quem tem mais de uma unidade ou quer tudo no automático',
+    tagline: 'Para redes, várias unidades ou equipes grandes',
     highlights: [
-      'Até 4 profissionais',
+      'Profissionais ilimitados',
       'Tudo do Profissional',
       'Várias unidades num painel só',
       'Renovação de pacotes e lista de espera no automático',
