@@ -211,14 +211,14 @@ export const PLANS: Plan[] = [
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
-    maxProfessionals: 2,
+    maxProfessionals: 1,
     maxUnits: 1,
     features: ESSENTIAL_FEATURES,
     ai: NO_AI,
     addOns: [],
-    tagline: 'Para quem trabalha sozinho ou em dupla',
+    tagline: 'Para quem trabalha sozinho',
     highlights: [
-      'Até 2 profissionais',
+      '1 profissional',
       'Agenda e agendamento pelo link',
       'Mensagem pronta no WhatsApp com um toque',
       'Comanda, caixa e financeiro',
@@ -270,7 +270,7 @@ export const PLANS: Plan[] = [
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
-    maxProfessionals: null,
+    maxProfessionals: 4,
     maxUnits: null,
     features: PRO_FEATURES,
     ai: {
@@ -287,9 +287,9 @@ export const PLANS: Plan[] = [
       maxRequestSeconds: 90,
     },
     addOns: ['whatsapp_ai'],
-    tagline: 'Para redes, várias unidades ou equipes grandes',
+    tagline: 'Para quem tem mais de uma unidade ou quer tudo no automático',
     highlights: [
-      'Profissionais ilimitados',
+      'Até 4 profissionais',
       'Tudo do Profissional',
       'Várias unidades num painel só',
       'Renovação de pacotes e lista de espera no automático',
@@ -401,6 +401,11 @@ export const AI_PROVIDER_PRICING: Record<
 
 export function getPlan(id: string | null | undefined): Plan | undefined {
   return PLANS.find((p) => p.id === id);
+}
+
+/** "1 profissional" ou "até 3 profissionais" (para as mensagens de limite). */
+export function professionalsLimitLabel(max: number): string {
+  return max === 1 ? '1 profissional' : `até ${max} profissionais`;
 }
 
 export function planPrice(plan: Pick<Plan, 'priceCents'>): number {

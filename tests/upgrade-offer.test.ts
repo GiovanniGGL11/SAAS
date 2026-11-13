@@ -37,10 +37,10 @@ describe('convite para subir de plano', () => {
     expect(hasFeature(active('pro'), 'multiUnit')).toBe(true);
   });
 
-  it('limites de profissionais: Básico 2, Profissional 3, Pro sem limite; preço por dia', () => {
-    expect(getPlan('essencial')!.maxProfessionals).toBe(2);
+  it('limites de profissionais: Básico 1, Profissional 3, Pro 4; preço por dia', () => {
+    expect(getPlan('essencial')!.maxProfessionals).toBe(1);
     expect(getPlan('profissional')!.maxProfessionals).toBe(3);
-    expect(getPlan('pro')!.maxProfessionals).toBeNull();
+    expect(getPlan('pro')!.maxProfessionals).toBe(4);
     expect(pricePerDay(7990)).toBeCloseTo(2.66, 2);
   });
 });

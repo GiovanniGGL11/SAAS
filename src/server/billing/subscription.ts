@@ -6,6 +6,7 @@ import {
   getPlan,
   planPrice,
   type PlanId,
+  professionalsLimitLabel,
 } from '@/lib/billing/plans';
 import { UserError } from '@/server/errors';
 import {
@@ -171,7 +172,7 @@ export async function changeSubscriptionPlan(company: Company, planId: PlanId) {
     });
     if (active > plan.maxProfessionals) {
       throw new UserError(
-        `O plano ${plan.name} inclui até ${plan.maxProfessionals} profissionais e você tem ${active} ativos. Desative alguns antes de trocar.`,
+        `O plano ${plan.name} permite ${professionalsLimitLabel(plan.maxProfessionals)} e você tem ${active} ativos. Desative alguns antes de trocar.`,
       );
     }
   }

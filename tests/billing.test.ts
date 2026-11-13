@@ -211,7 +211,7 @@ describe('assinatura do Atendafy (Asaas)', () => {
     });
     const company = await prisma.company.findUniqueOrThrow({ where: { id } });
     await expect(changeSubscriptionPlan(company, 'essencial')).rejects.toThrow(
-      /até 2 profissionais/,
+      /permite 1 profissional/,
     );
     // Plano antigo (fora de venda) não pode ser escolhido.
     await expect(changeSubscriptionPlan(company, 'rede')).rejects.toThrow(/não está disponível/);
