@@ -475,14 +475,14 @@ export function CalendarGrid({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div
         ref={scrollRef}
-        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] overflow-auto rounded-[22px] ring-1"
+        className="bg-background ring-foreground/[0.08] [&_.border-b]:border-foreground/[0.06] [&_.border-r]:border-foreground/[0.06] flex max-h-[calc(100svh-15rem)] min-h-[420px] snap-x snap-mandatory scroll-pl-11 overflow-auto overscroll-x-contain rounded-[22px] ring-1 md:snap-none md:scroll-pl-14"
       >
-        <div className="bg-background sticky left-0 z-20 w-14 shrink-0 border-r">
-          <div className="bg-background sticky top-0 z-10 h-16 border-b" />
+        <div className="bg-background sticky left-0 z-20 w-11 shrink-0 border-r md:w-14">
+          <div className="bg-background sticky top-0 z-10 h-14 border-b md:h-16" />
           {hourMarks.map((hour, index) => (
             <div
               key={hour}
-              className="text-muted-foreground relative border-b text-right text-xs"
+              className="text-muted-foreground relative border-b text-right text-[11px] md:text-xs"
               style={{ height: PIXELS_PER_HOUR }}
             >
               {/* As outras horas ficam centradas na linha; a primeira desce para dentro da faixa, senão o
@@ -510,16 +510,16 @@ export function CalendarGrid({
               ref={(el) => {
                 if (el) columnWidthRef.current = el.offsetWidth;
               }}
-              className="relative min-w-40 flex-1 border-r last:border-r-0"
+              className="relative min-w-[max(8.5rem,calc((100vw-5.25rem)/2))] flex-1 snap-start border-r last:border-r-0 md:min-w-40"
             >
               {/* Cabeçalho como o do Google Agenda: dia da semana pequeno, número grande num círculo
                   (cheio quando é hoje). Na visão Dia, a coluna é o profissional. */}
-              <div className="bg-background/85 sticky top-0 z-10 flex h-16 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md">
+              <div className="bg-background/85 sticky top-0 z-10 flex h-14 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md md:h-16">
                 {!column.sublabel && column.accentColor ? (
                   // Visão Dia, "agenda por pessoas": avatar de iniciais, nome e o total do dia.
                   <div className="flex max-w-full items-center gap-2 px-2">
                     <span
-                      className="flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white md:size-8 md:text-[12px]"
                       style={{ backgroundColor: column.accentColor }}
                       aria-hidden
                     >
