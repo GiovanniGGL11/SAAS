@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildUpgradeOffer, pricePerDay } from '@/lib/billing/upgrade';
-import { getPlan } from '@/lib/billing/plans';
+import { getPlan, monthlyPriceCents } from '@/lib/billing/plans';
 import { hasFeature, upgradeOffer } from '@/server/billing/features';
 
 const NOW = Date.now();
@@ -42,5 +42,14 @@ describe('convite para subir de plano', () => {
     expect(getPlan('profissional')!.maxProfessionals).toBe(4);
     expect(getPlan('pro')!.maxProfessionals).toBeNull();
     expect(pricePerDay(7990)).toBeCloseTo(2.66, 2);
+  });
+
+  it('Pro: 10 profissionais no preço; cada um a mais custa R$ 10', () => {
+    const pro = getPlan('pro')!;
+    expect(monthlyPriceCents(pro, 4)).toBe(14990);
+    expect(monthlyPriceCents(pro, 10)).toBe(14990);
+    expect(monthlyPriceCents(pro, 12)).toBe(16990);
+    // Os outros planos não cobram por profissional.
+    expect(monthlyPriceCents(getPlan('profissional')!, 4)).toBe(7990);
   });
 });

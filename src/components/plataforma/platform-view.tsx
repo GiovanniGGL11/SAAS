@@ -596,7 +596,7 @@ export function PlatformView({ data }: { data: PlatformData }) {
                   show: summary.counts.trial_pending > 0,
                   icon: GiftIcon,
                   tone: 'text-system-indigo',
-                  text: `${summary.counts.trial_pending} conta(s) ainda não liberaram o mês grátis`,
+                  text: `${summary.counts.trial_pending} conta(s) ainda não liberaram o teste grátis`,
                   onClick: () => go('trials'),
                 },
               ]
@@ -858,7 +858,7 @@ export function PlatformView({ data }: { data: PlatformData }) {
           )}
 
           <SectionTitle
-            title="Ainda não liberaram o mês grátis"
+            title="Ainda não liberaram o teste grátis"
             subtitle="Criaram a conta, mas não informaram CPF/CNPJ e celular."
           />
           {pendingTrial.length ? (

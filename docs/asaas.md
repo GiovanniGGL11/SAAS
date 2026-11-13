@@ -46,11 +46,11 @@ A chave decide o ambiente: `$aact_hmlg_...` vai para o sandbox, `$aact_prod_...`
 A Asaas emite NFS-e das cobranças (menu Notas Fiscais, configurar com os dados da prefeitura) — pode
 resolver a pendência de NFS-e sem outro fornecedor.
 
-## 1º mês grátis (um por pessoa)
+## Teste grátis de 15 dias (um por pessoa)
 
 - Empresa nova nasce com o teste "a liberar" (`Company.trialPending`). O dono libera em
   Primeiros passos ou em Assinatura, informando CPF/CNPJ e celular (`claimTrial`,
-  `src/server/billing/trial-claim.ts`). Liberado: `TRIAL_DAYS` (30) a partir dali.
+  `src/server/billing/trial-claim.ts`). Liberado: `TRIAL_DAYS` (15) a partir dali.
 - Confere contra quem já usou (`TrialClaim`, só hashes): conta do Clerk, e-mails verificados
   (sem pontos no Gmail e sem "+algo"), CPF/CNPJ (dígitos verificadores), celular e rede (no máximo
   `TRIAL_IP_LIMIT` testes por IP em 30 dias). E-mail descartável não libera.

@@ -4,9 +4,9 @@ import {
   PAST_DUE_GRACE_DAYS,
   effectiveTrialEnd,
   getPlan,
-  planPrice,
-  type PlanId,
+  monthlyPriceCents,
   professionalsLimitLabel,
+  type PlanId,
 } from '@/lib/billing/plans';
 import { UserError } from '@/server/errors';
 import {
@@ -89,6 +89,32 @@ export function getSubscriptionState(
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
+ * Valor mensal na Asaas e a descrição da cobrança: o preço do plano mais os profissionais ativos
+ * além dos incluídos (Pro).
+ */
+async function subscriptionCharge(
+  plan: NonNullable<ReturnType<typeof getPlan>>,
+  companyId: string,
+) {
+  const active = plan.extraProfessionalCents
+    ? await prisma.professional.count({ where: { companyId, active: true } })
+    : 0;
+  const cents = monthlyPriceCents(plan, active);
+  const extra =
+    cents > plan.priceCents && plan.includedProfessionals !== undefined
+      ? active - plan.includedProfessionals
+      : 0;
+  return {
+    value: cents / 100,
+    description:
+      `Atendafy — plano ${plan.name}` +
+      (extra > 0
+        ? ` + ${extra} ${extra === 1 ? 'profissional extra' : 'profissionais extras'}`
+        : ''),
+  };
+}
+
+/**
  * Assina o plano: cria (uma vez) o cliente na Asaas e a assinatura mensal. Durante o teste, a
  * primeira cobrança vence no fim do teste; depois disso, hoje. Devolve o link de pagamento quando
  * a cobrança já existe.
@@ -123,11 +149,12 @@ export async function startSubscription(
       ).id;
     const trialEnd = effectiveTrialEnd(company);
     const firstDue = trialEnd.getTime() > Date.now() ? trialEnd : new Date();
+    const charge = await subscriptionCharge(plan, company.id);
     const subscription = await createSubscription(key, {
       customer: customerId,
-      value: planPrice(plan),
+      value: charge.value,
       nextDueDate: ymd(firstDue),
-      description: `Atendafy — plano ${plan.name}`,
+      description: charge.description,
       externalReference: company.id,
     });
     await prisma.company.update({
@@ -177,15 +204,36 @@ export async function changeSubscriptionPlan(company: Company, planId: PlanId) {
     }
   }
   try {
-    await updateSubscription(apiKey(), company.asaasSubscriptionId, {
-      value: planPrice(plan),
-      description: `Atendafy — plano ${plan.name}`,
-    });
+    await updateSubscription(
+      apiKey(),
+      company.asaasSubscriptionId,
+      await subscriptionCharge(plan, company.id),
+    );
   } catch (error) {
     if (error instanceof AsaasError) throw new UserError(`A Asaas recusou: ${error.message}`);
     throw error;
   }
   await prisma.company.update({ where: { id: company.id }, data: { plan: plan.id } });
+}
+
+/**
+ * Profissional ativado ou desativado: num plano que cobra por profissional extra (Pro), atualiza o
+ * valor da assinatura (inclusive a cobrança em aberto). Sem assinatura, nada a fazer.
+ */
+export async function syncSubscriptionValue(companyId: string) {
+  if (!billingConfigured()) return;
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { plan: true, asaasSubscriptionId: true, subscriptionStatus: true },
+  });
+  const plan = getPlan(company?.plan);
+  if (!company?.asaasSubscriptionId || company.subscriptionStatus === 'CANCELED') return;
+  if (!plan?.extraProfessionalCents) return;
+  await updateSubscription(
+    apiKey(),
+    company.asaasSubscriptionId,
+    await subscriptionCharge(plan, companyId),
+  );
 }
 
 export type Invoice = {

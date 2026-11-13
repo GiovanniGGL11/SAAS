@@ -185,7 +185,7 @@ export function SubscriptionView({
           <div className="text-label-secondary text-[13px]">{STATUS[state.status]}</div>
           <div className="text-[20px] font-semibold">
             {state.status === 'TRIAL' && state.trialPending
-              ? '1º mês grátis a liberar'
+              ? 'Teste grátis a liberar'
               : state.status === 'TRIAL'
                 ? state.trialDaysLeft > 0
                   ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`

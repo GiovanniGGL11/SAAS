@@ -223,4 +223,35 @@ describe('assinatura do Atendafy (Asaas)', () => {
     expect(put.body).toMatchObject({ value: 39.9, updatePendingPayments: true });
     expect((await prisma.company.findUniqueOrThrow({ where: { id } })).plan).toBe('essencial');
   });
+
+  it('Pro com 12 profissionais: a assinatura cobra os 2 a mais', async () => {
+    const id = fixture.company.id;
+    await prisma.company.update({
+      where: { id },
+      data: {
+        asaasSubscriptionId: `sub_${id}`,
+        plan: 'profissional',
+        subscriptionStatus: 'ACTIVE',
+      },
+    });
+    await prisma.professional.createMany({
+      data: Array.from({ length: 12 }, (_, n) => ({
+        companyId: id,
+        name: `Extra ${n}`,
+        color: '#007AFF',
+      })),
+    });
+    await prisma.professional.updateMany({
+      where: { companyId: id, name: { not: { startsWith: 'Extra' } } },
+      data: { active: false },
+    });
+    const company = await prisma.company.findUniqueOrThrow({ where: { id } });
+    calls.length = 0;
+    await changeSubscriptionPlan(company, 'pro');
+    const put = calls.find((c) => c.method === 'PUT')!;
+    expect(put.body).toMatchObject({
+      value: 169.9,
+      description: 'Atendafy — plano Pro + 2 profissionais extras',
+    });
+  });
 });

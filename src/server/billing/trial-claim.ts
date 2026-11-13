@@ -11,7 +11,7 @@ import {
 import { UserError } from '@/server/errors';
 
 /*
-  1º mês grátis: um por pessoa. Empresa nova nasce com o teste "a liberar" (trialPending) e só
+  teste grátis: um por pessoa. Empresa nova nasce com o teste "a liberar" (trialPending) e só
   ganha os dias depois de conferir conta, e-mail, CPF/CNPJ, celular e rede (IP) contra quem já
   usou. Os dados ficam guardados só como hash (dá para comparar, não para ler de volta).
 */
@@ -80,7 +80,7 @@ export async function claimTrial(input: TrialClaimInput): Promise<TrialClaimResu
 
     if (emails.length === 0 || input.emails.every(isDisposableEmail)) {
       return deny(
-        'E-mail temporário não libera o mês grátis. Assine um plano para continuar.',
+        'E-mail temporário não libera o teste grátis. Assine um plano para continuar.',
         true,
       );
     }
@@ -93,10 +93,10 @@ export async function claimTrial(input: TrialClaimInput): Promise<TrialClaimResu
         })
       ).map((c) => c.kind),
     );
-    if (used.has('user')) return deny('Sua conta já usou o mês grátis em outra empresa.', true);
-    if (used.has('email')) return deny('Esse e-mail já usou o mês grátis.', true);
-    if (used.has('document')) return deny('Esse CPF/CNPJ já usou o mês grátis.', false);
-    if (used.has('phone')) return deny('Esse celular já usou o mês grátis.', false);
+    if (used.has('user')) return deny('Sua conta já usou o teste grátis em outra empresa.', true);
+    if (used.has('email')) return deny('Esse e-mail já usou o teste grátis.', true);
+    if (used.has('document')) return deny('Esse CPF/CNPJ já usou o teste grátis.', false);
+    if (used.has('phone')) return deny('Esse celular já usou o teste grátis.', false);
 
     if (ipHash) {
       const fromIp = await tx.trialClaim.count({

@@ -1,7 +1,7 @@
 import { clerkClient } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/db';
-import { getPlan } from '@/lib/billing/plans';
+import { getPlan, monthlyPriceCents } from '@/lib/billing/plans';
 import type { Company } from '@/generated/prisma/client';
 import { PAID_STATUSES, asaasRequest } from '@/server/billing/asaas';
 import { getSubscriptionState } from '@/server/billing/subscription';
@@ -45,7 +45,7 @@ type CompanyRow = Pick<
   | 'trialPending'
   | 'currentPeriodEnd'
 > &
-  Partial<Pick<Company, 'courtesyUntil'>>;
+  Partial<Pick<Company, 'courtesyUntil'>> & { activeProfessionals?: number };
 
 export function situationOf(company: CompanyRow, now: Date): CompanySituation {
   if (company.subscriptionStatus === 'ACTIVE') return 'paying';
@@ -70,7 +70,8 @@ export function summarizeCompanies(companies: CompanyRow[], now: Date) {
     counts[situation] += 1;
     // Receita recorrente: quem paga ou está só atrasado (ainda é assinante). Cortesia não entra.
     if (situation === 'paying' || situation === 'past_due') {
-      mrr += (getPlan(company.plan)?.priceCents ?? 0) / 100;
+      const plan = getPlan(company.plan);
+      mrr += plan ? monthlyPriceCents(plan, company.activeProfessionals ?? 0) / 100 : 0;
     }
     if (situation === 'trial') {
       const daysLeft = getSubscriptionState(company, now).trialDaysLeft;
@@ -247,14 +248,20 @@ export async function getPlatformCompanies(now: Date) {
   });
   const ids = companies.map((c) => c.id);
   const since = new Date(now.getTime() - 30 * 86_400_000);
-  const [clients, appointments] = await Promise.all([
+  const [clients, appointments, professionals] = await Promise.all([
     prisma.client.groupBy({ by: ['companyId'], where: { companyId: { in: ids } }, _count: true }),
     prisma.appointment.groupBy({
       by: ['companyId'],
       where: { companyId: { in: ids }, startAt: { gte: since } },
       _count: true,
     }),
+    prisma.professional.groupBy({
+      by: ['companyId'],
+      where: { companyId: { in: ids }, active: true },
+      _count: true,
+    }),
   ]);
+  const proCount = new Map(professionals.map((r) => [r.companyId, r._count]));
   const clientCount = new Map(clients.map((r) => [r.companyId, r._count]));
   const apptCount = new Map(appointments.map((r) => [r.companyId, r._count]));
   return companies.map((c) => ({
@@ -262,5 +269,6 @@ export async function getPlatformCompanies(now: Date) {
     situation: situationOf(c, now),
     clients: clientCount.get(c.id) ?? 0,
     appointments30d: apptCount.get(c.id) ?? 0,
+    activeProfessionals: proCount.get(c.id) ?? 0,
   }));
 }

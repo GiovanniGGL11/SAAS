@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '@/lib/db';
+import { TRIAL_DAYS } from '@/lib/billing/plans';
 import {
   isDisposableEmail,
   normalizeDocument,
@@ -64,7 +65,7 @@ describe('1º mês grátis: um por pessoa', () => {
     for (const f of companies) await deleteTestCompany(f.company.id);
   }, 180_000);
 
-  it('libera 30 dias na primeira vez e não deixa liberar de novo na mesma empresa', async () => {
+  it('libera o teste na primeira vez e não deixa liberar de novo na mesma empresa', async () => {
     const companyId = await fresh('ok');
     const r = await claimTrial({
       companyId,
@@ -77,7 +78,7 @@ describe('1º mês grátis: um por pessoa', () => {
     expect(r.granted).toBe(true);
     const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } });
     expect(company.trialPending).toBe(false);
-    expect(getSubscriptionState(company).trialDaysLeft).toBe(30);
+    expect(getSubscriptionState(company).trialDaysLeft).toBe(TRIAL_DAYS);
     await expect(
       claimTrial({
         companyId,

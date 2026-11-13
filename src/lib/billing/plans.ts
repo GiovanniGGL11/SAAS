@@ -109,6 +109,10 @@ export type Plan = {
   legacy?: boolean;
   /** Profissionais ativos e unidades incluídos (null = sem limite). */
   maxProfessionals: number | null;
+  /** Sem limite, mas cobrando à parte quem passar destes (com `extraProfessionalCents`). */
+  includedProfessionals?: number;
+  /** Valor mensal por profissional ativo além dos incluídos. */
+  extraProfessionalCents?: number;
   maxUnits: number | null;
   features: Record<FeatureKey, boolean>;
   ai: AiPlanEntitlements;
@@ -271,6 +275,8 @@ export const PLANS: Plan[] = [
     offered: true,
     checkoutEnabled: true,
     maxProfessionals: null,
+    includedProfessionals: 10,
+    extraProfessionalCents: 1000,
     maxUnits: null,
     features: PRO_FEATURES,
     ai: {
@@ -289,7 +295,7 @@ export const PLANS: Plan[] = [
     addOns: ['whatsapp_ai'],
     tagline: 'Para redes, várias unidades ou equipes grandes',
     highlights: [
-      'Profissionais ilimitados',
+      '10 profissionais incluídos; acima disso, R$ 10 por profissional',
       'Tudo do Profissional',
       'Várias unidades num painel só',
       'Renovação de pacotes e lista de espera no automático',
@@ -335,8 +341,8 @@ export const PLANS: Plan[] = [
  * as funcionalidades do plano base abaixo e uma franquia de IA própria do teste. Quem escolheu
  * o Básico durante o teste fica sem IA (a IA nunca é atribuída em silêncio ao Básico).
  */
-/** 1º mês grátis: conta nova usa sem pagar; a cobrança começa no fim do teste. */
-export const TRIAL_DAYS = 30;
+/** Teste grátis: conta nova usa sem pagar por estes dias; a cobrança começa no fim do teste. */
+export const TRIAL_DAYS = 15;
 export const TRIAL_GRANT = {
   basePlan: 'profissional' as PlanId,
   /** Limite de IA no teste grátis: cerca de 50 perguntas, para conhecer o assistente. */
@@ -401,6 +407,21 @@ export const AI_PROVIDER_PRICING: Record<
 
 export function getPlan(id: string | null | undefined): Plan | undefined {
   return PLANS.find((p) => p.id === id);
+}
+
+/**
+ * Mensalidade com os profissionais ativos: o preço do plano mais os que passarem dos incluídos
+ * (só nos planos que cobram por profissional extra, como o Pro).
+ */
+export function monthlyPriceCents(
+  plan: Pick<Plan, 'priceCents' | 'includedProfessionals' | 'extraProfessionalCents'>,
+  activeProfessionals: number,
+): number {
+  if (!plan.extraProfessionalCents || plan.includedProfessionals === undefined) {
+    return plan.priceCents;
+  }
+  const extra = Math.max(0, activeProfessionals - plan.includedProfessionals);
+  return plan.priceCents + extra * plan.extraProfessionalCents;
 }
 
 /** "1 profissional" ou "até 3 profissionais" (para as mensagens de limite). */

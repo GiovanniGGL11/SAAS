@@ -98,6 +98,7 @@ mensagem) ainda não está integrada.
   unidades.
 - O convite mostra o plano mais barato que libera o recurso e quanto custa a mais por dia
   (`buildUpgradeOffer` em `src/lib/billing/upgrade.ts`).
-- Limites de profissionais: Básico 1, Profissional 4, Pro sem limite.
+- Limites de profissionais: Básico 1, Profissional 4, Pro sem limite — com 10 incluídos e R$ 10 por profissional ativo a mais (`includedProfessionals`/`extraProfessionalCents`, `monthlyPriceCents`). Ativar ou desativar profissional no Pro atualiza o valor da assinatura na Asaas (`syncSubscriptionValue`).
+- Teste grátis: `TRIAL_DAYS` = 15.
 - No teste, a Assinatura mostra o que a empresa já usou do Profissional
   (`src/server/billing/trial-usage.ts`), com o botão para continuar nele.
