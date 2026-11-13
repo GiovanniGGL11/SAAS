@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { H2, LegalPage, List } from '@/components/legal/legal-page';
+import { CONTACT_EMAIL, CONTACT_EMAIL_HREF } from '@/lib/contact';
 
 export const metadata: Metadata = {
   title: 'Termos de uso · Atendafy',
@@ -73,6 +74,13 @@ export default function TermosPage() {
         Trabalhamos para manter o sistema disponível e seguro, mas podem ocorrer interrupções para
         manutenção ou por falhas de terceiros. Recomendamos exportar periodicamente as informações
         importantes (por exemplo, a planilha do financeiro).
+      </p>
+      <p>
+        Dúvidas, suporte e pedidos sobre a conta:{' '}
+        <a href={CONTACT_EMAIL_HREF} className="text-system-blue hover:underline">
+          {CONTACT_EMAIL}
+        </a>
+        .
       </p>
 
       <H2>7. Responsabilidade</H2>

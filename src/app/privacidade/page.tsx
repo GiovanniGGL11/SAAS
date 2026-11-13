@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { H2, LegalPage, List } from '@/components/legal/legal-page';
+import { CONTACT_EMAIL } from '@/lib/contact';
 
 export const metadata: Metadata = {
   title: 'Política de privacidade · Atendafy',
@@ -106,7 +107,7 @@ export default function PrivacidadePage() {
       <List
         items={[
           'Se você é cliente de um estabelecimento, faça o pedido diretamente a ele — ele é o controlador dos seus dados e pode atendê-lo pelo próprio sistema.',
-          'Se você usa o sistema (dono ou equipe), fale com o Atendafy pelos canais de atendimento indicados no site.',
+          `Se você usa o sistema (dono ou equipe), fale com o Atendafy pelo e-mail ${CONTACT_EMAIL}.`,
         ]}
       />
 

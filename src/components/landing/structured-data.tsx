@@ -1,5 +1,6 @@
 import { PLANS, planPrice } from '@/lib/billing/plans';
 import { siteUrl } from '@/lib/site-url';
+import { CONTACT_EMAIL, instagramProfile } from '@/lib/contact';
 import { QUESTIONS } from '@/components/landing/faq';
 
 /**
@@ -8,6 +9,7 @@ import { QUESTIONS } from '@/components/landing/faq';
  */
 export function StructuredData() {
   const base = siteUrl();
+  const instagram = instagramProfile();
   const prices = PLANS.filter((p) => p.offered).map(planPrice);
   const data = [
     {
@@ -16,7 +18,8 @@ export function StructuredData() {
       name: 'Atendafy',
       url: base,
       logo: `${base}/icons/icon-512.png`,
-      email: 'contato@atendafy.com',
+      email: CONTACT_EMAIL,
+      ...(instagram ? { sameAs: [instagram.url] } : {}),
     },
     {
       '@context': 'https://schema.org',
