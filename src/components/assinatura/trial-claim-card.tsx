@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { unwrapResult } from '@/lib/action-result';
 import { claimTrialAction } from '@/server/actions/trial-actions';
+import { TRIAL_DAYS } from '@/lib/billing/plans';
 
 /**
- * Conta nova: libera o 1º mês grátis depois de conferir CPF/CNPJ e celular (um teste por pessoa).
+ * Conta nova: libera o teste grátis depois de conferir CPF/CNPJ e celular (um teste por pessoa).
  * Aparece no primeiro acesso e na tela de assinatura enquanto não foi liberado.
  */
 export function TrialClaimCard() {
@@ -26,7 +27,7 @@ export function TrialClaimCard() {
     onSuccess: (result) => {
       if (result.granted) {
         toast.success(
-          `1º mês grátis liberado até ${new Intl.DateTimeFormat('pt-BR').format(new Date(result.trialEndsAt))}.`,
+          `Teste grátis liberado até ${new Intl.DateTimeFormat('pt-BR').format(new Date(result.trialEndsAt))}.`,
         );
         setDenied(null);
       } else {
@@ -42,10 +43,10 @@ export function TrialClaimCard() {
       <div className="flex items-start gap-3">
         <GiftIcon className="text-system-blue mt-0.5 size-5 shrink-0" aria-hidden />
         <div className="flex flex-col gap-1">
-          <h2 className="text-[17px] font-semibold">Libere o seu 1º mês grátis</h2>
+          <h2 className="text-[17px] font-semibold">Libere os seus {TRIAL_DAYS} dias grátis</h2>
           <p className="text-label-secondary text-[13px] leading-snug">
             O teste grátis é um por pessoa. Informe o CPF ou CNPJ do negócio e um celular para
-            liberar 30 dias sem pagar nada. Depois, a assinatura é mensal.
+            liberar {TRIAL_DAYS} dias sem pagar nada. Depois, a assinatura é mensal.
           </p>
         </div>
       </div>

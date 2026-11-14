@@ -89,3 +89,46 @@ Adicional dos planos Profissional e Pro: o salão conecta o próprio número pel
 continua pronta no botão do WhatsApp (todos os planos). A API oficial da Meta (cobrança por
 mensagem) ainda não está integrada.
 
+
+## Travas por plano e incentivos para subir
+
+- Do Profissional, travados no servidor (`assertFeature`) e com convite na tela (`UpgradeCard`,
+  `upgradeOffer` em `src/server/billing/features.ts`): relatórios, comissões, campanhas,
+  indicações, fichas, pacotes e WhatsApp automático (inclusive o envio pela rotina). Do Pro: várias
+  unidades.
+- O convite mostra o plano mais barato que libera o recurso e quanto custa a mais por dia
+  (`buildUpgradeOffer` em `src/lib/billing/upgrade.ts`).
+- Limites de profissionais: Básico 1, Profissional 4, Pro sem limite — com 10 incluídos e R$ 10 por profissional ativo a mais (`includedProfessionals`/`extraProfessionalCents`, `monthlyPriceCents`). Ativar ou desativar profissional no Pro atualiza o valor da assinatura na Asaas (`syncSubscriptionValue`).
+- Teste grátis: `TRIAL_DAYS` = 15.
+- No teste, a Assinatura mostra o que a empresa já usou do Profissional
+  (`src/server/billing/trial-usage.ts`), com o botão para continuar nele.
+
+## Plano anual
+
+Mensal ou anual com `ANNUAL_DISCOUNT` (20%), cobrado de uma vez (`chargeCents`, ciclo `YEARLY` na
+Asaas). `Company.billingCycle` guarda o ciclo; o pagamento confirmado estende o período em 1 ano.
+Troca de plano e profissionais extras do Pro recalculam o valor no mesmo ciclo.
+
+## Confirmação e lembrete incluídos (WhatsApp oficial do Atendafy)
+
+Sem a Z-API do salão, a confirmação ao marcar e o lembrete da véspera saem pelo número do Atendafy
+na API oficial da Meta (`src/server/whatsapp/cloud-api.ts`), até `includedWhatsappMessages` por mês
+(Profissional 400, Pro 1.200, teste 50; Básico 0). Avaliação e parabéns continuam só pela Z-API.
+Desligado até configurar `WHATSAPP_CLOUD_TOKEN` e `WHATSAPP_CLOUD_PHONE_ID`.
+
+Modelos (categoria **Utilidade**, idioma **Português (BR)**), com estes nomes e textos:
+
+- `atendafy_confirmacao`: `Olá, {{1}}! Seu horário em {{2}} está marcado: {{3}}. Para confirmar ou cancelar, acesse {{4}} — até lá!`
+- `atendafy_lembrete`: `Olá, {{1}}! Lembrete do seu horário de amanhã em {{2}}: {{3}}. Para confirmar ou cancelar, acesse {{4}} — até lá!`
+
+{{1}} nome, {{2}} salão, {{3}} dia, hora, serviço e profissional, {{4}} link de confirmação.
+
+## Custos no painel da plataforma
+
+/plataforma → Custos: por empresa, no mês, o custo estimado de IA (`AiUsageEvent.estimatedCostMicros`,
+preço em `AI_PROVIDER_PRICING`; modelo sem preço usa `DEFAULT_AI_PRICING`), do WhatsApp oficial
+(`OFFICIAL_WHATSAPP_COST_USD` por mensagem) e a taxa da Asaas (`ASAAS_FEE_BRL`), contra a receita
+mensal; dólar em `USD_BRL_RATE` (padrão 5,50). Teste e cortesia não pagam e podem aparecer negativos.
+Os valores reais ficam nas faturas do Google e da Meta. O Gemini é estimado pelo preço cheio
+(US$ 1,50 / US$ 7,50, a partir de 01/01/2027); até 31/12/2026 o gasto real é a metade.
+

@@ -218,40 +218,45 @@ export function ClientDetail({
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 md:justify-end">
-          <div className="mr-1 flex items-center gap-2">
-            <span className="text-muted-foreground text-xs">Cadastro ativo</span>
-            <Switch
-              checked={client.active}
-              onCheckedChange={(v: boolean) => toggleActive.mutate(v)}
-            />
+        {/* No celular: ações em grade de 2 colunas e as opções numa listinha embaixo. */}
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end md:gap-2">
+          <div className="bg-tile divide-foreground/[0.06] order-2 flex flex-col divide-y rounded-2xl px-4 md:order-1 md:flex-row md:gap-3 md:divide-y-0 md:bg-transparent md:px-0">
+            <label className="flex items-center justify-between gap-2 py-2.5 md:py-0">
+              <span className="text-muted-foreground text-[13px] md:text-xs">Cadastro ativo</span>
+              <Switch
+                checked={client.active}
+                onCheckedChange={(v: boolean) => toggleActive.mutate(v)}
+              />
+            </label>
+            <label
+              className="flex items-center justify-between gap-2 py-2.5 md:py-0"
+              title="Campanhas e parabéns de aniversário. Confirmações e lembretes continuam."
+            >
+              <span className="text-muted-foreground text-[13px] md:text-xs">Recebe promoções</span>
+              <Switch
+                checked={!client.marketingOptOutAt}
+                onCheckedChange={(v: boolean) => toggleMarketing.mutate(v)}
+                aria-label="Recebe promoções"
+              />
+            </label>
           </div>
-          <div
-            className="mr-1 flex items-center gap-2"
-            title="Campanhas e parabéns de aniversário. Confirmações e lembretes continuam."
-          >
-            <span className="text-muted-foreground text-xs">Recebe promoções</span>
-            <Switch
-              checked={!client.marketingOptOutAt}
-              onCheckedChange={(v: boolean) => toggleMarketing.mutate(v)}
-              aria-label="Recebe promoções"
-            />
-          </div>
-          {whatsappLink(client.phone) && (
-            <Button variant="outline" asChild>
-              <a href={whatsappLink(client.phone)!} target="_blank" rel="noreferrer">
-                WhatsApp
-              </a>
+          <div className="order-1 grid grid-cols-2 gap-2 md:order-2 md:flex md:flex-wrap [&>*]:w-full md:[&>*]:w-auto">
+            <Button asChild>
+              <Link href={`/agenda?cliente=${client.id}`}>Agendar</Link>
             </Button>
-          )}
-          <ClientPortalLinkButton clientId={client.id} clientName={client.name} />
-          <Button variant="outline" asChild>
-            <Link href={`/agenda?cliente=${client.id}`}>Agendar</Link>
-          </Button>
-          <Button variant="outline" onClick={() => setDrawerOpen(true)}>
-            <PencilIcon className="size-4" />
-            Editar
-          </Button>
+            {whatsappLink(client.phone) && (
+              <Button variant="outline" asChild>
+                <a href={whatsappLink(client.phone)!} target="_blank" rel="noreferrer">
+                  WhatsApp
+                </a>
+              </Button>
+            )}
+            <ClientPortalLinkButton clientId={client.id} clientName={client.name} />
+            <Button variant="outline" onClick={() => setDrawerOpen(true)}>
+              <PencilIcon className="size-4" />
+              Editar
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -1,3 +1,14 @@
+/** Variação percentual entre dois períodos (null quando antes era zero e agora não é). */
+export function percentDelta(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return ((current - previous) / previous) * 100;
+}
+
+/** Diferença em pontos percentuais entre duas taxas (null se faltar uma delas). */
+export function ppDelta(current: number | null, previous: number | null): number | null {
+  return current === null || previous === null ? null : Math.round((current - previous) * 10) / 10;
+}
+
 /**
  * Quando o painel tem base para apontar um horário de pico. Com poucos agendamentos qualquer
  * horário "ganha" (um único às 09h vira "Pico às 09h"), o que engana mais do que informa.

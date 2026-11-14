@@ -7,6 +7,8 @@ import { TimezoneCard } from '@/components/configuracoes/timezone-card';
 import { RemindersSettingsCard } from '@/components/configuracoes/reminders-card';
 import { isEmailConfigured } from '@/server/email';
 import { WhatsappAutomationCard } from '@/components/configuracoes/whatsapp-automation-card';
+import { upgradeOffer } from '@/server/billing/features';
+import { UpgradeCard } from '@/components/assinatura/upgrade-card';
 import { AiSettingsCard } from '@/components/configuracoes/ai-settings-card';
 import { BusinessPreferencesCard } from '@/components/configuracoes/business-preferences-card';
 import { CustomFieldsCard } from '@/components/configuracoes/custom-fields-card';
@@ -15,6 +17,7 @@ import { OpenDemoCard } from '@/components/demo/demo-controls';
 
 export default async function ConfiguracoesPage() {
   const { company } = await requireAdminPage();
+  const whatsappOffer = upgradeOffer(company, 'whatsappAutomation');
 
   return (
     <div className="flex w-full flex-col gap-8">
@@ -39,7 +42,7 @@ export default async function ConfiguracoesPage() {
         <ChevronRightIcon className="text-label-secondary size-5 shrink-0" />
       </Link>
 
-      <WhatsappAutomationCard />
+      {whatsappOffer ? <UpgradeCard offer={whatsappOffer} /> : <WhatsappAutomationCard />}
 
       <AiSettingsCard />
 

@@ -42,6 +42,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { SimpleMarkdown } from '@/components/assistant/simple-markdown';
+import { AiCreditsMeter } from '@/components/assistant/ai-credits-meter';
 
 type ProposalState = {
   proposal: AssistantProposal;
@@ -56,6 +57,8 @@ type ChatEntry = {
   role: 'user' | 'model';
   text: string;
   proposals?: ProposalState[];
+  /** Créditos de IA que esta resposta usou. */
+  credits?: number;
 };
 
 const SUGGESTIONS = [
@@ -142,6 +145,9 @@ function AssistantPanel({ configured, prefill }: { configured: boolean; prefill?
   const { data: status, isLoading } = useQuery({
     queryKey: ['ai-status'],
     queryFn: () => getAiStatusAction(),
+    // Créditos sempre atuais: ao abrir o assistente e a cada minuto com ele aberto.
+    refetchOnMount: 'always',
+    refetchInterval: 60_000,
   });
 
   if (isLoading || !status) {
@@ -254,6 +260,7 @@ function AssistantChat({
           role: 'model',
           text: data.reply,
           proposals: data.proposals.map((proposal) => ({ proposal })),
+          credits: data.credits,
         },
       ]);
       queryClient.invalidateQueries({ queryKey: ['ai-status'] });
@@ -299,10 +306,9 @@ function AssistantChat({
             {status.companyName} · Modo: {AUTONOMY_LABEL[status.autonomy.effective]}
           </DrawerDescription>
           {usage && (
-            <p className="text-label-secondary mt-0.5 text-[11px]">
-              {usage.used} de {usage.limit} usos de IA neste mês
-              {status.provisionalUnits ? ' (limite provisório de desenvolvimento)' : ''}
-            </p>
+            <div className="mt-2 w-full max-w-xs">
+              <AiCreditsMeter usage={usage} canUpgrade={status.canUpgradeCredits} />
+            </div>
           )}
           <Link
             href="/dashboard/aprovacoes"
@@ -367,6 +373,11 @@ function AssistantChat({
               >
                 {entry.role === 'user' ? entry.text : <SimpleMarkdown text={entry.text} />}
               </div>
+              {entry.role === 'model' && entry.credits !== undefined && entry.credits > 0 && (
+                <span className="text-label-secondary -mt-1 px-1 text-[11px]">
+                  Usou {entry.credits} {entry.credits === 1 ? 'crédito' : 'créditos'}
+                </span>
+              )}
               {entry.proposals?.map((state) => (
                 <ProposalCard
                   key={state.proposal.id}

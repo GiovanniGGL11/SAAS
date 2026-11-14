@@ -30,6 +30,7 @@ export async function startSubscriptionAction(input: unknown) {
         cpfCnpj,
         email: z.email('E-mail inválido.'),
         phone: z.string().max(20).optional(),
+        cycle: z.enum(['MONTHLY', 'YEARLY']).optional(),
       })
       .parse(input);
     const { company } = await requireCompanyAdmin();

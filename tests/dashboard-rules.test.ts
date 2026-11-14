@@ -22,3 +22,14 @@ describe('horário de pico do painel', () => {
     expect(findPeakHour(hours({ 3: 10, 22: 10, 9: 1 })).peak).toBeNull();
   });
 });
+
+describe('variação entre períodos', () => {
+  it('percentual e pontos percentuais', async () => {
+    const { percentDelta, ppDelta } = await import('@/lib/dashboard-rules');
+    expect(percentDelta(150, 100)).toBe(50);
+    expect(percentDelta(0, 0)).toBe(0);
+    expect(percentDelta(10, 0)).toBeNull();
+    expect(ppDelta(62.5, 60)).toBe(2.5);
+    expect(ppDelta(null, 60)).toBeNull();
+  });
+});

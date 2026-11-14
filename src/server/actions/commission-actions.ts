@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
 import { toActionResult } from '@/server/action-result';
+import { assertFeature } from '@/server/billing/features';
 import { parseId } from '@/server/errors';
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import {
@@ -43,6 +44,7 @@ export async function createAdvanceAction(input: unknown) {
       })
       .parse(input);
     const { userId, company } = await requireCompanyAdmin();
+    assertFeature(company, 'commissions');
     await createAdvance({ companyId: company.id, ...parsed, userId });
     revalidatePath('/financeiro');
   });
@@ -52,6 +54,7 @@ export async function deleteAdvanceAction(rawId: unknown) {
   return toActionResult(async () => {
     const id = parseId(rawId);
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'commissions');
     await deleteAdvance(company.id, id);
   });
 }
@@ -62,6 +65,7 @@ export async function closeCommissionAction(input: unknown) {
       .object({ professionalId: z.string().min(1).max(64), month, paymentMethod })
       .parse(input);
     const { userId, company } = await requireCompanyAdmin();
+    assertFeature(company, 'commissions');
     const result = await closeCommission({
       companyId: company.id,
       professionalId: parsed.professionalId,
@@ -79,6 +83,7 @@ export async function reopenCommissionAction(rawId: unknown) {
   return toActionResult(async () => {
     const id = parseId(rawId);
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'commissions');
     await reopenCommission(company.id, id);
   });
 }

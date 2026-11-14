@@ -11,21 +11,35 @@ type ClerkErrorItem = {
 type ClerkErrorLike = ClerkErrorItem & { errors?: ClerkErrorItem[] };
 
 /**
- * Tamanho mínimo da senha exigido pela instância do Clerk (Dashboard → Configure → Password).
- * O formulário avisa antes de enviar; se mudar no Clerk, mude aqui também.
+ * Tamanho mínimo da senha (Clerk Dashboard → Configure → User & authentication → Password).
+ * O Clerk não aceita menos de 8. O formulário avisa antes de enviar; se o Clerk recusar mesmo
+ * assim (configuração diferente), a mensagem usa o número que o próprio Clerk informar.
  */
-export const PASSWORD_MIN_LENGTH = 15;
+export const PASSWORD_MIN_LENGTH = 8;
+
+const passwordTooShort = (min: number) => `A senha precisa ter pelo menos ${min} caracteres.`;
+
+/** Lê o mínimo que o Clerk informou no erro ("Passwords must be 8 characters or more."). */
+function clerkPasswordMin(error: ClerkErrorLike): number {
+  const items = [...(error.errors ?? []), error];
+  for (const item of items) {
+    if (item.code !== 'form_password_length_too_short') continue;
+    const n = Number(/(\d+)/.exec(item.longMessage ?? item.message ?? '')?.[1]);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
+  return PASSWORD_MIN_LENGTH;
+}
 
 /** Quando o Clerk devolve um erro que não traduzimos: nunca mostrar o texto dele em inglês. */
 export const GENERIC_AUTH_ERROR = 'Não foi possível concluir. Confira os dados e tente de novo.';
 
 const MESSAGES: Record<string, string> = {
-  form_password_length_too_short: `A senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres. Uma frase longa funciona bem.`,
+  form_password_length_too_short: passwordTooShort(PASSWORD_MIN_LENGTH),
   form_password_length_too_long: 'A senha é longa demais. Use uma mais curta.',
   form_password_size_in_bytes_exceeded: 'A senha é longa demais. Use uma mais curta.',
   form_password_pwned:
     'Essa senha apareceu em vazamentos de dados. Escolha outra, que você não use em outros sites.',
-  form_password_not_strong_enough: 'Essa senha é fraca. Use uma frase mais longa e única.',
+  form_password_not_strong_enough: 'Essa senha é fraca. Misture letras e números.',
   form_password_validation_failed: 'Senha incorreta.',
   form_password_incorrect: 'Senha incorreta.',
   form_identifier_exists: 'Já existe uma conta com esse e-mail. Entre, ou recupere a senha.',
@@ -58,7 +72,10 @@ function codesOf(error: ClerkErrorLike): string[] {
 
 export function getClerkErrorMessage(error: ClerkErrorLike | null | undefined): string | undefined {
   if (!error) return undefined;
-  for (const code of codesOf(error)) if (MESSAGES[code]) return MESSAGES[code];
+  for (const code of codesOf(error)) {
+    if (code === 'form_password_length_too_short') return passwordTooShort(clerkPasswordMin(error));
+    if (MESSAGES[code]) return MESSAGES[code];
+  }
   return GENERIC_AUTH_ERROR;
 }
 

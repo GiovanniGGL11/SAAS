@@ -134,7 +134,7 @@ describe('IA: planos, franquia e execução segura', () => {
         session: { ...session, entitlements },
         messages: [{ role: 'user', text: 'oi' }],
       }),
-    ).rejects.toThrow(/franquia de IA deste mês acabou/);
+    ).rejects.toThrow(/créditos de IA deste mês acabaram/);
     expect(calls).toHaveLength(0);
     await prisma.aiUsagePeriod.deleteMany({ where: { companyId: company.id } });
   });
@@ -297,7 +297,7 @@ describe('IA: planos, franquia e execução segura', () => {
       results
         .filter((r) => r.status === 'rejected')
         .every((r) =>
-          /franquia de IA deste mês acabou/.test(String((r as PromiseRejectedResult).reason)),
+          /créditos de IA deste mês acabaram/.test(String((r as PromiseRejectedResult).reason)),
         ),
     ).toBe(true);
     for (const r of ok)
@@ -310,7 +310,7 @@ describe('IA: planos, franquia e execução segura', () => {
         limit: 3,
         feature: 'teste',
       }),
-    ).rejects.toThrow(/acabou/);
+    ).rejects.toThrow(/acabaram/);
   });
 
   it('fichas: modelo exige gerenciar; rascunho exige preencher e não envia nem guarda respostas depois', async () => {

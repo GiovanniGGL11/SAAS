@@ -1,6 +1,13 @@
 import { after } from 'next/server';
 
 import { prisma } from '@/lib/db';
+import { companyHasFeature, featureAccessFor } from '@/server/billing/features';
+import { TRIAL_GRANT, getPlan } from '@/lib/billing/plans';
+import {
+  officialWhatsappReady,
+  sendOfficialTemplate,
+  type OfficialTemplate,
+} from '@/server/whatsapp/cloud-api';
 import { Prisma } from '@/generated/prisma/client';
 import { openSecret } from '@/server/secret-box';
 import { getStatus, sendText, type ZapiConfig } from '@/server/whatsapp/zapi';
@@ -10,7 +17,7 @@ import { signAppointmentToken } from '@/server/data/public-booking';
 import { signReviewToken } from '@/server/data/relationship';
 import { optOutUrl, withOptOutFooter } from '@/server/data/marketing-consent';
 import { appBaseUrl } from '@/server/app-url';
-import { addDays, startOfCalendarDateUtc, utcToCalendarDate } from '@/lib/time';
+import { addDays, formatTimeInTz, startOfCalendarDateUtc, utcToCalendarDate } from '@/lib/time';
 
 /*
   WhatsApp automático: confirmação ao marcar, lembrete na véspera, pedido de avaliação depois de
@@ -34,6 +41,7 @@ export async function getZapiConfig(companyId: string): Promise<ZapiConfig | nul
     select: { zapiInstanceId: true, zapiToken: true, zapiClientToken: true },
   });
   if (!company?.zapiInstanceId || !company.zapiToken) return null;
+  if (!(await companyHasFeature(companyId, 'whatsappAutomation'))) return null;
   try {
     return {
       instanceId: company.zapiInstanceId,
@@ -44,6 +52,74 @@ export async function getZapiConfig(companyId: string): Promise<ZapiConfig | nul
     console.error('[whatsapp] credenciais ilegíveis', companyId, error);
     return null;
   }
+}
+
+/**
+ * Confirmações e lembretes pelo WhatsApp oficial do Atendafy (incluídos no plano): quantos o plano
+ * dá por mês e quantos já saíram. Sem o WhatsApp oficial configurado, nada é incluído.
+ */
+export async function officialAllowance(
+  companyId: string,
+  now = new Date(),
+): Promise<{ ready: boolean; included: number; used: number }> {
+  if (!officialWhatsappReady()) return { ready: false, included: 0, used: 0 };
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      plan: true,
+      subscriptionStatus: true,
+      trialEndsAt: true,
+      currentPeriodEnd: true,
+      courtesyUntil: true,
+      courtesyPlan: true,
+    },
+  });
+  if (!company) return { ready: true, included: 0, used: 0 };
+  const access = featureAccessFor(company, now);
+  const included =
+    access.entitlements.source === 'trial'
+      ? TRIAL_GRANT.includedWhatsappMessages
+      : (getPlan(access.planId)?.includedWhatsappMessages ?? 0);
+  const used = await prisma.whatsappMessage.count({
+    where: {
+      companyId,
+      channel: 'official',
+      status: { not: 'FAILED' },
+      createdAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) },
+    },
+  });
+  return { ready: true, included, used };
+}
+
+/**
+ * Campos do modelo oficial de confirmação/lembrete: nome, salão, quando (com serviço e
+ * profissional) e o link para confirmar ou cancelar.
+ */
+async function appointmentTemplateValues(appointmentId: string, url: string) {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    select: {
+      startAt: true,
+      serviceNameSnapshot: true,
+      client: { select: { name: true } },
+      professional: { select: { name: true } },
+      company: { select: { name: true, timezone: true } },
+    },
+  });
+  if (!appointment) return null;
+  const { timezone } = appointment.company;
+  const day = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: timezone,
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+  }).format(appointment.startAt);
+  return [
+    appointment.client.name.trim().split(/\s+/)[0],
+    appointment.company.name,
+    `${day} às ${formatTimeInTz(appointment.startAt, timezone)} · ${appointment.serviceNameSnapshot} com ${appointment.professional.name}`,
+    url,
+  ];
 }
 
 /**
@@ -59,10 +135,21 @@ export async function sendOnce(params: {
   clientId?: string | null;
   appointmentId?: string | null;
   config?: ZapiConfig | null;
+  /**
+   * Sem a Z-API do salão, confirmação e lembrete podem sair pelo WhatsApp oficial do Atendafy
+   * (modelo aprovado), dentro do que o plano inclui no mês.
+   */
+  official?: { template: OfficialTemplate; values: string[] } | null;
 }): Promise<'sent' | 'failed' | 'skipped'> {
   if (!params.phone) return 'skipped';
   const config = params.config ?? (await getZapiConfig(params.companyId));
-  if (!config) return 'skipped';
+  let channel: 'zapi' | 'official' = 'zapi';
+  if (!config) {
+    if (!params.official) return 'skipped';
+    const { included, used } = await officialAllowance(params.companyId);
+    if (used >= included) return 'skipped';
+    channel = 'official';
+  }
   let row;
   try {
     row = await prisma.whatsappMessage.create({
@@ -74,6 +161,7 @@ export async function sendOnce(params: {
         text: params.text,
         clientId: params.clientId ?? null,
         appointmentId: params.appointmentId ?? null,
+        channel,
       },
     });
   } catch (error) {
@@ -82,7 +170,14 @@ export async function sendOnce(params: {
     throw error;
   }
   try {
-    const { messageId } = await sendText(config, params.phone, params.text);
+    const { messageId } =
+      channel === 'zapi'
+        ? await sendText(config!, params.phone, params.text)
+        : await sendOfficialTemplate({
+            to: params.phone,
+            template: params.official!.template,
+            values: params.official!.values,
+          });
     await prisma.whatsappMessage.update({
       where: { id: row.id },
       data: { status: 'SENT', providerId: messageId },
@@ -114,6 +209,7 @@ export function scheduleConfirmation(companyId: string, appointmentId: string) {
         where: { id: appointmentId },
         select: { clientId: true, client: { select: { phone: true } } },
       });
+      const values = await appointmentTemplateValues(appointmentId, confirmation.url);
       await sendOnce({
         companyId,
         kind: 'CONFIRMATION',
@@ -122,6 +218,7 @@ export function scheduleConfirmation(companyId: string, appointmentId: string) {
         text: confirmation.message,
         clientId: appointment?.clientId,
         appointmentId,
+        official: values ? { template: 'confirmation', values } : null,
       });
     } catch (error) {
       console.error('[whatsapp] confirmação', appointmentId, error);
@@ -179,9 +276,11 @@ export async function runDailyWhatsapp(
     where: {
       ...(onlyCompanyId ? { id: onlyCompanyId } : {}),
       deletedAt: null,
-      zapiInstanceId: { not: null },
-      zapiToken: { not: null },
-      OR: [{ waAutoReminder: true }, { waAutoBirthday: true }],
+      // Com a Z-API do salão ou, só para lembretes, pelo WhatsApp oficial incluído no plano.
+      OR: [
+        { waAutoReminder: true },
+        { waAutoBirthday: true, zapiInstanceId: { not: null }, zapiToken: { not: null } },
+      ],
     },
     select: { id: true, name: true, timezone: true, waAutoReminder: true, waAutoBirthday: true },
   });
@@ -194,7 +293,9 @@ export async function runDailyWhatsapp(
 
   for (const company of companies) {
     const config = await getZapiConfig(company.id);
-    if (!config) continue;
+    const allowance = config ? null : await officialAllowance(company.id, now);
+    const official = Boolean(allowance && allowance.included > allowance.used);
+    if (!config && !official) continue;
     const today = utcToCalendarDate(now, company.timezone);
 
     if (company.waAutoReminder) {
@@ -215,19 +316,18 @@ export async function runDailyWhatsapp(
         take: 500,
       });
       for (const appointment of appointments) {
+        const url = `${baseUrl}/confirmar/${signAppointmentToken(appointment.id)}`;
+        const values = config ? null : await appointmentTemplateValues(appointment.id, url);
         const outcome = await sendOnce({
           companyId: company.id,
           kind: 'REMINDER',
           dedupeKey: `reminder:${appointment.id}`,
           phone: appointment.client.phone,
-          text: buildReminderMessage(
-            appointment,
-            company,
-            `${baseUrl}/confirmar/${signAppointmentToken(appointment.id)}`,
-          ),
+          text: buildReminderMessage(appointment, company, url),
           clientId: appointment.clientId,
           appointmentId: appointment.id,
           config,
+          official: values ? { template: 'reminder', values } : null,
         });
         if (outcome === 'sent') {
           result.reminders += 1;
@@ -239,7 +339,8 @@ export async function runDailyWhatsapp(
       }
     }
 
-    if (company.waAutoBirthday) {
+    // Parabéns é promoção: só pelo número do salão (o WhatsApp oficial cobra muito mais por isso).
+    if (company.waAutoBirthday && config) {
       const clients = await prisma.$queryRaw<{ id: string; name: string; phone: string | null }[]>`
         SELECT id, name, phone FROM "Client"
         WHERE "companyId" = ${company.id} AND active = true AND "birthDate" IS NOT NULL AND phone IS NOT NULL

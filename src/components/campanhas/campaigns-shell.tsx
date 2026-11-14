@@ -11,6 +11,8 @@ import { MessagesView } from '@/components/campanhas/messages-view';
 import { ReferralsView } from '@/components/campanhas/referrals-view';
 import { ReviewsView } from '@/components/campanhas/reviews-view';
 import type { SerializedCoupon } from '@/lib/serialize';
+import type { UpgradeOffer } from '@/lib/billing/upgrade';
+import { UpgradeCard } from '@/components/assinatura/upgrade-card';
 
 const TABS = [
   { value: 'cupons', label: 'Cupons' },
@@ -21,7 +23,14 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]['value'];
 
-export function CampaignsShell({ coupons }: { coupons: SerializedCoupon[] }) {
+export function CampaignsShell({
+  coupons,
+  locked = {},
+}: {
+  coupons: SerializedCoupon[];
+  /** Abas que o plano não inclui: mostram o convite para subir de plano. */
+  locked?: Partial<Record<Tab, UpgradeOffer | null>>;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const raw = useSearchParams().get('aba');
@@ -44,8 +53,10 @@ export function CampaignsShell({ coupons }: { coupons: SerializedCoupon[] }) {
       />
       {tab === 'cupons' && <CouponList initialCoupons={coupons} />}
       {tab === 'vales' && <GiftCardsView />}
-      {tab === 'mensagens' && <MessagesView />}
-      {tab === 'indicacoes' && <ReferralsView />}
+      {tab === 'mensagens' &&
+        (locked.mensagens ? <UpgradeCard offer={locked.mensagens} /> : <MessagesView />)}
+      {tab === 'indicacoes' &&
+        (locked.indicacoes ? <UpgradeCard offer={locked.indicacoes} /> : <ReferralsView />)}
       {tab === 'avaliacoes' && <ReviewsView />}
     </div>
   );

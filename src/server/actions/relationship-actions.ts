@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 
 import { prisma } from '@/lib/db';
 import { toActionResult } from '@/server/action-result';
+import { assertFeature } from '@/server/billing/features';
 import { rateLimit } from '@/server/rate-limit';
 import { UserError, parseId } from '@/server/errors';
 import { appBaseUrl } from '@/server/app-url';
@@ -131,6 +132,7 @@ export async function createCampaignAction(input: unknown) {
       })
       .parse(input);
     const { userId, company } = await requireCompanyAdmin();
+    assertFeature(company, 'campaigns');
     const campaign = await createCampaign({
       companyId: company.id,
       timezone: company.timezone,
@@ -165,6 +167,7 @@ export async function markCampaignSentAction(input: unknown) {
       .object({ campaignId: z.string().min(1).max(64), clientId: z.string().min(1).max(64) })
       .parse(input);
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'campaigns');
     await markCampaignSent(company.id, parsed.campaignId, parsed.clientId);
   });
 }

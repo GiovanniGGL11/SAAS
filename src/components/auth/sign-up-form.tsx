@@ -171,7 +171,7 @@ export function SignUpForm() {
             onChange={(e) => setPassword(e.target.value)}
           />
           <p className="text-muted-foreground text-xs">
-            Mínimo de {PASSWORD_MIN_LENGTH} caracteres. Uma frase longa funciona bem.
+            Mínimo de {PASSWORD_MIN_LENGTH} caracteres.
           </p>
         </div>
         {error && <p className="text-destructive text-sm">{error}</p>}

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@/generated/prisma/client';
-import { AI_PROVIDER_PRICING } from '@/lib/billing/plans';
+import { AI_PROVIDER_PRICING, DEFAULT_AI_PRICING } from '@/lib/billing/plans';
 
 /*
   Medição de custo. Guarda só números (tokens, chamadas, duração, custo estimado) e o tipo da
@@ -28,8 +28,7 @@ export function addUsage(total: ProviderUsage, part: ProviderUsage) {
 
 /** Custo estimado em milionésimos da moeda do provedor (tokens de raciocínio contam como saída). */
 export function estimateCostMicros(model: string, usage: ProviderUsage) {
-  const price = AI_PROVIDER_PRICING[model];
-  if (!price) return { micros: 0, currency: 'USD' };
+  const price = AI_PROVIDER_PRICING[model] ?? DEFAULT_AI_PRICING;
   const output = usage.outputTokens + (usage.other?.thoughtsTokens ?? 0);
   const micros = usage.inputTokens * price.inputPerMillion + output * price.outputPerMillion;
   return { micros: Math.round(micros), currency: price.currency };

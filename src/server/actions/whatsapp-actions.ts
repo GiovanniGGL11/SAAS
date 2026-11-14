@@ -5,12 +5,14 @@ import { revalidatePath } from 'next/cache';
 
 import { prisma } from '@/lib/db';
 import { toActionResult } from '@/server/action-result';
+import { assertFeature } from '@/server/billing/features';
 import { UserError, parseId } from '@/server/errors';
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import { sealSecret } from '@/server/secret-box';
 import {
   checkZapiConnection,
   getZapiConfig,
+  officialAllowance,
   scheduleCampaignSend,
   sendOnce,
 } from '@/server/whatsapp/automation';
@@ -21,7 +23,7 @@ const TOGGLES = ['waAutoConfirm', 'waAutoReminder', 'waAutoReview', 'waAutoBirth
 /** O que a tela mostra: nunca devolve o token, só se ele existe. */
 export async function getWhatsappSettingsAction() {
   const { company } = await requireCompanyAdmin();
-  const [full, recent] = await Promise.all([
+  const [full, recent, official] = await Promise.all([
     prisma.company.findUniqueOrThrow({
       where: { id: company.id },
       select: {
@@ -40,6 +42,7 @@ export async function getWhatsappSettingsAction() {
       take: 20,
       select: { id: true, kind: true, phone: true, status: true, error: true, createdAt: true },
     }),
+    officialAllowance(company.id),
   ]);
   return {
     configured: Boolean(full.zapiInstanceId && full.zapiToken),
@@ -52,6 +55,8 @@ export async function getWhatsappSettingsAction() {
       waAutoBirthday: full.waAutoBirthday,
     },
     recent,
+    /** Confirmação e lembrete pelo WhatsApp oficial do Atendafy (incluídos no plano). */
+    official,
   };
 }
 
@@ -65,6 +70,7 @@ export async function saveZapiCredentialsAction(input: unknown) {
       })
       .parse(input);
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'whatsappAutomation');
     const current = await prisma.company.findUniqueOrThrow({
       where: { id: company.id },
       select: { zapiToken: true },
@@ -106,6 +112,7 @@ export async function setWhatsappAutomationAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = z.object({ key: z.enum(TOGGLES), enabled: z.boolean() }).parse(input);
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'whatsappAutomation');
     if (parsed.enabled && !(await getZapiConfig(company.id))) {
       throw new UserError('Conecte a Z-API antes de ligar o envio automático.');
     }
@@ -119,6 +126,7 @@ export async function setWhatsappAutomationAction(input: unknown) {
 export async function testZapiConnectionAction() {
   return toActionResult(async () => {
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'whatsappAutomation');
     try {
       const status = await checkZapiConnection(company.id);
       if (!status) throw new UserError('Salve as credenciais da Z-API primeiro.');
@@ -136,6 +144,7 @@ export async function sendTestMessageAction(input: unknown) {
       .object({ phone: z.string().trim().min(10, 'Informe o número com DDD.').max(20) })
       .parse(input);
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'whatsappAutomation');
     const outcome = await sendOnce({
       companyId: company.id,
       kind: 'TEST',
@@ -159,6 +168,7 @@ export async function sendCampaignAutomaticallyAction(rawId: unknown) {
   return toActionResult(async () => {
     const campaignId = parseId(rawId);
     const { company } = await requireCompanyAdmin();
+    assertFeature(company, 'whatsappAutomation');
     if (!(await getZapiConfig(company.id)))
       throw new UserError('Conecte a Z-API em Configurações para enviar automático.');
     const pending = await prisma.campaignRecipient.count({

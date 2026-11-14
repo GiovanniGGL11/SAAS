@@ -12,9 +12,20 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { unwrapResult } from '@/lib/action-result';
 import { formatCurrencyBRL } from '@/lib/serialize';
-import { PLANS, getPlan, planPrice, type PlanId } from '@/lib/billing/plans';
+import {
+  ANNUAL_DISCOUNT,
+  PLANS,
+  chargeCents,
+  getPlan,
+  planPrice,
+  type BillingCycle,
+  type PlanId,
+} from '@/lib/billing/plans';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
 import { TrialClaimCard } from '@/components/assinatura/trial-claim-card';
+import { pricePerDay } from '@/lib/billing/upgrade';
+import type { TrialUsageItem } from '@/server/billing/trial-usage';
 import type { SubscriptionState } from '@/server/billing/subscription';
 import {
   cancelSubscriptionAction,
@@ -53,13 +64,30 @@ function approxQuestions(units: number | null): number {
 function aiSummary(plan: (typeof PLANS)[number]): string {
   if (!plan.ai.assistant) return 'Sem assistente de IA.';
   const questions = approxQuestions(plan.ai.monthlyUnits).toLocaleString('pt-BR');
+  const credits = (plan.ai.monthlyUnits ?? 0).toLocaleString('pt-BR');
   return plan.ai.autoExecution
-    ? `Assistente de IA com mais uso: cerca de ${questions} perguntas por mês. Inclui as rotinas automáticas, que você liga quando quiser.`
-    : `Assistente de IA: pergunte sobre agenda, caixa e clientes e peça alterações — nada muda sem a sua aprovação. Cerca de ${questions} perguntas por mês.`;
+    ? `Assistente de IA com mais uso: ${credits} créditos por mês (cerca de ${questions} perguntas). Inclui as rotinas automáticas, que você liga quando quiser.`
+    : `Assistente de IA: pergunte sobre agenda, caixa e clientes e peça alterações — nada muda sem a sua aprovação. ${credits} créditos por mês (cerca de ${questions} perguntas).`;
 }
 
 /** Planos do Atendafy, teste grátis e pagamento pela Asaas (PIX, boleto ou cartão). */
-export function SubscriptionView({ state, companyName }: { state: State; companyName: string }) {
+export function SubscriptionView({
+  state,
+  companyName,
+  trialUsage = [],
+  billingCycle = 'MONTHLY',
+  officialWhatsapp = false,
+}: {
+  state: State;
+  companyName: string;
+  /** No teste: o que já usou do Profissional (some no Básico). */
+  trialUsage?: TrialUsageItem[];
+  /** Ciclo da assinatura atual. */
+  billingCycle?: BillingCycle;
+  /** WhatsApp oficial do Atendafy configurado: confirmação e lembrete incluídos nos planos. */
+  officialWhatsapp?: boolean;
+}) {
+  const [cycle, setCycle] = React.useState<BillingCycle>(billingCycle);
   const router = useRouter();
   const offered = PLANS.filter((p) => p.offered);
   const [selected, setSelected] = React.useState<PlanId>(() => {
@@ -73,7 +101,8 @@ export function SubscriptionView({ state, companyName }: { state: State; company
   const current = getPlan(state.plan);
 
   const start = useMutation({
-    mutationFn: () => startSubscriptionAction({ planId: selected, ...form }).then(unwrapResult),
+    mutationFn: () =>
+      startSubscriptionAction({ planId: selected, ...form, cycle }).then(unwrapResult),
     onSuccess: ({ invoiceUrl, firstDue }) => {
       if (invoiceUrl) window.location.href = invoiceUrl;
       else {
@@ -125,6 +154,37 @@ export function SubscriptionView({ state, companyName }: { state: State; company
 
       {state.trialPending && !state.courtesyUntil && <TrialClaimCard />}
 
+      {trialUsage.length > 0 && (
+        <section className="bg-system-blue/[0.06] ring-system-blue/20 flex flex-col gap-3 rounded-[22px] p-5 ring-1">
+          <div>
+            <h2 className="text-[17px] font-semibold">No teste, você já usou</h2>
+            <p className="text-label-secondary text-[13px]">
+              Esses recursos são do plano Profissional. No Básico eles param de funcionar — os dados
+              ficam guardados.
+            </p>
+          </div>
+          <ul className="grid gap-1.5 text-[14px] sm:grid-cols-2">
+            {trialUsage.map((item) => (
+              <li key={item.label} className="flex items-center gap-2">
+                <CheckIcon className="text-system-green size-4 shrink-0" />
+                <span>
+                  <strong className="tabular-nums">{item.count}</strong> {item.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <Button
+            className="self-start"
+            onClick={() => {
+              setSelected('profissional');
+              document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            Continuar com o Profissional
+          </Button>
+        </section>
+      )}
+
       {state.courtesyUntil && state.status !== 'ACTIVE' && (
         <section className="bg-system-indigo/[0.07] ring-system-indigo/20 rounded-[22px] p-5 ring-1">
           <div className="text-[17px] font-semibold">Acesso cortesia</div>
@@ -143,13 +203,13 @@ export function SubscriptionView({ state, companyName }: { state: State; company
           <div className="text-label-secondary text-[13px]">{STATUS[state.status]}</div>
           <div className="text-[20px] font-semibold">
             {state.status === 'TRIAL' && state.trialPending
-              ? '1º mês grátis a liberar'
+              ? 'Teste grátis a liberar'
               : state.status === 'TRIAL'
                 ? state.trialDaysLeft > 0
                   ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`
                   : 'O teste grátis terminou'
                 : current
-                  ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${formatCurrencyBRL(planPrice(current))}/mês`
+                  ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${billingCycle === 'YEARLY' ? `${formatCurrencyBRL(chargeCents(current, 0, 'YEARLY') / 100)}/ano` : `${formatCurrencyBRL(planPrice(current))}/mês`}`
                   : '—'}
           </div>
           <div className="text-label-secondary text-[13px]">
@@ -186,7 +246,19 @@ export function SubscriptionView({ state, companyName }: { state: State; company
 
       {(!state.hasSubscription || active) && (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
+          <SegmentedControl
+            className="self-start"
+            value={cycle}
+            onValueChange={setCycle}
+            options={[
+              { value: 'MONTHLY', label: 'Mensal' },
+              {
+                value: 'YEARLY',
+                label: `Anual · ${Math.round(ANNUAL_DISCOUNT * 100)}% de desconto`,
+              },
+            ]}
+          />
+          <div id="planos" className="grid scroll-mt-24 gap-4 md:grid-cols-3">
             {offered.map((plan) => (
               <button
                 key={plan.id}
@@ -217,10 +289,24 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                 </div>
                 <div>
                   <span className="text-[28px] font-bold tracking-tight">
-                    {formatCurrencyBRL(planPrice(plan))}
+                    {formatCurrencyBRL(
+                      cycle === 'YEARLY' ? chargeCents(plan, 0, 'YEARLY') / 1200 : planPrice(plan),
+                    )}
                   </span>
                   <span className="text-label-secondary text-[14px]">/mês</span>
-                  <p className="text-label-secondary text-[13px]">{plan.tagline}</p>
+                  {cycle === 'YEARLY' ? (
+                    <p className="text-label-secondary text-[12px]">
+                      {formatCurrencyBRL(chargeCents(plan, 0, 'YEARLY') / 100)} por ano, de uma vez{' '}
+                      <span className="line-through">
+                        {formatCurrencyBRL(planPrice(plan) * 12)}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-label-secondary text-[12px]">
+                      ≈ {formatCurrencyBRL(pricePerDay(plan.priceCents))} por dia
+                    </p>
+                  )}
+                  <p className="text-label-secondary mt-1 text-[13px]">{plan.tagline}</p>
                 </div>
                 <div
                   className={cn(
@@ -233,6 +319,13 @@ export function SubscriptionView({ state, companyName }: { state: State; company
                   {aiSummary(plan)}
                 </div>
                 <ul className="flex flex-col gap-1.5 text-[14px]">
+                  {officialWhatsapp && plan.includedWhatsappMessages > 0 && (
+                    <li className="flex gap-2">
+                      <CheckIcon className="text-system-green mt-0.5 size-4 shrink-0" />
+                      Confirmação e lembrete no WhatsApp incluídos (até{' '}
+                      {plan.includedWhatsappMessages.toLocaleString('pt-BR')} por mês)
+                    </li>
+                  )}
                   {plan.highlights.map((h) => (
                     <li key={h} className="flex gap-2">
                       <CheckIcon className="text-system-green mt-0.5 size-4 shrink-0" />
@@ -251,8 +344,9 @@ export function SubscriptionView({ state, companyName }: { state: State; company
 
           <div className="text-label-secondary flex flex-col gap-1 text-[13px]">
             <p>
-              O assistente de IA tem um limite de perguntas por mês. Se acabar, ele volta no mês
-              seguinte; o resto do sistema continua normal e nada é cobrado a mais.
+              Os créditos de IA renovam todo dia 1º. Você acompanha quanto sobra no próprio
+              assistente; se acabar, ele volta no mês seguinte, o resto do sistema continua normal e
+              nada é cobrado a mais.
             </p>
           </div>
 

@@ -1,7 +1,14 @@
 import { clerkClient } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/db';
-import { getPlan } from '@/lib/billing/plans';
+import {
+  ASAAS_FEE_BRL,
+  OFFICIAL_WHATSAPP_COST_USD,
+  chargeCents,
+  getPlan,
+  monthlyPriceCents,
+  usdToBrlRate,
+} from '@/lib/billing/plans';
 import type { Company } from '@/generated/prisma/client';
 import { PAID_STATUSES, asaasRequest } from '@/server/billing/asaas';
 import { getSubscriptionState } from '@/server/billing/subscription';
@@ -45,7 +52,7 @@ type CompanyRow = Pick<
   | 'trialPending'
   | 'currentPeriodEnd'
 > &
-  Partial<Pick<Company, 'courtesyUntil'>>;
+  Partial<Pick<Company, 'courtesyUntil' | 'billingCycle'>> & { activeProfessionals?: number };
 
 export function situationOf(company: CompanyRow, now: Date): CompanySituation {
   if (company.subscriptionStatus === 'ACTIVE') return 'paying';
@@ -70,7 +77,13 @@ export function summarizeCompanies(companies: CompanyRow[], now: Date) {
     counts[situation] += 1;
     // Receita recorrente: quem paga ou está só atrasado (ainda é assinante). Cortesia não entra.
     if (situation === 'paying' || situation === 'past_due') {
-      mrr += (getPlan(company.plan)?.priceCents ?? 0) / 100;
+      const plan = getPlan(company.plan);
+      const pros = company.activeProfessionals ?? 0;
+      mrr += !plan
+        ? 0
+        : company.billingCycle === 'YEARLY'
+          ? chargeCents(plan, pros, 'YEARLY') / 1200
+          : monthlyPriceCents(plan, pros) / 100;
     }
     if (situation === 'trial') {
       const daysLeft = getSubscriptionState(company, now).trialDaysLeft;
@@ -242,19 +255,26 @@ export async function getPlatformCompanies(now: Date) {
       courtesyPlan: true,
       courtesyNote: true,
       asaasCustomerId: true,
+      billingCycle: true,
     },
     orderBy: { createdAt: 'desc' },
   });
   const ids = companies.map((c) => c.id);
   const since = new Date(now.getTime() - 30 * 86_400_000);
-  const [clients, appointments] = await Promise.all([
+  const [clients, appointments, professionals] = await Promise.all([
     prisma.client.groupBy({ by: ['companyId'], where: { companyId: { in: ids } }, _count: true }),
     prisma.appointment.groupBy({
       by: ['companyId'],
       where: { companyId: { in: ids }, startAt: { gte: since } },
       _count: true,
     }),
+    prisma.professional.groupBy({
+      by: ['companyId'],
+      where: { companyId: { in: ids }, active: true },
+      _count: true,
+    }),
   ]);
+  const proCount = new Map(professionals.map((r) => [r.companyId, r._count]));
   const clientCount = new Map(clients.map((r) => [r.companyId, r._count]));
   const apptCount = new Map(appointments.map((r) => [r.companyId, r._count]));
   return companies.map((c) => ({
@@ -262,5 +282,86 @@ export async function getPlatformCompanies(now: Date) {
     situation: situationOf(c, now),
     clients: clientCount.get(c.id) ?? 0,
     appointments30d: apptCount.get(c.id) ?? 0,
+    activeProfessionals: proCount.get(c.id) ?? 0,
   }));
+}
+
+/** Receita mensal da empresa: o que paga por mês (anual dividido por 12). Teste e cortesia: zero. */
+export function companyMonthlyRevenue(
+  company: CompanyRow & { situation: CompanySituation },
+): number {
+  if (company.situation !== 'paying' && company.situation !== 'past_due') return 0;
+  const plan = getPlan(company.plan);
+  if (!plan) return 0;
+  const pros = company.activeProfessionals ?? 0;
+  return company.billingCycle === 'YEARLY'
+    ? chargeCents(plan, pros, 'YEARLY') / 1200
+    : monthlyPriceCents(plan, pros) / 100;
+}
+
+export type CompanyCosts = {
+  revenue: number;
+  aiCredits: number;
+  aiQuestions: number;
+  aiCost: number;
+  waMessages: number;
+  waCost: number;
+  fee: number;
+  profit: number;
+};
+
+/**
+ * Custo do mês por empresa, em reais: IA (custo estimado de cada consulta, em dólar) e WhatsApp
+ * oficial (mensagens enviadas), mais a taxa da Asaas — contra o que a empresa paga.
+ */
+export async function getPlatformCosts(
+  companies: (CompanyRow & { situation: CompanySituation })[],
+  now: Date,
+): Promise<Map<string, CompanyCosts>> {
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const ids = companies.map((c) => c.id);
+  const [ai, wa] = await Promise.all([
+    prisma.aiUsageEvent.groupBy({
+      by: ['companyId'],
+      where: { companyId: { in: ids }, createdAt: { gte: monthStart } },
+      _sum: { estimatedCostMicros: true, units: true },
+      _count: true,
+    }),
+    prisma.whatsappMessage.groupBy({
+      by: ['companyId'],
+      where: {
+        companyId: { in: ids },
+        channel: 'official',
+        status: 'SENT',
+        createdAt: { gte: monthStart },
+      },
+      _count: true,
+    }),
+  ]);
+  const rate = usdToBrlRate();
+  const aiBy = new Map(ai.map((r) => [r.companyId, r]));
+  const waBy = new Map(wa.map((r) => [r.companyId, r._count]));
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const result = new Map<string, CompanyCosts>();
+  for (const company of companies) {
+    const revenue = companyMonthlyRevenue(company);
+    const usage = aiBy.get(company.id);
+    const aiCost = ((usage?._sum.estimatedCostMicros ?? 0) / 1_000_000) * rate;
+    const waMessages = waBy.get(company.id) ?? 0;
+    const waCost = waMessages * OFFICIAL_WHATSAPP_COST_USD * rate;
+    // Anual: uma taxa por ano, dividida pelos meses.
+    const fee =
+      revenue > 0 ? (company.billingCycle === 'YEARLY' ? ASAAS_FEE_BRL / 12 : ASAAS_FEE_BRL) : 0;
+    result.set(company.id, {
+      revenue: round(revenue),
+      aiCredits: usage?._sum.units ?? 0,
+      aiQuestions: usage?._count ?? 0,
+      aiCost: round(aiCost),
+      waMessages,
+      waCost: round(waCost),
+      fee: round(fee),
+      profit: round(revenue - fee - aiCost - waCost),
+    });
+  }
+  return result;
 }

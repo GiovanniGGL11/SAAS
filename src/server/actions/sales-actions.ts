@@ -5,7 +5,9 @@ import { revalidatePath } from 'next/cache';
 
 import { prisma } from '@/lib/db';
 import { toActionResult } from '@/server/action-result';
-import { parseId } from '@/server/errors';
+import { UserError, parseId } from '@/server/errors';
+import { assertFeature } from '@/server/billing/features';
+import { recordAuditLog } from '@/server/data/audit';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   cancelClientPackage,
@@ -16,6 +18,7 @@ import {
   listPackagePlans,
   receiveTab,
   savePackagePlan,
+  savePackagePlanWithNewService,
   sellGiftCard,
   sellPackage,
   sellProducts,
@@ -41,16 +44,45 @@ export async function savePackagePlanAction(input: unknown) {
     const parsed = z
       .object({
         id: id.nullable(),
-        name: z.string().trim().min(1, 'Informe o nome do plano.').max(120),
-        serviceId: id,
+        name: z.string().trim().min(1, 'Informe o nome.').max(120),
+        serviceId: id.nullable(),
+        /** Serviço criado aqui mesmo: novo ou a soma de outros. */
+        newService: z
+          .object({
+            name: z.string().trim().min(1, 'Informe o nome do serviço.').max(200),
+            durationMinutes: z
+              .number({ message: 'Informe a duração.' })
+              .int()
+              .min(5, 'Duração mínima de 5 minutos.')
+              .max(600, 'Duração máxima de 10 horas.'),
+            price: z.number().min(0).max(999_999),
+            combineIds: z.array(id).max(10).optional(),
+          })
+          .nullable()
+          .optional(),
         sessions: z.number().int().min(1, 'Ao menos 1 sessão.').max(100),
         price: z.number().positive('Informe o preço.').max(999_999),
         validityDays: z.number().int().min(1).max(3650).nullable().optional(),
         recurring: z.boolean(),
       })
       .parse(input);
-    const { company } = await requireCompanyAdmin();
-    await savePackagePlan(company.id, parsed.id, parsed);
+    const { userId, company } = await requireCompanyAdmin();
+    assertFeature(company, 'packages');
+    const { newService, serviceId, ...plan } = parsed;
+    if (newService) {
+      const created = await savePackagePlanWithNewService(company.id, parsed.id, plan, newService);
+      await recordAuditLog({
+        companyId: company.id,
+        entityType: 'Service',
+        entityId: created.serviceId,
+        action: 'created',
+        userId,
+        metadata: { source: 'package_plan', name: created.serviceName },
+      });
+    } else {
+      if (!serviceId) throw new UserError('Escolha o serviço.');
+      await savePackagePlan(company.id, parsed.id, { ...plan, serviceId });
+    }
     revalidatePath('/servicos');
   });
 }

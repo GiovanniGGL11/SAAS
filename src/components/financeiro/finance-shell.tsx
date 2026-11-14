@@ -10,6 +10,8 @@ import { IncomeStatementView } from '@/components/financeiro/income-statement-vi
 import { CommissionsView } from '@/components/financeiro/commissions-view';
 import { RecurringExpensesView } from '@/components/financeiro/recurring-expenses-view';
 import { FinanceSettingsView } from '@/components/financeiro/finance-settings-view';
+import type { UpgradeOffer } from '@/lib/billing/upgrade';
+import { UpgradeCard } from '@/components/assinatura/upgrade-card';
 
 const TABS = [
   { value: 'lancamentos', label: 'Lançamentos' },
@@ -22,7 +24,12 @@ const TABS = [
 type Tab = (typeof TABS)[number]['value'];
 
 /** Financeiro em abas; a aba fica no endereço (?aba=dre) para dar para voltar e compartilhar. */
-export function FinanceShell() {
+export function FinanceShell({
+  commissionsOffer = null,
+}: {
+  /** Plano sem comissões: a aba mostra o convite para subir de plano. */
+  commissionsOffer?: UpgradeOffer | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -47,7 +54,8 @@ export function FinanceShell() {
       />
       {tab === 'lancamentos' && <FinanceView />}
       {tab === 'dre' && <IncomeStatementView />}
-      {tab === 'comissoes' && <CommissionsView />}
+      {tab === 'comissoes' &&
+        (commissionsOffer ? <UpgradeCard offer={commissionsOffer} /> : <CommissionsView />)}
       {tab === 'contas-fixas' && <RecurringExpensesView />}
       {tab === 'ajustes' && <FinanceSettingsView />}
     </div>

@@ -34,7 +34,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { grantCourtesyAction, revokeCourtesyAction } from '@/server/actions/platform-actions';
-import type { CompanySituation, CustomerBilling } from '@/server/platform/overview';
+import type { CompanyCosts, CompanySituation, CustomerBilling } from '@/server/platform/overview';
 
 export type PlatformCompany = {
   id: string;
@@ -47,6 +47,8 @@ export type PlatformCompany = {
   appointments30d: number;
   courtesy: { until: string; planId: string; planName: string; note: string | null } | null;
   billing: CustomerBilling | null;
+  /** Custos do mês (IA e WhatsApp oficial) contra o que a empresa paga. */
+  costs: CompanyCosts;
 };
 
 export type PlatformData = {
@@ -79,10 +81,36 @@ export type PlatformData = {
     }[];
   } | null;
   plans: { id: string; name: string; price: number }[];
+  /** Últimas aberturas do painel (null = não deu para ler o histórico). */
+  accesses:
+    | {
+        id: string;
+        at: string;
+        ip: string | null;
+        device: string;
+        /** Feito pela conta que está vendo agora. */
+        mine: boolean;
+        /** Este acesso, o de agora. */
+        current: boolean;
+      }[]
+    | null;
+  /** O painel pede login de novo depois deste tempo. */
+  sessionMaxMinutes: number;
+  costTotals: {
+    revenue: number;
+    aiCost: number;
+    waCost: number;
+    fee: number;
+    profit: number;
+    aiQuestions: number;
+    waMessages: number;
+  };
+  /** Dólar usado nas estimativas. */
+  usdRate: number;
   situationLabels: Record<CompanySituation, string>;
 };
 
-type Tab = 'overview' | 'billing' | 'companies' | 'trials' | 'users';
+type Tab = 'overview' | 'billing' | 'costs' | 'companies' | 'trials' | 'users';
 
 const SITUATION_STYLE: Record<CompanySituation, { dot: string; pill: string }> = {
   paying: { dot: 'bg-system-green', pill: 'bg-system-green/12 text-system-green' },
@@ -492,6 +520,7 @@ export function PlatformView({ data }: { data: PlatformData }) {
           options={[
             { value: 'overview', label: 'Visão geral' },
             { value: 'billing', label: 'Faturamento' },
+            { value: 'costs', label: 'Custos' },
             { value: 'companies', label: 'Empresas' },
             { value: 'trials', label: 'Testes' },
             { value: 'users', label: 'Usuários' },
@@ -596,7 +625,7 @@ export function PlatformView({ data }: { data: PlatformData }) {
                   show: summary.counts.trial_pending > 0,
                   icon: GiftIcon,
                   tone: 'text-system-indigo',
-                  text: `${summary.counts.trial_pending} conta(s) ainda não liberaram o mês grátis`,
+                  text: `${summary.counts.trial_pending} conta(s) ainda não liberaram o teste grátis`,
                   onClick: () => go('trials'),
                 },
               ]
@@ -858,7 +887,7 @@ export function PlatformView({ data }: { data: PlatformData }) {
           )}
 
           <SectionTitle
-            title="Ainda não liberaram o mês grátis"
+            title="Ainda não liberaram o teste grátis"
             subtitle="Criaram a conta, mas não informaram CPF/CNPJ e celular."
           />
           {pendingTrial.length ? (
@@ -888,6 +917,107 @@ export function PlatformView({ data }: { data: PlatformData }) {
             />
           ) : (
             <Empty>Nenhum teste acabado sem assinatura.</Empty>
+          )}
+        </div>
+      )}
+
+      {tab === 'costs' && (
+        <div key="costs" className="flex flex-col gap-6 md:gap-8">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5">
+            <Stat
+              index={0}
+              label="Receita do mês"
+              value={data.costTotals.revenue}
+              format="currency"
+              hint="O que as empresas pagam por mês"
+              icon={WalletIcon}
+              tone="text-system-green"
+            />
+            <Stat
+              index={1}
+              label="Custo de IA"
+              value={data.costTotals.aiCost}
+              format="currency"
+              hint={`${data.costTotals.aiQuestions} pergunta(s) no mês · Google`}
+            />
+            <Stat
+              index={2}
+              label="Custo de WhatsApp"
+              value={data.costTotals.waCost}
+              format="currency"
+              hint={`${data.costTotals.waMessages} mensagem(ns) oficiais · Meta`}
+            />
+            <Stat
+              index={3}
+              label="Taxas da Asaas"
+              value={data.costTotals.fee}
+              format="currency"
+              hint="R$ 1,99 por cobrança recebida"
+            />
+            <Stat
+              index={4}
+              label="Lucro estimado"
+              value={data.costTotals.profit}
+              format="currency"
+              hint="Receita − IA − WhatsApp − taxas"
+              tone={data.costTotals.profit < 0 ? 'text-system-red' : 'text-system-green'}
+              icon={WalletIcon}
+            />
+          </div>
+
+          <SectionTitle
+            title="Custo e lucro por empresa (este mês)"
+            subtitle={`Estimativas com o dólar a ${money(data.usdRate)}. Quem está em teste ou cortesia não paga, mas usa IA e WhatsApp — por isso pode aparecer negativo. Os valores reais estão nas faturas do Google e da Meta.`}
+          />
+          {companies.length ? (
+            <DataList
+              rows={[...companies].sort(
+                (a, b) => b.costs.aiCost + b.costs.waCost - (a.costs.aiCost + a.costs.waCost),
+              )}
+              rowKey={(c) => c.id}
+              title={(c) => c.name}
+              columns={[
+                {
+                  label: 'Situação',
+                  cell: (c) => (
+                    <SituationPill situation={c.situation} label={labels[c.situation]} />
+                  ),
+                },
+                { label: 'Paga por mês', cell: (c) => money(c.costs.revenue), align: 'right' },
+                {
+                  label: 'IA',
+                  cell: (c) =>
+                    c.costs.aiQuestions
+                      ? `${money(c.costs.aiCost)} · ${c.costs.aiCredits} créditos`
+                      : '—',
+                  align: 'right',
+                },
+                {
+                  label: 'WhatsApp',
+                  cell: (c) =>
+                    c.costs.waMessages
+                      ? `${money(c.costs.waCost)} · ${c.costs.waMessages} msg`
+                      : '—',
+                  align: 'right',
+                },
+                {
+                  label: 'Lucro',
+                  cell: (c) => (
+                    <span
+                      className={cn(
+                        'font-semibold',
+                        c.costs.profit < 0 ? 'text-system-red' : 'text-system-green',
+                      )}
+                    >
+                      {money(c.costs.profit)}
+                    </span>
+                  ),
+                  align: 'right',
+                },
+              ]}
+            />
+          ) : (
+            <Empty>Nenhuma empresa ainda.</Empty>
           )}
         </div>
       )}
@@ -936,6 +1066,50 @@ export function PlatformView({ data }: { data: PlatformData }) {
             </>
           ) : (
             <Empty>Não foi possível consultar o Clerk agora.</Empty>
+          )}
+
+          <SectionTitle
+            title="Acessos a este painel"
+            subtitle={`Cada abertura do painel fica registrada. Se aparecer um aparelho ou lugar que não é seu, troque a senha da sua conta. Por segurança, o painel pede para entrar de novo a cada ${data.sessionMaxMinutes === 60 ? '1 hora' : `${data.sessionMaxMinutes} minutos`}.`}
+          />
+          {data.accesses?.length ? (
+            <DataList
+              rows={data.accesses}
+              rowKey={(a) => a.id}
+              title={(a) => dateTimeFmt.format(new Date(a.at))}
+              titleLabel="Quando"
+              columns={[
+                {
+                  label: 'Aparelho',
+                  cell: (a) => (
+                    <span className="inline-flex items-center gap-2">
+                      {a.device}
+                      {a.current && (
+                        <span className="bg-system-green/12 text-system-green rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                          Agora
+                        </span>
+                      )}
+                    </span>
+                  ),
+                },
+                { label: 'IP', cell: (a) => a.ip ?? '—' },
+                {
+                  label: 'Conta',
+                  cell: (a) =>
+                    a.mine ? (
+                      'Você'
+                    ) : (
+                      <span className="text-system-red font-semibold">Outra conta de dono</span>
+                    ),
+                },
+              ]}
+            />
+          ) : (
+            <Empty>
+              {data.accesses
+                ? 'Nenhum acesso registrado ainda.'
+                : 'Não foi possível ler o histórico de acessos agora.'}
+            </Empty>
           )}
         </div>
       )}

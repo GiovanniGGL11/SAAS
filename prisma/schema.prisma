@@ -58,6 +58,8 @@ model Company {
   selfSignupEnabled   Boolean            @default(false)
   /// Campos pedidos: { email|birthDate|cpf|address|notes: "off" | "optional" | "required" }.
   selfSignupFields    Json?
+  /// Ciclo da assinatura do Atendafy: MONTHLY ou YEARLY (anual com desconto, pago de uma vez).
+  billingCycle        String             @default("MONTHLY")
   plan                String?
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?
@@ -141,6 +143,18 @@ model Company {
   periodGoals               PeriodGoal[]
   serviceProfessionals      ServiceProfessional[]
   trialClaims               TrialClaim[]
+}
+
+/// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
+model PlatformAccess {
+  id        String   @id @default(cuid())
+  userId    String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 model WebhookEvent {
@@ -1706,6 +1720,8 @@ model WhatsappMessage {
   providerId    String?
   clientId      String?
   appointmentId String?
+  /// "zapi" (número do próprio salão) ou "official" (WhatsApp do Atendafy, incluído no plano).
+  channel       String                @default("zapi")
   createdAt     DateTime              @default(now())
 
   @@unique([companyId, dedupeKey])

@@ -7,6 +7,7 @@ import { useAuth } from '@clerk/nextjs';
 import {
   CalendarDaysIcon,
   LayoutGridIcon,
+  MoonIcon,
   MoreHorizontalIcon,
   UsersIcon,
   VaultIcon,
@@ -17,6 +18,8 @@ import {
 import { cn } from '@/lib/utils';
 import { NavList } from '@/components/layout/nav-list';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { Switch } from '@/components/ui/switch';
+import { useTheme } from '@/components/theme-provider';
 
 type Tab = { label: string; href: string; icon: LucideIcon };
 
@@ -85,6 +88,7 @@ export function MobileTabBar() {
           </DrawerHeader>
           <div className="overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
             <NavList layoutId="mobile-active" onNavigate={() => setMoreOpen(false)} />
+            <DarkModeRow />
           </div>
         </DrawerContent>
       </Drawer>
@@ -115,5 +119,24 @@ function TabLink({
       <Icon className="size-6" strokeWidth={active ? 2.25 : 1.75} />
       {label}
     </Link>
+  );
+}
+
+/** Tema escuro no "Mais": no celular ele sai da barra do topo para sobrar espaço. */
+function DarkModeRow() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  return (
+    <label className="border-foreground/[0.06] mt-4 flex items-center gap-2.5 border-t px-2.5 pt-4 text-[14px]">
+      <span className="relative flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-[#5856d6] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.25)]">
+        <MoonIcon className="size-3.5" strokeWidth={2.25} />
+      </span>
+      <span className="flex-1">Tema escuro</span>
+      <Switch
+        checked={isDark}
+        onCheckedChange={(checked: boolean) => setTheme(checked ? 'dark' : 'light')}
+        aria-label="Tema escuro"
+      />
+    </label>
   );
 }

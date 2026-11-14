@@ -109,6 +109,12 @@ export type Plan = {
   legacy?: boolean;
   /** Profissionais ativos e unidades incluídos (null = sem limite). */
   maxProfessionals: number | null;
+  /** Sem limite, mas cobrando à parte quem passar destes (com `extraProfessionalCents`). */
+  includedProfessionals?: number;
+  /** Valor mensal por profissional ativo além dos incluídos. */
+  extraProfessionalCents?: number;
+  /** Confirmações e lembretes por mês pelo WhatsApp oficial do Atendafy (0 = não inclui). */
+  includedWhatsappMessages: number;
   maxUnits: number | null;
   features: Record<FeatureKey, boolean>;
   ai: AiPlanEntitlements;
@@ -211,14 +217,15 @@ export const PLANS: Plan[] = [
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
-    maxProfessionals: 2,
+    maxProfessionals: 1,
+    includedWhatsappMessages: 0,
     maxUnits: 1,
     features: ESSENTIAL_FEATURES,
     ai: NO_AI,
     addOns: [],
-    tagline: 'Para quem trabalha sozinho ou em dupla',
+    tagline: 'Para quem trabalha sozinho',
     highlights: [
-      'Até 2 profissionais',
+      '1 profissional',
       'Agenda e agendamento pelo link',
       'Mensagem pronta no WhatsApp com um toque',
       'Comanda, caixa e financeiro',
@@ -233,7 +240,9 @@ export const PLANS: Plan[] = [
     currency: 'BRL',
     offered: true,
     checkoutEnabled: true,
-    maxProfessionals: 8,
+    maxProfessionals: 4,
+    // ~R$ 0,04 cada (modelo de utilidade da Meta): no máximo uns R$ 16 por mês.
+    includedWhatsappMessages: 400,
     maxUnits: 1,
     features: FULL_FEATURES,
     ai: {
@@ -251,9 +260,9 @@ export const PLANS: Plan[] = [
       maxRequestSeconds: 60,
     },
     addOns: ['whatsapp_ai'],
-    tagline: 'Para equipes de até 8 pessoas',
+    tagline: 'Para equipes pequenas, de até 4 profissionais',
     highlights: [
-      'Até 8 profissionais',
+      'Até 4 profissionais',
       'Tudo do Básico',
       'Campanhas para chamar clientes de volta',
       'Comissões, metas e relatórios',
@@ -271,6 +280,9 @@ export const PLANS: Plan[] = [
     offered: true,
     checkoutEnabled: true,
     maxProfessionals: null,
+    includedProfessionals: 10,
+    extraProfessionalCents: 1000,
+    includedWhatsappMessages: 1200,
     maxUnits: null,
     features: PRO_FEATURES,
     ai: {
@@ -289,7 +301,7 @@ export const PLANS: Plan[] = [
     addOns: ['whatsapp_ai'],
     tagline: 'Para redes, várias unidades ou equipes grandes',
     highlights: [
-      'Profissionais ilimitados',
+      '10 profissionais incluídos; acima disso, R$ 10 por profissional',
       'Tudo do Profissional',
       'Várias unidades num painel só',
       'Renovação de pacotes e lista de espera no automático',
@@ -310,6 +322,7 @@ export const PLANS: Plan[] = [
     checkoutEnabled: false,
     legacy: true,
     maxProfessionals: null,
+    includedWhatsappMessages: 400,
     maxUnits: null,
     features: { ...FULL_FEATURES, multiUnit: true },
     ai: {
@@ -335,10 +348,12 @@ export const PLANS: Plan[] = [
  * as funcionalidades do plano base abaixo e uma franquia de IA própria do teste. Quem escolheu
  * o Básico durante o teste fica sem IA (a IA nunca é atribuída em silêncio ao Básico).
  */
-/** 1º mês grátis: conta nova usa sem pagar; a cobrança começa no fim do teste. */
-export const TRIAL_DAYS = 30;
+/** Teste grátis: conta nova usa sem pagar por estes dias; a cobrança começa no fim do teste. */
+export const TRIAL_DAYS = 15;
 export const TRIAL_GRANT = {
   basePlan: 'profissional' as PlanId,
+  /** Confirmações e lembretes pelo WhatsApp do Atendafy durante o teste. */
+  includedWhatsappMessages: 50,
   /** Limite de IA no teste grátis: cerca de 50 perguntas, para conhecer o assistente. */
   aiMonthlyUnits: 150 as number | null,
 };
@@ -390,17 +405,70 @@ export const ADD_ONS: AddOn[] = [
   },
 ];
 
-/** Preço estimado do provedor por 1 milhão de tokens (para estimar custo; não é cobrança). */
-export const AI_PROVIDER_PRICING: Record<
-  string,
-  { inputPerMillion: number; outputPerMillion: number; currency: 'USD' }
-> = {
-  // Referência provisória do Gemini Flash; ajuste quando trocar de modelo.
-  'gemini-flash-latest': { inputPerMillion: 0.3, outputPerMillion: 2.5, currency: 'USD' },
+type ProviderPrice = { inputPerMillion: number; outputPerMillion: number; currency: 'USD' };
+
+/**
+ * Preço do provedor por 1 milhão de tokens (para estimar custo; não é cobrança). O apelido
+ * "gemini-flash-latest" segue o Flash mais novo (3.8): preço CHEIO de US$ 1,50 / US$ 7,50, que vale
+ * a partir de 01/01/2027. Até 31/12/2026 o Google cobra a metade (promoção), então a estimativa
+ * fica acima do gasto real até lá — de propósito, para nada mudar quando a promoção acabar.
+ */
+export const AI_PROVIDER_PRICING: Record<string, ProviderPrice> = {
+  'gemini-flash-latest': { inputPerMillion: 1.5, outputPerMillion: 7.5, currency: 'USD' },
 };
+
+/** Modelo sem preço cadastrado: estima pelo Flash, para o custo nunca aparecer zerado. */
+export const DEFAULT_AI_PRICING: ProviderPrice = AI_PROVIDER_PRICING['gemini-flash-latest'];
+
+/** Custo por mensagem de utilidade no WhatsApp oficial (Meta, Brasil), em dólar — estimativa. */
+export const OFFICIAL_WHATSAPP_COST_USD = 0.008;
+
+/** Taxa da Asaas por cobrança recebida (PIX), em reais. */
+export const ASAAS_FEE_BRL = 1.99;
+
+/** Dólar para estimar custos em reais (USD_BRL_RATE na Vercel; senão 5,50). */
+export function usdToBrlRate(): number {
+  const rate = Number(process.env.USD_BRL_RATE);
+  return Number.isFinite(rate) && rate > 0 ? rate : 5.5;
+}
 
 export function getPlan(id: string | null | undefined): Plan | undefined {
   return PLANS.find((p) => p.id === id);
+}
+
+/**
+ * Mensalidade com os profissionais ativos: o preço do plano mais os que passarem dos incluídos
+ * (só nos planos que cobram por profissional extra, como o Pro).
+ */
+export function monthlyPriceCents(
+  plan: Pick<Plan, 'priceCents' | 'includedProfessionals' | 'extraProfessionalCents'>,
+  activeProfessionals: number,
+): number {
+  if (!plan.extraProfessionalCents || plan.includedProfessionals === undefined) {
+    return plan.priceCents;
+  }
+  const extra = Math.max(0, activeProfessionals - plan.includedProfessionals);
+  return plan.priceCents + extra * plan.extraProfessionalCents;
+}
+
+export type BillingCycle = 'MONTHLY' | 'YEARLY';
+
+/** Desconto do plano anual (pago de uma vez). */
+export const ANNUAL_DISCOUNT = 0.2;
+
+/** Valor de cada cobrança: a mensalidade, ou 12 mensalidades com o desconto do anual. */
+export function chargeCents(
+  plan: Pick<Plan, 'priceCents' | 'includedProfessionals' | 'extraProfessionalCents'>,
+  activeProfessionals: number,
+  cycle: BillingCycle,
+): number {
+  const monthly = monthlyPriceCents(plan, activeProfessionals);
+  return cycle === 'YEARLY' ? Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT)) : monthly;
+}
+
+/** "1 profissional" ou "até 3 profissionais" (para as mensagens de limite). */
+export function professionalsLimitLabel(max: number): string {
+  return max === 1 ? '1 profissional' : `até ${max} profissionais`;
 }
 
 export function planPrice(plan: Pick<Plan, 'priceCents'>): number {

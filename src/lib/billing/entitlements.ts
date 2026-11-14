@@ -51,7 +51,7 @@ export const AI_BLOCK_MESSAGE: Record<
   quota_not_configured:
     'A franquia de IA do seu plano ainda não foi configurada, então a IA está pausada. O uso manual do sistema continua normal.',
   quota_exhausted:
-    'A franquia de IA deste mês acabou. Novos pedidos à IA ficam pausados até o próximo mês; o uso manual do sistema continua normal.',
+    'Os créditos de IA deste mês acabaram. Eles renovam no dia 1º; até lá o assistente fica pausado e o resto do sistema continua normal.',
   provider_not_configured:
     'O assistente não está configurado no servidor (falta a chave do provedor de IA).',
 };

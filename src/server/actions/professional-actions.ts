@@ -17,6 +17,17 @@ import { serializeProfessional } from '@/lib/serialize';
 import { Prisma } from '@/generated/prisma/client';
 import { UserError } from '@/server/errors';
 import { assertProfessionalSlots } from '@/server/billing/features';
+import { syncSubscriptionValue } from '@/server/billing/subscription';
+import { after } from 'next/server';
+
+/** Pro: o valor da assinatura acompanha os profissionais ativos (fora do caminho da resposta). */
+function syncBillingLater(companyId: string) {
+  after(() =>
+    syncSubscriptionValue(companyId).catch((error) =>
+      console.error('[billing] valor da assinatura não atualizado', companyId, error),
+    ),
+  );
+}
 
 function toFriendlyError(error: unknown): Error {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -52,6 +63,7 @@ export async function createProfessionalAction(input: unknown) {
         commissionType: parsed.commissionType ?? null,
         commissionValue: parsed.commissionValue ?? null,
       });
+      syncBillingLater(company.id);
       return serializeProfessional(professional);
     } catch (error) {
       throw toFriendlyError(error);
@@ -89,5 +101,6 @@ export async function setProfessionalActiveAction(input: unknown) {
     }
 
     await setProfessionalActive(company.id, parsed.id, parsed.active);
+    syncBillingLater(company.id);
   });
 }

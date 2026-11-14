@@ -11,12 +11,13 @@ import {
   requireCurrentCompany,
 } from '@/server/auth/require-current-company';
 import { getSubscriptionState } from '@/server/billing/subscription';
+import { TRIAL_DAYS } from '@/lib/billing/plans';
 import { BillingBanner, BillingGate } from '@/components/assinatura/billing-gate';
 
 /** Aviso de cobrança: últimos 7 dias de teste ou pagamento atrasado. */
 function bannerText(state: ReturnType<typeof getSubscriptionState>): string | null {
   if (state.status === 'PAST_DUE') return 'O pagamento da assinatura está atrasado.';
-  if (state.trialPending) return 'Libere o seu 1º mês grátis.';
+  if (state.trialPending) return `Libere os seus ${TRIAL_DAYS} dias de teste grátis.`;
   if (state.status === 'TRIAL' && state.trialDaysLeft <= 7) {
     return state.trialDaysLeft > 0
       ? `Faltam ${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} do seu teste grátis.`

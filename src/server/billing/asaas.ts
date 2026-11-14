@@ -56,12 +56,14 @@ export async function createSubscription(
     nextDueDate: string;
     description: string;
     externalReference: string;
+    cycle?: 'MONTHLY' | 'YEARLY';
   },
 ) {
+  const { cycle = 'MONTHLY', ...rest } = input;
   return asaasRequest<{ id: string; status: string }>(apiKey, '/subscriptions', {
     method: 'POST',
     // UNDEFINED: o cliente escolhe PIX, boleto ou cartão na página de pagamento da Asaas.
-    body: { ...input, billingType: 'UNDEFINED', cycle: 'MONTHLY' },
+    body: { ...rest, billingType: 'UNDEFINED', cycle },
   });
 }
 

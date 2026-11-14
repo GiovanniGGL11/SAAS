@@ -1,8 +1,16 @@
 import { prisma } from '@/lib/db';
 import type { Company } from '@/generated/prisma/client';
 import { resolveEntitlements, type Entitlements } from '@/lib/billing/entitlements';
-import { PLANS, TRIAL_GRANT, getPlan, type FeatureKey, type PlanId } from '@/lib/billing/plans';
+import {
+  PLANS,
+  TRIAL_GRANT,
+  getPlan,
+  professionalsLimitLabel,
+  type FeatureKey,
+  type PlanId,
+} from '@/lib/billing/plans';
 import { UserError } from '@/server/errors';
+import { buildUpgradeOffer, type UpgradeOffer } from '@/lib/billing/upgrade';
 import { billingConfigured } from '@/server/billing/subscription';
 
 /*
@@ -77,6 +85,13 @@ export class FeatureUnavailableError extends UserError {
   }
 }
 
+/** Convite para o plano que libera o recurso — `null` quando o plano atual já inclui. */
+export function upgradeOffer(company: CompanyPlanFields, key: FeatureKey): UpgradeOffer | null {
+  const access = featureAccessFor(company);
+  if (access.features[key]) return null;
+  return buildUpgradeOffer(key, access.planId);
+}
+
 export function hasFeature(company: CompanyPlanFields, key: FeatureKey): boolean {
   return featureAccessFor(company).features[key] === true;
 }
@@ -125,7 +140,7 @@ export async function assertProfessionalSlots(
       (p.maxProfessionals === null || p.maxProfessionals >= active + adding),
   ).sort((a, b) => a.priceCents - b.priceCents)[0];
   throw new UserError(
-    `O plano ${plan.name} inclui até ${plan.maxProfessionals} profissionais ativos.` +
+    `O plano ${plan.name} permite ${professionalsLimitLabel(plan.maxProfessionals)}.` +
       (bigger ? ` Para ter mais, troque para o plano ${bigger.name} em Assinatura.` : ''),
   );
 }

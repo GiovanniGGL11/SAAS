@@ -47,7 +47,7 @@ export async function createCompanySubaccount(companyId: string, input: AsaasSub
       data: { asaasAccountId: account.id, asaasWalletId: account.walletId },
     });
     throw new UserError(
-      'A Asaas criou a conta, mas não devolveu a chave de acesso. Fale com o suporte do Atendafy.',
+      'A Asaas criou a conta, mas não devolveu a chave de acesso. Fale com o suporte do Atendafy: contato@atendafy.com.',
     );
   }
   await prisma.company.update({

@@ -3,13 +3,15 @@ import Image from 'next/image';
 
 import { LINKS } from '@/components/landing/landing-links';
 import { contactWhatsappLink } from '@/components/landing/whatsapp-button';
+import { CONTACT_EMAIL, CONTACT_EMAIL_HREF, instagramProfile } from '@/lib/contact';
 
 export function LandingFooter() {
   const whatsapp = contactWhatsappLink();
+  const instagram = instagramProfile();
   return (
     <footer className="border-foreground/[0.06] border-t">
-      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-12 text-[14px] sm:grid-cols-2 md:grid-cols-4">
-        <div className="flex flex-col gap-3 md:col-span-2">
+      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-12 text-[14px] sm:grid-cols-3 md:grid-cols-5">
+        <div className="flex flex-col gap-3 sm:col-span-3 md:col-span-2">
           <Link
             href="/"
             className="flex items-center gap-2 text-[15px] font-semibold tracking-tight"
@@ -50,6 +52,12 @@ export function LandingFooter() {
           <Link href="/privacidade" className="text-label-secondary hover:text-foreground">
             Privacidade
           </Link>
+        </nav>
+        <nav aria-label="Contato" className="flex flex-col gap-2">
+          <span className="font-semibold">Contato</span>
+          <a href={CONTACT_EMAIL_HREF} className="text-label-secondary hover:text-foreground">
+            {CONTACT_EMAIL}
+          </a>
           {whatsapp && (
             <a
               href={whatsapp}
@@ -58,6 +66,16 @@ export function LandingFooter() {
               className="text-label-secondary hover:text-foreground"
             >
               Falar no WhatsApp
+            </a>
+          )}
+          {instagram && (
+            <a
+              href={instagram.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-label-secondary hover:text-foreground"
+            >
+              Instagram @{instagram.handle}
             </a>
           )}
         </nav>

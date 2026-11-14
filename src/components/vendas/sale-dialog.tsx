@@ -246,7 +246,7 @@ export function SaleDialog({
               <span className="font-medium">Plano</span>
               {(plans ?? []).filter((p) => p.active).length === 0 ? (
                 <p className="text-label-secondary">
-                  Nenhum pacote cadastrado. O admin cria em Serviços → Pacotes e assinaturas.
+                  Nenhum pacote cadastrado. O admin cria em Serviços → Pacotes ou Assinaturas.
                 </p>
               ) : (
                 <div className="flex flex-col gap-1.5">

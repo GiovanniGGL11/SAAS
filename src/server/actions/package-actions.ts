@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
 import { toActionResult } from '@/server/action-result';
+import { assertFeature } from '@/server/billing/features';
 import { parseId } from '@/server/errors';
 import { prisma } from '@/lib/db';
 import {
@@ -79,6 +80,7 @@ export async function createClientPackageAction(input: unknown) {
     const { company, userId } = parsed.opening
       ? await requireCompanyAdmin()
       : await requireCurrentCompany();
+    assertFeature(company, 'packages');
     const pkg = await createClientPackage({ companyId: company.id, userId, ...parsed });
     revalidatePath(`/clientes/${parsed.clientId}`);
     return { id: pkg.id };
@@ -107,6 +109,7 @@ export async function extendPackageAction(input: unknown) {
       })
       .parse(input);
     const { company, userId } = await requireCompanyAdmin();
+    assertFeature(company, 'packages');
     await extendPackage({ companyId: company.id, userId, ...parsed });
   });
 }
