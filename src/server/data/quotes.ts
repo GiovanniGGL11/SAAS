@@ -224,7 +224,9 @@ export async function updateQuote(params: {
     if (quote.status === 'CANCELED')
       throw new UserError('Orçamento cancelado não pode ser alterado.');
     if (quote.convertedAt) {
-      throw new UserError('Este orçamento já foi convertido (pacote ou venda). Para mudar, crie um orçamento novo.');
+      throw new UserError(
+        'Este orçamento já foi convertido (pacote ou venda). Para mudar, crie um orçamento novo.',
+      );
     }
     if (quote.currentVersion !== params.expectedVersion) {
       throw new UserError(

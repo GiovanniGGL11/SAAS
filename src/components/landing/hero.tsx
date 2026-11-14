@@ -63,8 +63,8 @@ export function Hero() {
             className="text-foreground/70 mx-auto mt-6 max-w-[34rem] text-[18px] leading-relaxed text-pretty md:text-[20px] lg:mx-0"
           >
             O sistema para quem trabalha com hora marcada, de salões, barbearias e clínicas a
-            consultórios, estúdios, pet shops e aulas: seus clientes marcam sozinhos, confirmam
-            pelo WhatsApp, e você cobra, fecha o caixa e vê o lucro do mês.
+            consultórios, estúdios, pet shops e aulas: seus clientes marcam sozinhos, confirmam pelo
+            WhatsApp, e você cobra, fecha o caixa e vê o lucro do mês.
           </motion.p>
 
           <motion.div

@@ -170,7 +170,10 @@ export async function getAppointmentById(
  * Trava por profissional até o fim da transação: dois agendamentos no mesmo horário, criados ao
  * mesmo tempo, passavam ambos pela checagem de conflito antes de qualquer um gravar.
  */
-export async function lockProfessionalSchedule(db: Prisma.TransactionClient, professionalId: string) {
+export async function lockProfessionalSchedule(
+  db: Prisma.TransactionClient,
+  professionalId: string,
+) {
   await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'agenda:' + professionalId}))`;
 }
 
@@ -201,7 +204,11 @@ export async function assertNoConflict(
     },
     select: { startAt: true, endAt: true, bufferMinutes: true },
   });
-  const self = { startAt: params.startAt, endAt: params.endAt, bufferMinutes: params.bufferMinutes };
+  const self = {
+    startAt: params.startAt,
+    endAt: params.endAt,
+    bufferMinutes: params.bufferMinutes,
+  };
   if (neighbours.some((n) => clashesWithBuffer(self, n))) {
     throw new AppointmentConflictError('overlap');
   }
@@ -431,56 +438,61 @@ export async function updateAppointmentStatus(params: {
   status: Exclude<AppointmentStatus, 'CANCELED'>;
   updatedByUserId: string;
 }): Promise<Appointment> {
-  return prisma.$transaction(async (tx) => {
-    await lockAppointment(tx, params.companyId, params.id);
-    const before = (await tx.appointment.findFirst({
-      where: { id: params.id, companyId: params.companyId },
-    }))!;
-    // Ficha exigida pelo serviço ou pacote: conferida aqui, não só na tela.
-    if (params.status === 'IN_PROGRESS' && before.status !== 'IN_PROGRESS') {
-      await assertAppointmentFormsReady(tx, params.companyId, params.id);
-    }
-    // Sessão de pacote conclui pela comanda ("Concluir sessão"), que dá a baixa no pacote.
-    if (params.status === 'DONE' && before.status !== 'DONE' && before.clientPackageId) {
-      throw new UserError('Esta é uma sessão de pacote: use "Concluir sessão" para dar baixa no pacote.');
-    }
+  return prisma.$transaction(
+    async (tx) => {
+      await lockAppointment(tx, params.companyId, params.id);
+      const before = (await tx.appointment.findFirst({
+        where: { id: params.id, companyId: params.companyId },
+      }))!;
+      // Ficha exigida pelo serviço ou pacote: conferida aqui, não só na tela.
+      if (params.status === 'IN_PROGRESS' && before.status !== 'IN_PROGRESS') {
+        await assertAppointmentFormsReady(tx, params.companyId, params.id);
+      }
+      // Sessão de pacote conclui pela comanda ("Concluir sessão"), que dá a baixa no pacote.
+      if (params.status === 'DONE' && before.status !== 'DONE' && before.clientPackageId) {
+        throw new UserError(
+          'Esta é uma sessão de pacote: use "Concluir sessão" para dar baixa no pacote.',
+        );
+      }
 
-    await tx.appointment.updateMany({
-      where: { id: params.id, companyId: params.companyId },
-      data: { status: params.status, updatedByUserId: params.updatedByUserId },
-    });
-    const updated = (await tx.appointment.findFirst({
-      where: { id: params.id, companyId: params.companyId },
-    }))!;
-
-    if (params.status === 'DONE') {
-      await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
-      await earnLoyaltyFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
-      await consumeSuppliesForAppointment(tx, {
-        companyId: params.companyId,
-        appointmentId: updated.id,
-        serviceId: updated.serviceId,
-        userId: params.updatedByUserId,
+      await tx.appointment.updateMany({
+        where: { id: params.id, companyId: params.companyId },
+        data: { status: params.status, updatedByUserId: params.updatedByUserId },
       });
-    } else if (before.status === 'DONE') {
-      await reverseIncomeFromAppointment(params.companyId, params.id, tx, params.updatedByUserId);
-      await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
-    }
+      const updated = (await tx.appointment.findFirst({
+        where: { id: params.id, companyId: params.companyId },
+      }))!;
 
-    await recordAuditLog(
-      {
-        companyId: params.companyId,
-        entityType: 'Appointment',
-        entityId: params.id,
-        action: 'status_changed',
-        userId: params.updatedByUserId,
-        metadata: { from: before.status, status: params.status },
-      },
-      tx,
-    );
-    return updated;
-    // Desfazer uma conclusão estorna caixa, fidelidade e sessão de pacote: folga acima dos 5 s.
-  }, { maxWait: 10_000, timeout: 20_000 });
+      if (params.status === 'DONE') {
+        await createIncomeFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
+        await earnLoyaltyFromAppointment(params.companyId, updated, params.updatedByUserId, tx);
+        await consumeSuppliesForAppointment(tx, {
+          companyId: params.companyId,
+          appointmentId: updated.id,
+          serviceId: updated.serviceId,
+          userId: params.updatedByUserId,
+        });
+      } else if (before.status === 'DONE') {
+        await reverseIncomeFromAppointment(params.companyId, params.id, tx, params.updatedByUserId);
+        await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
+      }
+
+      await recordAuditLog(
+        {
+          companyId: params.companyId,
+          entityType: 'Appointment',
+          entityId: params.id,
+          action: 'status_changed',
+          userId: params.updatedByUserId,
+          metadata: { from: before.status, status: params.status },
+        },
+        tx,
+      );
+      return updated;
+      // Desfazer uma conclusão estorna caixa, fidelidade e sessão de pacote: folga acima dos 5 s.
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 }
 
 /**
@@ -567,7 +579,8 @@ export async function updateAppointmentDetails(params: {
     const finalClientId = (data.clientId as string | undefined) ?? current.clientId;
     let packageId =
       params.clientPackageId !== undefined ? params.clientPackageId : current.clientPackageId;
-    if (params.clientPackageId === undefined && finalClientId !== current.clientId) packageId = null;
+    if (params.clientPackageId === undefined && finalClientId !== current.clientId)
+      packageId = null;
     if (packageId) {
       const finalServiceIds = params.serviceIds?.length
         ? params.serviceIds
@@ -646,243 +659,252 @@ export type CheckoutInput = {
  * tudo numa transação. Cupom é conferido (ativo, validade, limite de usos) e gasto aqui.
  */
 export async function checkoutAppointment(params: CheckoutInput) {
-  return prisma.$transaction(async (tx) => {
-    await lockAppointment(tx, params.companyId, params.id);
-    const appointment = (await tx.appointment.findFirst({
-      where: { id: params.id, companyId: params.companyId },
-    }))!;
-    if (appointment.status === 'CANCELED') throw new UserError('Este agendamento está cancelado.');
-    if (appointment.status === 'DONE')
-      throw new UserError('Este atendimento já foi concluído e cobrado.');
+  return prisma.$transaction(
+    async (tx) => {
+      await lockAppointment(tx, params.companyId, params.id);
+      const appointment = (await tx.appointment.findFirst({
+        where: { id: params.id, companyId: params.companyId },
+      }))!;
+      if (appointment.status === 'CANCELED')
+        throw new UserError('Este agendamento está cancelado.');
+      if (appointment.status === 'DONE')
+        throw new UserError('Este atendimento já foi concluído e cobrado.');
 
-    const price = new PrismaNamespace.Decimal(appointment.priceSnapshot);
-    // Desconto nunca passa do serviço: acima disso não vira crédito, e o histórico mostra o real.
-    let discount = PrismaNamespace.Decimal.min(params.discount ?? 0, price);
-    const notes: string[] = [];
+      const price = new PrismaNamespace.Decimal(appointment.priceSnapshot);
+      // Desconto nunca passa do serviço: acima disso não vira crédito, e o histórico mostra o real.
+      let discount = PrismaNamespace.Decimal.min(params.discount ?? 0, price);
+      const notes: string[] = [];
 
-    if (params.couponCode?.trim()) {
-      const code = params.couponCode.trim().toUpperCase();
-      const coupon = await tx.coupon.findFirst({ where: { companyId: params.companyId, code } });
-      if (!coupon || !coupon.active) throw new UserError('Cupom inválido ou desativado.');
-      if (coupon.expiresAt && coupon.expiresAt < new Date())
-        throw new UserError('Este cupom expirou.');
-      // Gasta o cupom só se ainda houver uso disponível — conferido no próprio UPDATE.
-      const used = await tx.coupon.updateMany({
-        where: {
-          id: coupon.id,
-          ...(coupon.maxUses !== null ? { usedCount: { lt: coupon.maxUses } } : {}),
-        },
-        data: { usedCount: { increment: 1 } },
-      });
-      if (used.count === 0) throw new UserError('Este cupom já atingiu o limite de usos.');
-      const couponDiscount =
-        coupon.discountType === 'PERCENTAGE'
-          ? price.mul(coupon.discountValue).div(100).toDecimalPlaces(2)
-          : new PrismaNamespace.Decimal(coupon.discountValue);
-      discount = discount.add(couponDiscount);
-      notes.push(`cupom:${coupon.code} (−R$ ${couponDiscount.toFixed(2).replace('.', ',')})`);
-    } else if (discount.gt(0)) {
-      notes.push(`Desconto de R$ ${discount.toFixed(2).replace('.', ',')}`);
-    }
-
-    const total = PrismaNamespace.Decimal.max(0, price.sub(discount));
-    const credits: Prisma.AppointmentCreditCreateManyInput[] = [];
-    let toCharge = total;
-
-    if (params.packageId) {
-      const pkg = await tx.clientPackage.findFirst({
-        where: {
-          id: params.packageId,
-          companyId: params.companyId,
-          clientId: appointment.clientId,
-          status: 'ACTIVE',
-        },
-      });
-      if (!pkg) throw new UserError('Pacote não encontrado para este cliente.');
-      if (!pkg.recurring && pkg.periodEnd && pkg.periodEnd < new Date()) {
-        throw new UserError('Este pacote venceu.');
+      if (params.couponCode?.trim()) {
+        const code = params.couponCode.trim().toUpperCase();
+        const coupon = await tx.coupon.findFirst({ where: { companyId: params.companyId, code } });
+        if (!coupon || !coupon.active) throw new UserError('Cupom inválido ou desativado.');
+        if (coupon.expiresAt && coupon.expiresAt < new Date())
+          throw new UserError('Este cupom expirou.');
+        // Gasta o cupom só se ainda houver uso disponível — conferido no próprio UPDATE.
+        const used = await tx.coupon.updateMany({
+          where: {
+            id: coupon.id,
+            ...(coupon.maxUses !== null ? { usedCount: { lt: coupon.maxUses } } : {}),
+          },
+          data: { usedCount: { increment: 1 } },
+        });
+        if (used.count === 0) throw new UserError('Este cupom já atingiu o limite de usos.');
+        const couponDiscount =
+          coupon.discountType === 'PERCENTAGE'
+            ? price.mul(coupon.discountValue).div(100).toDecimalPlaces(2)
+            : new PrismaNamespace.Decimal(coupon.discountValue);
+        discount = discount.add(couponDiscount);
+        notes.push(`cupom:${coupon.code} (−R$ ${couponDiscount.toFixed(2).replace('.', ',')})`);
+      } else if (discount.gt(0)) {
+        notes.push(`Desconto de R$ ${discount.toFixed(2).replace('.', ',')}`);
       }
-      const items = await tx.appointmentItem.findMany({ where: { appointmentId: appointment.id } });
-      const parts = items.length
-        ? items.map((i) => ({
-            serviceId: i.serviceId,
-            price: new PrismaNamespace.Decimal(i.priceSnapshot),
-          }))
-        : [{ serviceId: appointment.serviceId, price: price }];
-      const part = parts.find((p) => p.serviceId === pkg.serviceId);
-      if (!part) throw new UserError('Este pacote é de outro serviço.');
-      // Conferido no próprio UPDATE: duas comandas ao mesmo tempo não gastam a última sessão duas vezes.
-      const used = await tx.clientPackage.updateMany({
-        where: { id: pkg.id, sessionsUsed: { lt: pkg.sessionsTotal } },
-        data: { sessionsUsed: { increment: 1 } },
-      });
-      if (used.count === 0) throw new UserError('As sessões deste pacote acabaram.');
-      // O livro do pacote: esta é a sessão n (o progresso "2 de 8" sai daqui).
-      const after = await tx.clientPackage.findUniqueOrThrow({
-        where: { id: pkg.id },
-        select: { sessionsUsed: true },
-      });
-      await tx.packageMovement.create({
-        data: {
-          companyId: params.companyId,
-          clientPackageId: pkg.id,
-          kind: 'CONSUME',
-          quantity: 1,
+
+      const total = PrismaNamespace.Decimal.max(0, price.sub(discount));
+      const credits: Prisma.AppointmentCreditCreateManyInput[] = [];
+      let toCharge = total;
+
+      if (params.packageId) {
+        const pkg = await tx.clientPackage.findFirst({
+          where: {
+            id: params.packageId,
+            companyId: params.companyId,
+            clientId: appointment.clientId,
+            status: 'ACTIVE',
+          },
+        });
+        if (!pkg) throw new UserError('Pacote não encontrado para este cliente.');
+        if (!pkg.recurring && pkg.periodEnd && pkg.periodEnd < new Date()) {
+          throw new UserError('Este pacote venceu.');
+        }
+        const items = await tx.appointmentItem.findMany({
+          where: { appointmentId: appointment.id },
+        });
+        const parts = items.length
+          ? items.map((i) => ({
+              serviceId: i.serviceId,
+              price: new PrismaNamespace.Decimal(i.priceSnapshot),
+            }))
+          : [{ serviceId: appointment.serviceId, price: price }];
+        const part = parts.find((p) => p.serviceId === pkg.serviceId);
+        if (!part) throw new UserError('Este pacote é de outro serviço.');
+        // Conferido no próprio UPDATE: duas comandas ao mesmo tempo não gastam a última sessão duas vezes.
+        const used = await tx.clientPackage.updateMany({
+          where: { id: pkg.id, sessionsUsed: { lt: pkg.sessionsTotal } },
+          data: { sessionsUsed: { increment: 1 } },
+        });
+        if (used.count === 0) throw new UserError('As sessões deste pacote acabaram.');
+        // O livro do pacote: esta é a sessão n (o progresso "2 de 8" sai daqui).
+        const after = await tx.clientPackage.findUniqueOrThrow({
+          where: { id: pkg.id },
+          select: { sessionsUsed: true },
+        });
+        await tx.packageMovement.create({
+          data: {
+            companyId: params.companyId,
+            clientPackageId: pkg.id,
+            kind: 'CONSUME',
+            quantity: 1,
+            appointmentId: appointment.id,
+            sessionNumber: after.sessionsUsed,
+            createdByUserId: params.updatedByUserId,
+          },
+        });
+        // O registro da sessão (se já existe) fica ligado ao pacote que pagou a sessão.
+        await tx.sessionRecord.updateMany({
+          where: { appointmentId: appointment.id, clientPackageId: null },
+          data: { clientPackageId: pkg.id },
+        });
+        toCharge = PrismaNamespace.Decimal.max(0, toCharge.sub(part.price));
+        credits.push({
           appointmentId: appointment.id,
-          sessionNumber: after.sessionsUsed,
-          createdByUserId: params.updatedByUserId,
-        },
-      });
-      // O registro da sessão (se já existe) fica ligado ao pacote que pagou a sessão.
-      await tx.sessionRecord.updateMany({
-        where: { appointmentId: appointment.id, clientPackageId: null },
-        data: { clientPackageId: pkg.id },
-      });
-      toCharge = PrismaNamespace.Decimal.max(0, toCharge.sub(part.price));
-      credits.push({
-        appointmentId: appointment.id,
-        kind: 'PACKAGE',
-        clientPackageId: pkg.id,
-        amount: pkg.sessionValue,
-      });
-      notes.push(`pacote:${pkg.nameSnapshot} (sessão ${after.sessionsUsed}/${pkg.sessionsTotal})`);
-    }
+          kind: 'PACKAGE',
+          clientPackageId: pkg.id,
+          amount: pkg.sessionValue,
+        });
+        notes.push(
+          `pacote:${pkg.nameSnapshot} (sessão ${after.sessionsUsed}/${pkg.sessionsTotal})`,
+        );
+      }
 
-    if (params.giftCardCode?.trim()) {
-      const code = params.giftCardCode.trim().toUpperCase();
-      const card = await tx.giftCard.findFirst({
-        where: { companyId: params.companyId, code, status: 'ACTIVE' },
-      });
-      if (!card) throw new UserError('Vale-presente não encontrado.');
-      if (card.expiresAt && card.expiresAt < new Date())
-        throw new UserError('Este vale-presente venceu.');
-      const use = PrismaNamespace.Decimal.min(card.balance, toCharge);
-      if (use.lte(0)) throw new UserError('Não há valor a pagar com o vale-presente.');
-      const spent = await tx.giftCard.updateMany({
-        where: { id: card.id, balance: { gte: use } },
-        data: { balance: { decrement: use } },
-      });
-      if (spent.count === 0) throw new UserError('O saldo do vale-presente mudou. Tente de novo.');
-      toCharge = toCharge.sub(use);
-      credits.push({
-        appointmentId: appointment.id,
-        kind: 'GIFT_CARD',
-        giftCardId: card.id,
-        amount: use,
-      });
-      notes.push(`vale:${code} (−R$ ${use.toFixed(2).replace('.', ',')})`);
-    }
+      if (params.giftCardCode?.trim()) {
+        const code = params.giftCardCode.trim().toUpperCase();
+        const card = await tx.giftCard.findFirst({
+          where: { companyId: params.companyId, code, status: 'ACTIVE' },
+        });
+        if (!card) throw new UserError('Vale-presente não encontrado.');
+        if (card.expiresAt && card.expiresAt < new Date())
+          throw new UserError('Este vale-presente venceu.');
+        const use = PrismaNamespace.Decimal.min(card.balance, toCharge);
+        if (use.lte(0)) throw new UserError('Não há valor a pagar com o vale-presente.');
+        const spent = await tx.giftCard.updateMany({
+          where: { id: card.id, balance: { gte: use } },
+          data: { balance: { decrement: use } },
+        });
+        if (spent.count === 0)
+          throw new UserError('O saldo do vale-presente mudou. Tente de novo.');
+        toCharge = toCharge.sub(use);
+        credits.push({
+          appointmentId: appointment.id,
+          kind: 'GIFT_CARD',
+          giftCardId: card.id,
+          amount: use,
+        });
+        notes.push(`vale:${code} (−R$ ${use.toFixed(2).replace('.', ',')})`);
+      }
 
-    // Sinal pago pelo link online: já entrou no caixa, sai do que falta cobrar.
-    const deposit = await tx.transaction.aggregate({
-      where: { appointmentId: appointment.id, category: 'Sinal', status: 'PAID' },
-      _sum: { amount: true },
-    });
-    const depositPaid = new PrismaNamespace.Decimal(deposit._sum.amount ?? 0);
-    if (depositPaid.gt(0)) {
-      const used = PrismaNamespace.Decimal.min(depositPaid, toCharge);
-      toCharge = toCharge.sub(used);
-      notes.push(`sinal pago (−R$ ${used.toFixed(2).replace('.', ',')})`);
-    }
+      // Sinal pago pelo link online: já entrou no caixa, sai do que falta cobrar.
+      const deposit = await tx.transaction.aggregate({
+        where: { appointmentId: appointment.id, category: 'Sinal', status: 'PAID' },
+        _sum: { amount: true },
+      });
+      const depositPaid = new PrismaNamespace.Decimal(deposit._sum.amount ?? 0);
+      if (depositPaid.gt(0)) {
+        const used = PrismaNamespace.Decimal.min(depositPaid, toCharge);
+        toCharge = toCharge.sub(used);
+        notes.push(`sinal pago (−R$ ${used.toFixed(2).replace('.', ',')})`);
+      }
 
-    if (params.payOnTab && params.split?.length) {
-      throw new UserError('No fiado não dá para dividir o pagamento.');
-    }
-    const splitTotal = (params.split ?? []).reduce(
-      (sum, part) => sum.add(part.amount),
-      new PrismaNamespace.Decimal(0),
-    );
-    if (splitTotal.gt(toCharge)) {
-      throw new UserError(
-        `A soma das outras formas de pagamento passa do total (R$ ${toCharge.toFixed(2).replace('.', ',')}).`,
+      if (params.payOnTab && params.split?.length) {
+        throw new UserError('No fiado não dá para dividir o pagamento.');
+      }
+      const splitTotal = (params.split ?? []).reduce(
+        (sum, part) => sum.add(part.amount),
+        new PrismaNamespace.Decimal(0),
       );
-    }
-    const remainder = toCharge.sub(splitTotal);
-    const payments = params.payOnTab
-      ? [{ amount: toCharge, paymentMethod: null, pending: true }]
-      : [
-          ...(remainder.gt(0) || splitTotal.eq(0)
-            ? [{ amount: remainder, paymentMethod: params.paymentMethod }]
-            : []),
-          ...(params.split ?? []).map((part) => ({
-            amount: new PrismaNamespace.Decimal(part.amount),
-            paymentMethod: part.paymentMethod,
-          })),
-        ];
+      if (splitTotal.gt(toCharge)) {
+        throw new UserError(
+          `A soma das outras formas de pagamento passa do total (R$ ${toCharge.toFixed(2).replace('.', ',')}).`,
+        );
+      }
+      const remainder = toCharge.sub(splitTotal);
+      const payments = params.payOnTab
+        ? [{ amount: toCharge, paymentMethod: null, pending: true }]
+        : [
+            ...(remainder.gt(0) || splitTotal.eq(0)
+              ? [{ amount: remainder, paymentMethod: params.paymentMethod }]
+              : []),
+            ...(params.split ?? []).map((part) => ({
+              amount: new PrismaNamespace.Decimal(part.amount),
+              paymentMethod: part.paymentMethod,
+            })),
+          ];
 
-    await tx.appointment.updateMany({
-      where: { id: params.id, companyId: params.companyId },
-      data: { status: 'DONE', updatedByUserId: params.updatedByUserId },
-    });
-    const done = (await tx.appointment.findFirst({
-      where: { id: params.id, companyId: params.companyId },
-    }))!;
+      await tx.appointment.updateMany({
+        where: { id: params.id, companyId: params.companyId },
+        data: { status: 'DONE', updatedByUserId: params.updatedByUserId },
+      });
+      const done = (await tx.appointment.findFirst({
+        where: { id: params.id, companyId: params.companyId },
+      }))!;
 
-    await createIncomeFromAppointment(params.companyId, done, params.updatedByUserId, tx, {
-      payments,
-      notes: notes.join(' · ') || null,
-    });
-    if (credits.length) await tx.appointmentCredit.createMany({ data: credits });
-    if (params.tip && params.tip > 0) {
-      // No fiado, a gorjeta também fica para receber junto.
-      const tipPaid = !params.payOnTab;
-      const paidAt = tipPaid ? new Date() : null;
-      await tx.transaction.create({
-        data: {
-          ...(await feeFields(tx, params.companyId, {
+      await createIncomeFromAppointment(params.companyId, done, params.updatedByUserId, tx, {
+        payments,
+        notes: notes.join(' · ') || null,
+      });
+      if (credits.length) await tx.appointmentCredit.createMany({ data: credits });
+      if (params.tip && params.tip > 0) {
+        // No fiado, a gorjeta também fica para receber junto.
+        const tipPaid = !params.payOnTab;
+        const paidAt = tipPaid ? new Date() : null;
+        await tx.transaction.create({
+          data: {
+            ...(await feeFields(tx, params.companyId, {
+              type: 'INCOME',
+              status: tipPaid ? 'PAID' : 'PENDING',
+              amount: params.tip,
+              paymentMethod: params.paymentMethod,
+              paidAt,
+            })),
+            companyId: params.companyId,
+            appointmentId: params.id,
+            clientId: done.clientId,
             type: 'INCOME',
             status: tipPaid ? 'PAID' : 'PENDING',
+            description: `Gorjeta — ${done.serviceNameSnapshot}`,
+            category: 'Gorjeta',
             amount: params.tip,
-            paymentMethod: params.paymentMethod,
+            paymentMethod: tipPaid ? params.paymentMethod : null,
             paidAt,
-          })),
-          companyId: params.companyId,
-          appointmentId: params.id,
-          clientId: done.clientId,
-          type: 'INCOME',
-          status: tipPaid ? 'PAID' : 'PENDING',
-          description: `Gorjeta — ${done.serviceNameSnapshot}`,
-          category: 'Gorjeta',
-          amount: params.tip,
-          paymentMethod: tipPaid ? params.paymentMethod : null,
-          paidAt,
-          createdByUserId: params.updatedByUserId,
-        },
-      });
-    }
-    await earnLoyaltyFromAppointment(params.companyId, done, params.updatedByUserId, tx);
-    await consumeSuppliesForAppointment(tx, {
-      companyId: params.companyId,
-      appointmentId: done.id,
-      serviceId: done.serviceId,
-      userId: params.updatedByUserId,
-    });
-    await recordAuditLog(
-      {
+            createdByUserId: params.updatedByUserId,
+          },
+        });
+      }
+      await earnLoyaltyFromAppointment(params.companyId, done, params.updatedByUserId, tx);
+      await consumeSuppliesForAppointment(tx, {
         companyId: params.companyId,
-        entityType: 'Appointment',
-        entityId: params.id,
-        action: 'status_changed',
+        appointmentId: done.id,
+        serviceId: done.serviceId,
         userId: params.updatedByUserId,
-        metadata: {
-          from: appointment.status,
-          status: 'DONE',
-          total: total.toString(),
-          paymentMethod: params.paymentMethod,
-          split: params.split ?? [],
-          coupon: params.couponCode ?? null,
-          packageId: params.packageId ?? null,
-          giftCard: params.giftCardCode ?? null,
-          tab: !!params.payOnTab,
-          charged: toCharge.toString(),
-          tip: params.tip ?? 0,
+      });
+      await recordAuditLog(
+        {
+          companyId: params.companyId,
+          entityType: 'Appointment',
+          entityId: params.id,
+          action: 'status_changed',
+          userId: params.updatedByUserId,
+          metadata: {
+            from: appointment.status,
+            status: 'DONE',
+            total: total.toString(),
+            paymentMethod: params.paymentMethod,
+            split: params.split ?? [],
+            coupon: params.couponCode ?? null,
+            packageId: params.packageId ?? null,
+            giftCard: params.giftCardCode ?? null,
+            tab: !!params.payOnTab,
+            charged: toCharge.toString(),
+            tip: params.tip ?? 0,
+          },
         },
-      },
-      tx,
-    );
-    return { appointment: done, total: Number(toCharge) };
-    // A comanda faz muitas consultas seguidas (cupom, pacote, vale, caixa): folga acima dos 5 s.
-  }, { maxWait: 10_000, timeout: 20_000 });
+        tx,
+      );
+      return { appointment: done, total: Number(toCharge) };
+      // A comanda faz muitas consultas seguidas (cupom, pacote, vale, caixa): folga acima dos 5 s.
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 }
 
 export async function cancelAppointment(params: {
@@ -891,37 +913,40 @@ export async function cancelAppointment(params: {
   canceledByUserId: string;
   reason?: string;
 }): Promise<Appointment> {
-  return prisma.$transaction(async (tx) => {
-    await lockAppointment(tx, params.companyId, params.id);
-    await tx.appointment.updateMany({
-      where: { id: params.id, companyId: params.companyId },
-      data: {
-        status: 'CANCELED',
-        canceledAt: new Date(),
-        canceledByUserId: params.canceledByUserId,
-        cancellationReason: params.reason,
-        updatedByUserId: params.canceledByUserId,
-      },
-    });
-    // Cancelar um atendimento já concluído também tira a receita e a fidelidade dele.
-    await reverseIncomeFromAppointment(params.companyId, params.id, tx, params.canceledByUserId);
-    await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
+  return prisma.$transaction(
+    async (tx) => {
+      await lockAppointment(tx, params.companyId, params.id);
+      await tx.appointment.updateMany({
+        where: { id: params.id, companyId: params.companyId },
+        data: {
+          status: 'CANCELED',
+          canceledAt: new Date(),
+          canceledByUserId: params.canceledByUserId,
+          cancellationReason: params.reason,
+          updatedByUserId: params.canceledByUserId,
+        },
+      });
+      // Cancelar um atendimento já concluído também tira a receita e a fidelidade dele.
+      await reverseIncomeFromAppointment(params.companyId, params.id, tx, params.canceledByUserId);
+      await reverseLoyaltyFromAppointment(params.companyId, params.id, tx);
 
-    await recordAuditLog(
-      {
-        companyId: params.companyId,
-        entityType: 'Appointment',
-        entityId: params.id,
-        action: 'canceled',
-        userId: params.canceledByUserId,
-        metadata: { reason: params.reason },
-      },
-      tx,
-    );
-    return (await tx.appointment.findFirst({
-      where: { id: params.id, companyId: params.companyId },
-    }))!;
-  }, { maxWait: 10_000, timeout: 20_000 });
+      await recordAuditLog(
+        {
+          companyId: params.companyId,
+          entityType: 'Appointment',
+          entityId: params.id,
+          action: 'canceled',
+          userId: params.canceledByUserId,
+          metadata: { reason: params.reason },
+        },
+        tx,
+      );
+      return (await tx.appointment.findFirst({
+        where: { id: params.id, companyId: params.companyId },
+      }))!;
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -43,7 +43,11 @@ export const loyaltyProgramInput = z
       ctx.addIssue({ code: 'custom', path: ['rewardValue'], message: 'Máximo de 100%' });
     }
     if (data.rewardType === 'CUSTOM' && !data.rewardDescription?.trim()) {
-      ctx.addIssue({ code: 'custom', path: ['rewardDescription'], message: 'Descreva a recompensa' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rewardDescription'],
+        message: 'Descreva a recompensa',
+      });
     }
   });
 export type LoyaltyProgramFormInput = z.infer<typeof loyaltyProgramInput>;

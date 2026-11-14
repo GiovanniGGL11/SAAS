@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { prisma } from '@/lib/db';
-import {
-  cancelAppointment,
-  createAppointment,
-  moveAppointment,
-} from '@/server/data/appointments';
+import { cancelAppointment, createAppointment, moveAppointment } from '@/server/data/appointments';
 import {
   getConnectionStatus,
   saveConnection,
@@ -35,7 +31,9 @@ function installFakeGoogle() {
       const method = init?.method ?? 'GET';
 
       if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return state.tokenError ? json({ error: state.tokenError }, 400) : json({ access_token: 'at' });
+        return state.tokenError
+          ? json({ error: state.tokenError }, 400)
+          : json({ access_token: 'at' });
       }
       if (url.startsWith('https://oauth2.googleapis.com/revoke')) return json({});
 
@@ -146,7 +144,9 @@ describe('google calendar sync', () => {
     });
     await syncAppointmentToGoogle(fixture.company.id, appointment.id);
     expect(google.events.size).toBe(0);
-    expect(await prisma.googleCalendarEvent.count({ where: { connectionId: connection.id } })).toBe(0);
+    expect(await prisma.googleCalendarEvent.count({ where: { connectionId: connection.id } })).toBe(
+      0,
+    );
   });
 
   it('only mirrors the professionals the user picked', async () => {
@@ -188,7 +188,9 @@ describe('google calendar sync', () => {
     const appointment = await appointmentFor(fixture, '2030-07-04T13:00:00Z');
 
     google.state.tokenError = 'invalid_grant';
-    await expect(syncAppointmentToGoogle(fixture.company.id, appointment.id)).resolves.toBeUndefined();
+    await expect(
+      syncAppointmentToGoogle(fixture.company.id, appointment.id),
+    ).resolves.toBeUndefined();
 
     const status = await getConnectionStatus(fixture.company.id, connection.userId);
     expect(status.needsReconnect).toBe(true);
@@ -206,7 +208,9 @@ describe('google calendar sync', () => {
 
     await setConnectionProfessionals(fixture.company.id, 'user_a', [fixture.professional.id]);
     expect(google.events.size).toBe(1);
-    expect(await prisma.googleCalendarEvent.count({ where: { appointmentId: appointment.id } })).toBe(1);
+    expect(
+      await prisma.googleCalendarEvent.count({ where: { appointmentId: appointment.id } }),
+    ).toBe(1);
 
     await setConnectionProfessionals(fixture.company.id, 'user_a', []);
     expect(google.events.size).toBe(0);

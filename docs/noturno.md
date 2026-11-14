@@ -36,6 +36,12 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-14: manutenção. Master trouxe custos de IA, pacotes/assinaturas, login da plataforma e ajustes de celular (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown.
+- 2026-11-13: manutenção. Master trouxe planos/IA, plataforma, cadastro pelo link e agenda (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown (inclui `docs/planos-e-ia.md`, do master, não alterado).
+- 2026-11-12: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
+- 2026-11-10: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
+- 2026-11-09: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa. Prettier só acusa arquivos Markdown de `docs/` e o README (não alterados).
+- 2026-11-07: todos os itens concluídos e o branch já estava igual ao master (PR anterior incorporado). Execução só de manutenção: tsc e eslint limpos (só avisos antigos), `tests/csv.test.ts` passa; 15 arquivos vindos do master formatados com Prettier.
 - Sino/assistente: a largura em 375px foi conferida só pelo código (sem Clerk aqui não dá para abrir o painel); o topo agora tem busca, assistente, sino, tema e usuário — vale olhar num celular de verdade.
 - Assistente: criar/editar cliente pelas telas normais não grava AuditLog (só pelo assistente). Avaliar se vale padronizar.
 
