@@ -4,7 +4,7 @@ import { AVATAR_DATA_URL, AVATAR_MAX_CHARS } from '@/lib/avatar';
 
 export const professionalInput = z.object({
   name: z.string().min(1, 'Informe o nome').max(200),
-  email: z.union([z.email(), z.literal('')]).optional(),
+  email: z.union([z.email('E-mail inválido. Confira o endereço.'), z.literal('')]).optional(),
   phone: z.string().max(30).optional(),
   color: z.string().min(1, 'Selecione uma cor'),
   commissionType: z.enum(['FIXED', 'PERCENTAGE']).nullable().optional(),

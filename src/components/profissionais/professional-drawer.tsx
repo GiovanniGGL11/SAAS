@@ -152,9 +152,9 @@ export function ProfessionalDrawer({
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email (opcional)</FormLabel>
+                    <FormLabel>E-mail</FormLabel>
                     <FormControl>
-                      <Input type="email" {...field} />
+                      <Input type="email" inputMode="email" autoComplete="off" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -174,6 +174,10 @@ export function ProfessionalDrawer({
                 )}
               />
             </div>
+            <p className="text-label-secondary -mt-2 text-xs">
+              O e-mail é opcional, mas sem ele o profissional não recebe o convite para ter login
+              próprio (agenda e ganhos dele pelo celular).
+            </p>
 
             <FormField
               control={form.control}
