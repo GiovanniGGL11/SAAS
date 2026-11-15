@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 import { ScrollingFlag } from '@/components/layout/scrolling-flag';
+import { ProfilePhotoSync } from '@/components/layout/profile-photo-sync';
 import { ViewerProvider } from '@/components/layout/viewer-context';
 import { getOwnProfessional } from '@/server/auth/professional-scope';
 import { DemoBanner } from '@/components/demo/demo-controls';
@@ -68,6 +69,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <MobileTabBar />
         <ScrollingFlag />
+        {ownProfessionalId && <ProfilePhotoSync />}
       </div>
     </ViewerProvider>
   );

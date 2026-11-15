@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { AVATAR_DATA_URL, AVATAR_MAX_CHARS } from '@/lib/avatar';
+import { AVATAR_MAX_CHARS, isAcceptedAvatar } from '@/lib/avatar';
 
 export const professionalInput = z.object({
   name: z.string().min(1, 'Informe o nome').max(200),
@@ -14,7 +14,7 @@ export const professionalInput = z.object({
   avatarUrl: z
     .string()
     .max(AVATAR_MAX_CHARS, 'A foto ficou grande demais. Tente outra.')
-    .regex(AVATAR_DATA_URL, 'Foto inválida.')
+    .refine(isAcceptedAvatar, 'Foto inválida.')
     .nullable()
     .optional(),
 });

@@ -10,11 +10,15 @@ describe('foto do profissional', () => {
     expect(professionalInput.parse({ ...base, avatarUrl: photo }).avatarUrl).toBe(photo);
     expect(professionalInput.parse({ ...base, avatarUrl: null }).avatarUrl).toBeNull();
     expect(professionalInput.parse(base).avatarUrl).toBeUndefined();
+    // Foto da conta do profissional (Clerk), sincronizada quando ele troca no celular.
+    const clerk = 'https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwcyJ9';
+    expect(professionalInput.parse({ ...base, avatarUrl: clerk }).avatarUrl).toBe(clerk);
   });
 
   it('recusa link externo, outro tipo de arquivo e foto grande demais', () => {
     for (const avatarUrl of [
       'https://exemplo.com/foto.jpg',
+      'https://img.clerk.com.golpe.com/foto.jpg',
       'data:text/html;base64,PGgxPm9pPC9oMT4=',
       'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
       `data:image/jpeg;base64,${'A'.repeat(200_000)}`,

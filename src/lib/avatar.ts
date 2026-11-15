@@ -4,8 +4,15 @@
   os agendamentos levam apenas nome e cor do profissional.
 */
 
-/** Data URL de imagem aceita (JPEG, PNG ou WebP) — o servidor só guarda isto. */
+/** Data URL de imagem aceita (JPEG, PNG ou WebP), vinda do envio no cadastro. */
 export const AVATAR_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/;
+
+/** Foto da conta do próprio profissional, servida pelo Clerk (sincronizada do login dele). */
+export const AVATAR_CLERK_URL = /^https:\/\/img\.clerk\.com\/[A-Za-z0-9._~\/?=&%+-]+$/;
+
+export function isAcceptedAvatar(value: string): boolean {
+  return AVATAR_DATA_URL.test(value) || AVATAR_CLERK_URL.test(value);
+}
 
 /** Teto do texto da foto (a de 256 px fica bem abaixo disto). */
 export const AVATAR_MAX_CHARS = 150_000;
