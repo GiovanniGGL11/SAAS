@@ -84,11 +84,12 @@ function Calendar({
           'text-[0.8rem] text-muted-foreground select-none',
           defaultClassNames.week_number,
         ),
+        // Cantos do intervalo na borda da semana; o dia único selecionado fica sempre redondo.
         day: cn(
-          'group/day relative aspect-square h-full w-full rounded-(--cell-radius) p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-r-(--cell-radius)',
+          'group/day relative aspect-square h-full w-full rounded-(--cell-radius) p-0 text-center select-none [&:last-child[data-selected=true]_button:not([data-selected-single=true])]:rounded-r-(--cell-radius)',
           props.showWeekNumber
-            ? '[&:nth-child(2)[data-selected=true]_button]:rounded-l-(--cell-radius)'
-            : '[&:first-child[data-selected=true]_button]:rounded-l-(--cell-radius)',
+            ? '[&:nth-child(2)[data-selected=true]_button:not([data-selected-single=true])]:rounded-l-(--cell-radius)'
+            : '[&:first-child[data-selected=true]_button:not([data-selected-single=true])]:rounded-l-(--cell-radius)',
           defaultClassNames.day,
         ),
         range_start: cn(
