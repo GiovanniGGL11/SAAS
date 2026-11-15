@@ -1,4 +1,6 @@
-import { OrganizationSwitcher, UserButton } from '@clerk/nextjs';
+import { UserButton } from '@clerk/nextjs';
+
+import { OrgSwitcher } from '@/components/layout/org-switcher';
 
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { CommandMenu } from '@/components/layout/command-menu';
@@ -10,19 +12,7 @@ export function Topbar() {
     <header className="bg-background/95 md:bg-background/85 border-foreground/[0.06] sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b px-3 md:gap-3 md:px-6 md:backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-1.5">
         <div className="min-w-0 overflow-hidden">
-          <OrganizationSwitcher
-            hidePersonal
-            afterSelectOrganizationUrl="/dashboard"
-            afterCreateOrganizationUrl="/dashboard"
-            appearance={{
-              elements: {
-                // Logo do negócio em destaque na barra (o padrão do Clerk é bem pequeno).
-                organizationPreviewAvatarBox__organizationSwitcherTrigger: 'size-8 rounded-lg',
-                organizationPreviewMainIdentifier__organizationSwitcherTrigger:
-                  'text-[15px] font-semibold',
-              },
-            }}
-          />
+          <OrgSwitcher />
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1 md:gap-2">
