@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
@@ -42,7 +42,10 @@ import {
   updateProfessionalAction,
 } from '@/server/actions/professional-actions';
 import { professionalInput } from '@/lib/validations/professional';
+import type { z } from 'zod';
 import type { SerializedProfessional } from '@/lib/serialize';
+import { fileToAvatarDataUrl } from '@/lib/avatar';
+import { InitialsAvatar } from '@/components/layout/list-controls';
 
 const NO_COMMISSION = '__none__';
 
@@ -50,14 +53,15 @@ export function ProfessionalDrawer({
   open,
   onOpenChange,
   professional,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   professional?: SerializedProfessional | null;
+  /** Depois de criar, o painel fecha; quem chama oferece abrir de novo para o expediente. */
+  onCreated?: (professional: SerializedProfessional) => void;
 }) {
   const queryClient = useQueryClient();
-  // Recém-criado nesta abertura: o painel continua aberto para definir o expediente na sequência.
-  const [justCreatedId, setJustCreatedId] = React.useState<string | null>(null);
   const isEdit = !!professional;
 
   const form = useForm({
@@ -70,6 +74,7 @@ export function ProfessionalDrawer({
       commissionType: professional?.commissionType ?? null,
       commissionValue: professional?.commissionValue ?? null,
       monthlyGoal: professional?.monthlyGoal ?? null,
+      avatarUrl: professional?.avatarUrl ?? null,
     },
   });
 
@@ -77,33 +82,26 @@ export function ProfessionalDrawer({
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
-      (isEdit || justCreatedId
-        ? updateProfessionalAction(professional?.id ?? justCreatedId!, values)
+      (isEdit
+        ? updateProfessionalAction(professional.id, values)
         : createProfessionalAction(values)
       ).then(unwrapResult),
     onSuccess: (saved) => {
       upsertInList(queryClient, ['professionals'], saved);
       queryClient.invalidateQueries({ queryKey: ['professionals'] });
-      if (!isEdit && !justCreatedId) {
-        toast.success('Profissional criado. Agora defina o expediente.');
-        setJustCreatedId(saved.id);
+      onOpenChange(false);
+      if (isEdit) {
+        toast.success('Profissional atualizado.');
         return;
       }
-      toast.success(isEdit ? 'Profissional atualizado.' : 'Profissional criado.');
-      onOpenChange(false);
+      if (onCreated) onCreated(saved);
+      else toast.success('Profissional criado.');
     },
     onError: (error: Error) => toast.error(error.message || 'Não foi possível salvar.'),
   });
 
   return (
-    <Drawer
-      direction="right"
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) setJustCreatedId(null);
-        onOpenChange(next);
-      }}
-    >
+    <Drawer direction="right" open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="data-[vaul-drawer-direction=right]:w-full! data-[vaul-drawer-direction=right]:sm:w-3/4!">
         <DrawerHeader>
           <DrawerTitle>{isEdit ? 'Editar profissional' : 'Novo profissional'}</DrawerTitle>
@@ -117,6 +115,22 @@ export function ProfessionalDrawer({
             className="flex flex-1 flex-col gap-4 overflow-y-auto px-4"
             onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
           >
+            <FormField
+              control={form.control}
+              name="avatarUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Foto (opcional)</FormLabel>
+                  <AvatarField
+                    value={field.value ?? null}
+                    onChange={field.onChange}
+                    control={form.control}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="name"
@@ -255,14 +269,14 @@ export function ProfessionalDrawer({
             />
 
             {/* Expediente tem gravação própria: precisa do profissional já salvo. */}
-            {isEdit || justCreatedId ? (
+            {isEdit ? (
               <>
-                <AvailabilityEditor professionalId={professional?.id ?? justCreatedId!} />
-                <AbsencesEditor professionalId={professional?.id ?? justCreatedId!} />
+                <AvailabilityEditor professionalId={professional.id} />
+                <AbsencesEditor professionalId={professional.id} />
               </>
             ) : (
               <p className="text-label-secondary text-xs">
-                Ao salvar, o expediente da semana aparece aqui para você definir.
+                Depois de criar, toque no profissional para definir o expediente da semana.
               </p>
             )}
           </form>
@@ -285,5 +299,69 @@ export function ProfessionalDrawer({
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
+  );
+}
+
+/** Foto do profissional: escolhe no aparelho (galeria ou câmera), reduz e mostra na hora. */
+function AvatarField({
+  value,
+  onChange,
+  control,
+}: {
+  value: string | null;
+  onChange: (value: string | null) => void;
+  control: Control<z.input<typeof professionalInput>>;
+}) {
+  // Só este campo acompanha nome e cor (para as iniciais): o resto do formulário não re-renderiza.
+  const name = useWatch({ control, name: 'name' });
+  const color = useWatch({ control, name: 'color' });
+  const input = React.useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      onChange(await fileToAvatarDataUrl(file));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível usar essa foto.');
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = '';
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-4">
+      <InitialsAvatar
+        name={name || '?'}
+        color={color}
+        imageUrl={value}
+        className="size-16 text-[20px]"
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => input.current?.click()}
+        >
+          {busy ? 'Preparando...' : value ? 'Trocar foto' : 'Escolher foto'}
+        </Button>
+        {value && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null)}>
+            Remover
+          </Button>
+        )}
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void pick(e.target.files?.[0])}
+      />
+    </div>
   );
 }

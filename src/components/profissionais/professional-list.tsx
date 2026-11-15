@@ -169,6 +169,7 @@ export function ProfessionalList({
                     <InitialsAvatar
                       name={professional.name}
                       color={professional.color}
+                      imageUrl={professional.avatarUrl}
                       className="size-11 text-[14px]"
                     />
                     <div className="min-w-0">
@@ -249,6 +250,13 @@ export function ProfessionalList({
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         professional={editingProfessional}
+        onCreated={(created) =>
+          toast.success(`${created.name} foi cadastrado.`, {
+            description: 'Defina o expediente para a agenda mostrar os horários livres.',
+            action: { label: 'Definir expediente', onClick: () => openEdit(created) },
+            duration: 8000,
+          })
+        }
       />
     </div>
   );

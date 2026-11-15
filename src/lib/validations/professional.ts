@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { AVATAR_DATA_URL, AVATAR_MAX_CHARS } from '@/lib/avatar';
+
 export const professionalInput = z.object({
   name: z.string().min(1, 'Informe o nome').max(200),
   email: z.union([z.email(), z.literal('')]).optional(),
@@ -8,6 +10,13 @@ export const professionalInput = z.object({
   commissionType: z.enum(['FIXED', 'PERCENTAGE']).nullable().optional(),
   commissionValue: z.coerce.number().min(0).nullable().optional(),
   monthlyGoal: z.coerce.number().min(0).max(9_999_999).nullable().optional(),
+  /** Foto (data URL reduzida). Ausente = mantém; null = remove. */
+  avatarUrl: z
+    .string()
+    .max(AVATAR_MAX_CHARS, 'A foto ficou grande demais. Tente outra.')
+    .regex(AVATAR_DATA_URL, 'Foto inválida.')
+    .nullable()
+    .optional(),
 });
 export type ProfessionalFormInput = z.infer<typeof professionalInput>;
 
