@@ -23,26 +23,43 @@ export function AcceptInvitation() {
   const orgId = params.get('org');
   const router = useRouter();
   const { isSignedIn } = useAuth();
-  const { setActive } = useClerk();
+  const clerk = useClerk();
   const { signUp } = useSignUp();
   const { signIn } = useSignIn();
 
   const [name, setName] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState<string | undefined>();
+  // Aparelho novo: o Clerk (Device Trust) pede um código enviado por e-mail antes de liberar.
+  const [needsCode, setNeedsCode] = React.useState(false);
+  const [code, setCode] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const started = React.useRef(false);
 
+  /*
+    Ativa a sessão recém-criada já na empresa que convidou. Não confia no `status` do objeto de
+    login: depois de concluir, o Clerk descarta a tentativa e o estado lido aqui fica para trás —
+    a sessão nova é que diz se deu certo.
+  */
   const enterCompany = React.useCallback(async () => {
-    if (orgId) {
-      try {
-        await setActive({ organization: orgId });
-      } catch {
-        // Sem a empresa ativa, a tela de empresas mostra o convite para entrar.
-      }
+    const sessionId = clerk.client?.lastActiveSessionId ?? clerk.client?.sessions?.[0]?.id;
+    try {
+      await clerk.setActive({
+        ...(sessionId ? { session: sessionId } : {}),
+        ...(orgId ? { organization: orgId } : {}),
+      });
+    } catch {
+      // Sem a empresa ativa, a tela de empresas mostra o convite para entrar.
     }
     router.replace('/agenda');
-  }, [orgId, router, setActive]);
+  }, [clerk, orgId, router]);
+
+  /** Aparelho novo (Device Trust): o Clerk pede um código por e-mail antes de liberar. */
+  const needsDeviceCode = React.useCallback(() => {
+    const status = clerk.client?.signIn?.status;
+    return status === 'needs_client_trust' || status === 'needs_second_factor';
+  }, [clerk]);
+  const hasSession = React.useCallback(() => (clerk.client?.sessions?.length ?? 0) > 0, [clerk]);
 
   // Já tem conta (ou já entrou): usa o ticket para entrar e vai para a empresa.
   React.useEffect(() => {
@@ -62,15 +79,44 @@ export function AcceptInvitation() {
         setBusy(false);
         return;
       }
-      if (signIn.status === 'complete') {
-        await signIn.finalize();
+      if (needsDeviceCode()) {
+        const sent = await signIn.mfa.sendEmailCode();
+        if (sent.error) setError(getClerkErrorMessage(sent.error));
+        else setNeedsCode(true);
+        setBusy(false);
+        return;
+      }
+      if (signIn.status === 'complete') await signIn.finalize();
+      if (hasSession()) {
         await enterCompany();
         return;
       }
       setError('Não foi possível entrar com o convite. Entre com seu e-mail e senha.');
       setBusy(false);
     })();
-  }, [enterCompany, isSignedIn, signIn, status, ticket]);
+  }, [enterCompany, hasSession, isSignedIn, needsDeviceCode, signIn, status, ticket]);
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!signIn) return;
+    setError(undefined);
+    setBusy(true);
+    try {
+      const verified = await signIn.mfa.verifyEmailCode({ code });
+      if (verified.error) {
+        setError(getClerkErrorMessage(verified.error));
+        return;
+      }
+      if (signIn.status === 'complete') await signIn.finalize();
+      if (hasSession()) {
+        await enterCompany();
+        return;
+      }
+      setError('Não foi possível concluir. Entre com seu e-mail e senha.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function createAccount(e: React.FormEvent) {
     e.preventDefault();
@@ -93,8 +139,8 @@ export function AcceptInvitation() {
         setError(getClerkErrorMessage(error));
         return;
       }
-      if (signUp.status === 'complete') {
-        await signUp.finalize();
+      if (signUp.status === 'complete') await signUp.finalize();
+      if (hasSession()) {
         await enterCompany();
         return;
       }
@@ -114,6 +160,30 @@ export function AcceptInvitation() {
         </Link>
         .
       </p>
+    );
+  }
+
+  if (needsCode) {
+    return (
+      <form onSubmit={verifyCode} className="flex flex-col gap-4">
+        <p className="text-muted-foreground text-sm">
+          Por segurança, enviamos um código de 6 dígitos para o seu e-mail. Digite abaixo para
+          entrar.
+        </p>
+        <Input
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          aria-label="Código"
+          required
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          className="text-center text-lg tracking-widest"
+        />
+        {error && <p className="text-destructive text-sm">{error}</p>}
+        <Button type="submit" disabled={busy}>
+          {busy ? 'Confirmando...' : 'Confirmar e entrar'}
+        </Button>
+      </form>
     );
   }
 
