@@ -146,6 +146,14 @@
 }
 
 @layer base {
+  /*
+    Grade sem colunas definidas (ex.: "grid gap-4 lg:grid-cols-2"): no celular a coluna única
+    acompanha a largura da tela, em vez de crescer até o conteúdo mais largo (um link comprido
+    estourava a página inteira). Quem define colunas (grid-cols-*) continua valendo.
+  */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   * {
     @apply border-border outline-ring/50;
     /* Barras de rolagem finas, sem setas e com trilho transparente, em todo o sistema. */

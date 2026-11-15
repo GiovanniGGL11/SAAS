@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CalendarCheckIcon, CoinsIcon, HandCoinsIcon, WalletIcon } from 'lucide-react';
 
 import { getViewerScope } from '@/server/auth/professional-scope';
 import { getMyEarnings } from '@/server/data/my-earnings';
@@ -8,7 +7,7 @@ import { resolveReportRange } from '@/lib/report-range';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import { cn } from '@/lib/utils';
 import { PageHeader, Surface } from '@/components/layout/page';
-import { StatTile } from '@/components/dashboard/stat-tile';
+import { EarningsTiles } from '@/components/ganhos/earnings-tiles';
 
 export const metadata = { title: 'Meus ganhos' };
 
@@ -67,52 +66,25 @@ export default async function MeusGanhosPage({
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-        <StatTile
-          index={0}
-          label="Atendimentos"
-          value={String(earnings.appointments)}
-          hint={`${earnings.upcoming} marcado(s) nos próximos 7 dias`}
-          icon={CalendarCheckIcon}
-        />
-        <StatTile
-          index={1}
-          label="Produção"
-          value={formatCurrencyBRL(earnings.production)}
-          hint="O que foi cobrado pelos seus serviços"
-          icon={CoinsIcon}
-          iconColor="var(--system-orange)"
-        />
-        <StatTile
-          index={2}
-          label="Comissão"
-          value={earnings.commission === null ? '—' : formatCurrencyBRL(earnings.commission)}
-          hint={earnings.rule ?? 'Sem regra de comissão cadastrada. Fale com o responsável.'}
-          icon={HandCoinsIcon}
-          iconColor="var(--system-green)"
-          valueClassName="text-system-green"
-        />
-        <StatTile
-          index={3}
-          label={earnings.payout ? 'Acerto feito' : 'A receber'}
-          value={
-            earnings.payout
-              ? formatCurrencyBRL(earnings.payout.netAmount)
-              : earnings.toReceive === null
-                ? '—'
-                : formatCurrencyBRL(earnings.toReceive)
-          }
-          hint={
-            earnings.payout
-              ? `Pago em ${new Intl.DateTimeFormat('pt-BR', { timeZone: company.timezone }).format(earnings.payout.createdAt)}`
-              : earnings.openAdvances > 0
-                ? `Comissão menos ${formatCurrencyBRL(earnings.openAdvances)} de vales`
-                : 'Comissão do período, ainda sem acerto'
-          }
-          icon={WalletIcon}
-          iconColor="var(--system-indigo)"
-        />
-      </div>
+      <EarningsTiles
+        appointments={earnings.appointments}
+        upcoming={earnings.upcoming}
+        production={earnings.production}
+        commission={earnings.commission}
+        rule={earnings.rule}
+        openAdvances={earnings.openAdvances}
+        toReceive={earnings.toReceive}
+        payout={
+          earnings.payout
+            ? {
+                netAmount: earnings.payout.netAmount,
+                paidOn: new Intl.DateTimeFormat('pt-BR', { timeZone: company.timezone }).format(
+                  earnings.payout.createdAt,
+                ),
+              }
+            : null
+        }
+      />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-[20px] font-bold tracking-[-0.02em]">Atendimentos concluídos</h2>

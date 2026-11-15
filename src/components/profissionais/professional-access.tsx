@@ -71,7 +71,8 @@ export function ProfessionalAccessCard({
         <div>
           <h3 className="text-[15px] font-semibold">Acesso do profissional</h3>
           <p className="text-label-secondary text-xs">
-            Com login próprio, {first} vê pelo celular só a agenda, os clientes e os ganhos dele.
+            Com login próprio, {first} vê pelo celular só a própria agenda, os próprios clientes e
+            quanto ganhou.
           </p>
         </div>
       </div>

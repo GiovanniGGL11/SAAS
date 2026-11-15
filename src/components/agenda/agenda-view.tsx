@@ -16,7 +16,6 @@ import {
 } from '@/components/agenda/calendar-grid';
 import { AgendaToolbar, type AgendaViewMode } from '@/components/agenda/agenda-toolbar';
 import { AgendaSidebar, type ColorMode } from '@/components/agenda/agenda-sidebar';
-import { GoogleCalendarCard } from '@/components/agenda/google-calendar-card';
 import { WaitlistOfferProvider } from '@/components/agenda/waitlist-offer';
 import { MonthView, monthGridRange } from '@/components/agenda/month-view';
 import { AppointmentCard } from '@/components/agenda/appointment-card';
@@ -664,12 +663,7 @@ export function AgendaView({
               <DrawerTitle>Calendário e filtros</DrawerTitle>
             </DrawerHeader>
             <div className="overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-              <AgendaSidebar
-                {...sidebarProps}
-                showCreate={false}
-                showGoogle={false}
-                className="w-full"
-              />
+              <AgendaSidebar {...sidebarProps} showCreate={false} className="w-full" />
             </div>
           </DrawerContent>
         </Drawer>
@@ -694,11 +688,6 @@ export function AgendaView({
             activeFilterCount={activeFilterCount}
             onShowShortcuts={() => setShowShortcuts(true)}
           />
-
-          {/* Phones: the sidebar is a sheet, so the Google sync entry gets its own always-visible pill. */}
-          <div className="lg:hidden">
-            <GoogleCalendarCard variant="chip" professionals={professionals} />
-          </div>
 
           {/* No celular a coluna esquerda some: os profissionais viram chips para mostrar/esconder. */}
           {professionals.length > 1 && (
@@ -980,9 +969,16 @@ function AgendaStats({
     value: string;
     dot: string;
     hint?: string;
+    /** Rótulo curto no celular. */
+    short?: string;
   }[] = [
     { label: 'Agendamentos', value: String(active.length), dot: 'bg-system-blue' },
-    { label: 'Pacote ou assinatura', value: String(withPackage), dot: 'bg-system-orange' },
+    {
+      label: 'Pacote ou assinatura',
+      short: 'Com pacote',
+      value: String(withPackage),
+      dot: 'bg-system-orange',
+    },
     { label: 'Avulsos', value: String(active.length - withPackage), dot: 'bg-foreground/40' },
     {
       label: 'Chegaram',
@@ -1003,12 +999,21 @@ function AgendaStats({
       {items.map((item) => {
         const body = (
           <>
-            <span className="truncate text-[18px] leading-tight font-semibold tabular-nums md:text-[22px]">
+            <span className="truncate text-[16px] leading-tight font-semibold tabular-nums md:text-[22px]">
               {item.value}
             </span>
             <span className="text-label-secondary flex min-w-0 items-center gap-1.5 text-[11px] font-medium md:text-[12px]">
               <span className={cn('size-1.5 shrink-0 rounded-full', item.dot)} aria-hidden />
-              <span className="truncate">{item.label}</span>
+              <span className="truncate">
+                {item.short ? (
+                  <>
+                    <span className="md:hidden">{item.short}</span>
+                    <span className="hidden md:inline">{item.label}</span>
+                  </>
+                ) : (
+                  item.label
+                )}
+              </span>
             </span>
             {item.hint && (
               <span className="text-label-secondary truncate text-[11px]">{item.hint}</span>
@@ -1018,7 +1023,7 @@ function AgendaStats({
         return (
           <div
             key={item.label}
-            className="bg-tile flex min-w-0 flex-col gap-0.5 rounded-2xl px-3 py-2.5 md:px-4 md:py-3"
+            className="bg-tile flex min-w-0 flex-col gap-0.5 rounded-2xl px-3 py-2 md:px-4 md:py-3"
           >
             {body}
           </div>
