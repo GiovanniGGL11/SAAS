@@ -69,6 +69,27 @@ export async function getProfessionalAccessAction(rawId: unknown) {
   });
 }
 
+/** Máximo de pessoas por empresa no plano grátis do Clerk. */
+const MEMBER_LIMIT = 20;
+
+/**
+ * Empresas criadas antes de o limite padrão subir no Clerk ficaram com 5 pessoas: sobe para 20 na
+ * hora de convidar, sem ninguém precisar ajustar no painel do Clerk.
+ */
+async function ensureMemberLimit(orgId: string) {
+  try {
+    const client = await clerkClient();
+    const org = await client.organizations.getOrganization({ organizationId: orgId });
+    if (org.maxAllowedMemberships !== 0 && org.maxAllowedMemberships < MEMBER_LIMIT) {
+      await client.organizations.updateOrganization(orgId, {
+        maxAllowedMemberships: MEMBER_LIMIT,
+      });
+    }
+  } catch (error) {
+    console.error('[convite] não foi possível ajustar o limite de membros', error);
+  }
+}
+
 /** Envia (ou reenvia) o convite para o e-mail do profissional. */
 export async function inviteProfessionalAction(rawId: unknown) {
   return toActionResult(async () => {
@@ -81,6 +102,7 @@ export async function inviteProfessionalAction(rawId: unknown) {
     const current = await accessFor(orgId, professional);
     if (current.status === 'active') throw new UserError('Este profissional já tem acesso.');
     const client = await clerkClient();
+    await ensureMemberLimit(orgId);
     if (current.status === 'invited') {
       // Reenviar = cancelar o convite anterior e mandar um novo (o link antigo deixa de valer).
       await client.organizations.revokeOrganizationInvitation({
