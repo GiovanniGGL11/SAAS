@@ -29,9 +29,16 @@ import {
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { SerializedProfessional } from '@/lib/serialize';
 
+type Production = { appointmentCount: number; revenue: number };
+
 type ProfessionalWithProduction = SerializedProfessional & {
-  production: { appointmentCount: number; revenue: number };
+  /** Vazio logo depois de criar (o cadastro volta sem os números do mês até a lista recarregar). */
+  production?: Production;
 };
+
+const NO_PRODUCTION: Production = { appointmentCount: 0, revenue: 0 };
+const productionOf = (professional: ProfessionalWithProduction): Production =>
+  professional.production ?? NO_PRODUCTION;
 
 function formatCommission(professional: SerializedProfessional): string {
   if (!professional.commissionType || professional.commissionValue === null) return '—';
@@ -92,7 +99,7 @@ export function ProfessionalList({
     return matchesSearch(search, professional.name, professional.email, professional.phone);
   });
   const activeCount = professionals.filter((p) => p.active).length;
-  const teamRevenue = professionals.reduce((sum, p) => sum + p.production.revenue, 0);
+  const teamRevenue = professionals.reduce((sum, p) => sum + productionOf(p).revenue, 0);
 
   return (
     <div className="flex flex-col gap-5">
@@ -139,10 +146,11 @@ export function ProfessionalList({
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((professional, index) => {
-            const share = teamRevenue > 0 ? professional.production.revenue / teamRevenue : 0;
+            const production = productionOf(professional);
+            const share = teamRevenue > 0 ? production.revenue / teamRevenue : 0;
             const estimatedCommission =
               professional.commissionType === 'PERCENTAGE' && professional.commissionValue !== null
-                ? (professional.production.revenue * professional.commissionValue) / 100
+                ? (production.revenue * professional.commissionValue) / 100
                 : null;
             return (
               <AppleTile
@@ -190,13 +198,13 @@ export function ProfessionalList({
                   <div>
                     <div className="text-label-secondary text-[12px]">Atendimentos</div>
                     <div className="text-[15px] font-semibold tabular-nums">
-                      {professional.production.appointmentCount}
+                      {production.appointmentCount}
                     </div>
                   </div>
                   <div>
                     <div className="text-label-secondary text-[12px]">Produção</div>
                     <div className="truncate text-[15px] font-semibold tabular-nums">
-                      {formatCurrencyBRL(professional.production.revenue)}
+                      {formatCurrencyBRL(production.revenue)}
                     </div>
                   </div>
                   <div>
