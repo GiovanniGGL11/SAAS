@@ -4,9 +4,13 @@ import { UserError } from '@/server/errors';
 
 const INACTIVE_AFTER_DAYS = 60;
 
-export async function listClients(companyId: string): Promise<Client[]> {
+/** Clientes da empresa; com `professionalId`, só quem já teve horário com esse profissional. */
+export async function listClients(companyId: string, professionalId?: string): Promise<Client[]> {
   return prisma.client.findMany({
-    where: { companyId },
+    where: {
+      companyId,
+      ...(professionalId ? { appointments: { some: { professionalId } } } : {}),
+    },
     orderBy: { name: 'asc' },
   });
 }

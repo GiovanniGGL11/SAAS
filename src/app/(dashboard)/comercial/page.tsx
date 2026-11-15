@@ -1,3 +1,4 @@
+import { denyProfessionalPage } from '@/server/auth/professional-scope';
 import { isCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { featureBlockedMessage, hasFeature } from '@/server/billing/features';
 import { PageHeader } from '@/components/layout/page';
@@ -10,6 +11,8 @@ export default async function ComercialPage({
 }: {
   searchParams: Promise<{ aba?: string; id?: string; novo?: string; oportunidade?: string }>;
 }) {
+  // Profissional logado não abre esta tela (vê só a agenda, os clientes e os ganhos dele).
+  await denyProfessionalPage();
   const session = await requireCurrentCompany();
   const { company } = session;
   const params = await searchParams;

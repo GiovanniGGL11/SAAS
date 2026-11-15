@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import {
   CalendarDaysIcon,
+  HandCoinsIcon,
   LayoutGridIcon,
   MoonIcon,
   MoreHorizontalIcon,
@@ -20,6 +21,7 @@ import { NavList } from '@/components/layout/nav-list';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Switch } from '@/components/ui/switch';
 import { useTheme } from '@/components/theme-provider';
+import { useViewer } from '@/components/layout/viewer-context';
 
 type Tab = { label: string; href: string; icon: LucideIcon };
 
@@ -34,6 +36,11 @@ const ADMIN_TABS: Tab[] = [
   { label: 'Financeiro', href: '/financeiro', icon: WalletIcon },
 ];
 const STAFF_TABS: Tab[] = [...COMMON_TABS, { label: 'Caixa', href: '/caixa', icon: VaultIcon }];
+// O próprio profissional: a agenda, os clientes e quanto ganhou.
+const PROFESSIONAL_TABS: Tab[] = [
+  ...COMMON_TABS,
+  { label: 'Ganhos', href: '/meus-ganhos', icon: HandCoinsIcon },
+];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -43,7 +50,9 @@ function isActive(pathname: string, href: string) {
 export function MobileTabBar() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = React.useState(false);
-  const TABS = useAuth().orgRole === 'org:admin' ? ADMIN_TABS : STAFF_TABS;
+  const { professionalId } = useViewer();
+  const isAdmin = useAuth().orgRole === 'org:admin';
+  const TABS = professionalId ? PROFESSIONAL_TABS : isAdmin ? ADMIN_TABS : STAFF_TABS;
   const inTabs = TABS.some((tab) => isActive(pathname, tab.href));
 
   return (

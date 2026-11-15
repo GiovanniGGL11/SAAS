@@ -19,6 +19,7 @@ import {
   ListChecks,
   Handshake,
   Link2,
+  HandCoins,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -33,6 +34,8 @@ export type NavItem = {
   adminOnly?: boolean;
   /** Aparece só se o plano incluir alguma destas funcionalidades (o servidor confere de novo). */
   anyFeature?: FeatureKey[];
+  /** Só para o próprio profissional logado (ex.: Meus ganhos). */
+  professionalOnly?: boolean;
 };
 
 export type NavGroup = 'Visão geral' | 'Operação' | 'Gestão';
@@ -48,6 +51,14 @@ export const navItems: NavItem[] = [
     group: 'Visão geral',
   },
   { label: 'Agenda', href: '/agenda', icon: CalendarDays, color: '#ff3b30', group: 'Visão geral' },
+  {
+    label: 'Meus ganhos',
+    href: '/meus-ganhos',
+    icon: HandCoins,
+    color: '#34c759',
+    group: 'Visão geral',
+    professionalOnly: true,
+  },
   {
     label: 'Link do cliente',
     href: '/link-do-cliente',

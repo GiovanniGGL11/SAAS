@@ -7,6 +7,7 @@ import { useAuth } from '@clerk/nextjs';
 import { MoonIcon, SearchIcon, SunIcon } from 'lucide-react';
 
 import { navGroups, navItems } from '@/components/layout/nav-items';
+import { PROFESSIONAL_PATHS, useViewer } from '@/components/layout/viewer-context';
 import { useTheme } from '@/components/theme-provider';
 import {
   CommandDialog,
@@ -23,6 +24,7 @@ import {
 export function CommandMenu() {
   const { orgRole } = useAuth();
   const isAdmin = orgRole === 'org:admin';
+  const { professionalId } = useViewer();
   const { has } = usePlanFeatures();
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
@@ -79,8 +81,11 @@ export function CommandMenu() {
                   (item) =>
                     item.group === group &&
                     !item.comingSoon &&
-                    (isAdmin || !item.adminOnly) &&
-                    (!item.anyFeature || item.anyFeature.some((f) => has(f))),
+                    (professionalId
+                      ? PROFESSIONAL_PATHS.includes(item.href)
+                      : !item.professionalOnly &&
+                        (isAdmin || !item.adminOnly) &&
+                        (!item.anyFeature || item.anyFeature.some((f) => has(f)))),
                 )
                 .map((item) => {
                   const Icon = item.icon;

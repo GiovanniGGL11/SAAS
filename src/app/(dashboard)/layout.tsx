@@ -4,6 +4,8 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 import { ScrollingFlag } from '@/components/layout/scrolling-flag';
+import { ViewerProvider } from '@/components/layout/viewer-context';
+import { getOwnProfessional } from '@/server/auth/professional-scope';
 import { DemoBanner } from '@/components/demo/demo-controls';
 import {
   NoActiveOrganizationError,
@@ -31,11 +33,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let isDemo = false;
   let billing: ReturnType<typeof getSubscriptionState> | null = null;
   let isAdmin = false;
+  let ownProfessionalId: string | null = null;
   try {
     const session = await requireCurrentCompany();
     isDemo = session.company.isDemo;
     isAdmin = isCompanyAdmin(session);
     billing = getSubscriptionState(session.company);
+    ownProfessionalId = (await getOwnProfessional())?.id ?? null;
   } catch (error) {
     if (error instanceof UnauthenticatedError) {
       redirect('/sign-in');
@@ -47,20 +51,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="font-apple flex flex-1">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        {isDemo && <DemoBanner />}
-        {isAdmin && !isDemo && billing?.configured && <BillingBanner text={bannerText(billing)} />}
-        <Topbar />
-        <main className="mx-auto w-full max-w-7xl flex-1 p-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:p-8">
-          <BillingGate blocked={!isDemo && Boolean(billing?.blocked)} isAdmin={isAdmin}>
-            {children}
-          </BillingGate>
-        </main>
+    <ViewerProvider professionalId={ownProfessionalId}>
+      <div className="font-apple flex flex-1">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          {isDemo && <DemoBanner />}
+          {isAdmin && !isDemo && billing?.configured && (
+            <BillingBanner text={bannerText(billing)} />
+          )}
+          <Topbar />
+          <main className="mx-auto w-full max-w-7xl flex-1 p-4 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:p-8">
+            <BillingGate blocked={!isDemo && Boolean(billing?.blocked)} isAdmin={isAdmin}>
+              {children}
+            </BillingGate>
+          </main>
+        </div>
+        <MobileTabBar />
+        <ScrollingFlag />
       </div>
-      <MobileTabBar />
-      <ScrollingFlag />
-    </div>
+    </ViewerProvider>
   );
 }

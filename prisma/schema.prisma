@@ -178,6 +178,8 @@ model Professional {
   phone           String?
   color           String
   avatarUrl       String?
+  /// Conta de login (Clerk) do próprio profissional: vê só a agenda, os clientes e os ganhos dele.
+  userId          String?
   active          Boolean         @default(true)
   commissionType  CommissionType?
   commissionValue Decimal?        @db.Decimal(10, 2)
@@ -199,6 +201,7 @@ model Professional {
   sessionRecords         SessionRecord[]
 
   @@unique([companyId, email])
+  @@unique([companyId, userId])
   @@index([companyId])
 }
 

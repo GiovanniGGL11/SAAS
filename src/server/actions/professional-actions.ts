@@ -1,5 +1,6 @@
 'use server';
 
+import { getOwnProfessional } from '@/server/auth/professional-scope';
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
 
@@ -38,7 +39,11 @@ function toFriendlyError(error: unknown): Error {
 
 export async function listProfessionalsAction() {
   const { company } = await requireCurrentCompany();
-  const professionals = await listAllProfessionals(company.id);
+  // Profissional logado não vê a produção dos colegas: só o próprio cadastro.
+  const own = await getOwnProfessional();
+  const professionals = (await listAllProfessionals(company.id)).filter(
+    (p) => !own || p.id === own.id,
+  );
 
   const withProduction = await Promise.all(
     professionals.map(async (professional) => ({

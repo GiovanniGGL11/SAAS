@@ -1,5 +1,6 @@
 'use server';
 
+import { canSeeClient, getOwnProfessional } from '@/server/auth/professional-scope';
 import { getClientReturnSuggestion, returnMessage } from '@/server/data/returns';
 
 import { toActionResult } from '@/server/action-result';
@@ -39,7 +40,9 @@ function toFriendlyError(error: unknown): Error {
 
 export async function listClientsAction() {
   const { company } = await requireCurrentCompany();
-  return listClients(company.id);
+  // Profissional logado: só os clientes que ele atende.
+  const own = await getOwnProfessional();
+  return listClients(company.id, own?.id);
 }
 
 export async function createClientAction(input: unknown) {
@@ -132,6 +135,7 @@ export async function setClientVipAction(input: unknown) {
 export async function getClientDetailAction(rawId: unknown) {
   const id = parseId(rawId);
   const { company } = await requireCurrentCompany();
+  if (!(await canSeeClient(id))) return null;
 
   const [client, stats, history, nextReturn] = await Promise.all([
     getClientById(company.id, id),
@@ -216,6 +220,7 @@ export async function getClientTimelineAction(rawId: unknown) {
   return toActionResult(async () => {
     const id = parseId(rawId);
     const session = await requireCurrentCompany();
+    if (!(await canSeeClient(id))) throw new UserError('Cliente não encontrado.');
     const { getClientTimeline } = await import('@/server/data/client-timeline');
     const events = await getClientTimeline(session.company.id, id, {
       isAdmin: isCompanyAdmin(session),

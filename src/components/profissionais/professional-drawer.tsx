@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AvailabilityEditor } from '@/components/profissionais/availability-editor';
 import { AbsencesEditor } from '@/components/profissionais/absences-editor';
+import { ProfessionalAccessCard } from '@/components/profissionais/professional-access';
 import { ColorPicker, PRESET_COLORS } from '@/components/ui/color-picker';
 import {
   Select,
@@ -271,6 +272,7 @@ export function ProfessionalDrawer({
             {/* Expediente tem gravação própria: precisa do profissional já salvo. */}
             {isEdit ? (
               <>
+                <ProfessionalAccessCard professionalId={professional.id} name={professional.name} />
                 <AvailabilityEditor professionalId={professional.id} />
                 <AbsencesEditor professionalId={professional.id} />
               </>

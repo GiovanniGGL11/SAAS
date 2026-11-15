@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { navGroups, navItems } from '@/components/layout/nav-items';
 import { Badge } from '@/components/ui/badge';
 import { usePlanFeatures } from '@/components/plan/use-plan-features';
+import { PROFESSIONAL_PATHS, useViewer } from '@/components/layout/viewer-context';
 
 /**
  * Grouped navigation in the style of macOS sidebars: tinted icon chips, small
@@ -28,8 +29,13 @@ export function NavList({
   const isAdmin = orgRole === 'org:admin';
   const { has, data: plan } = usePlanFeatures();
   // Enquanto o plano carrega, itens condicionados ficam fora (nada aparece "ativo" sem estar).
-  const allowed = (item: (typeof navItems)[number]) =>
-    !item.anyFeature || (!!plan && item.anyFeature.some((f) => has(f)));
+  const { professionalId } = useViewer();
+  const allowed = (item: (typeof navItems)[number]) => {
+    // Profissional logado: só as telas dele. Os demais não veem o "Meus ganhos".
+    if (professionalId) return PROFESSIONAL_PATHS.includes(item.href);
+    if (item.professionalOnly) return false;
+    return !item.anyFeature || (!!plan && item.anyFeature.some((f) => has(f)));
+  };
 
   return (
     <nav className="flex flex-col gap-5">

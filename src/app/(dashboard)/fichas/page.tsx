@@ -1,3 +1,4 @@
+import { denyProfessionalPage } from '@/server/auth/professional-scope';
 import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import { FormsHome } from '@/components/fichas/forms-home';
 import { upgradeOffer } from '@/server/billing/features';
@@ -12,6 +13,8 @@ export default async function FichasPage({
 }: {
   searchParams: Promise<{ aba?: string }>;
 }) {
+  // Profissional logado não abre esta tela (vê só a agenda, os clientes e os ganhos dele).
+  await denyProfessionalPage();
   const { company } = await requireCurrentCompany();
   const { aba } = await searchParams;
   const offer = upgradeOffer(company, 'forms');

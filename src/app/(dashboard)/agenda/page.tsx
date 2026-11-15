@@ -1,5 +1,5 @@
-import { currentUser } from '@clerk/nextjs/server';
-import { isCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
+import { requireCurrentCompany } from '@/server/auth/require-current-company';
+import { getOwnProfessional } from '@/server/auth/professional-scope';
 import { listActiveProfessionals } from '@/server/data/professionals';
 import { listActiveServices } from '@/server/data/services';
 import { listActiveClients } from '@/server/data/clients';
@@ -17,15 +17,14 @@ export default async function AgendaPage() {
   ]);
 
   /*
-    "Minha agenda": quem é da equipe (não admin) e tem o mesmo e-mail de um profissional cadastrado
-    abre vendo só a própria coluna. Os outros continuam a um clique, na lista de profissionais.
+    "Minha agenda": o profissional que entra com o próprio login vê só a coluna dele (o servidor
+    também só devolve os agendamentos dele). A recepção (equipe sem cadastro de profissional)
+    continua vendo todos.
   */
-  let myProfessionalId: string | undefined;
-  if (!isCompanyAdmin(session)) {
-    const user = await currentUser();
-    const emails = new Set(user?.emailAddresses.map((e) => e.emailAddress.toLowerCase()) ?? []);
-    myProfessionalId = professionals.find((p) => p.email && emails.has(p.email.toLowerCase()))?.id;
-  }
+  const own = await getOwnProfessional();
+  const visibleProfessionals = own
+    ? professionals.filter((p) => p.id === own.id)
+    : professionals;
 
   return (
     <div className="flex flex-col gap-4">
@@ -33,10 +32,10 @@ export default async function AgendaPage() {
       <h1 className="sr-only">Agenda</h1>
       <AgendaView
         timezone={company.timezone}
-        professionals={professionals.map(serializeProfessional)}
+        professionals={visibleProfessionals.map(serializeProfessional)}
         services={services.map(serializeService)}
         clients={clients}
-        myProfessionalId={myProfessionalId}
+        myProfessionalId={own?.id}
       />
     </div>
   );
