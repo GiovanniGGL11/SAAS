@@ -514,7 +514,7 @@ export function CalendarGrid({
             >
               {/* Cabeçalho como o do Google Agenda: dia da semana pequeno, número grande num círculo
                   (cheio quando é hoje). Na visão Dia, a coluna é o profissional. */}
-              <div className="bg-background/85 sticky top-0 z-10 flex h-14 flex-col items-center justify-center gap-0.5 border-b backdrop-blur-md md:h-16">
+              <div className="bg-background/95 md:bg-background/85 sticky top-0 z-10 flex h-14 flex-col items-center justify-center gap-0.5 border-b md:h-16 md:backdrop-blur-md">
                 {!column.sublabel && column.accentColor ? (
                   // Visão Dia, "agenda por pessoas": avatar de iniciais, nome e o total do dia.
                   <div className="flex max-w-full items-center gap-2 px-2">

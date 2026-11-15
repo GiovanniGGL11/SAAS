@@ -28,7 +28,7 @@ export function MobileSections({
 
   return (
     <div className={cn('flex w-full flex-col gap-4 md:gap-5', className)}>
-      <div className="bg-background/85 sticky top-14 z-20 -mx-4 px-4 py-2 backdrop-blur-xl md:hidden">
+      <div className="bg-background/95 sticky top-14 z-20 -mx-4 px-4 py-2 md:hidden">
         <SegmentedControl
           stretch
           value={active}

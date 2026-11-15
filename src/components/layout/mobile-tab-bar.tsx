@@ -50,7 +50,7 @@ export function MobileTabBar() {
     <>
       <nav
         aria-label="Navegação principal"
-        className="bg-background/80 border-foreground/[0.08] fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-[1.8] md:hidden"
+        className="bg-background/95 border-foreground/[0.08] fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         <ul className="grid h-14 grid-cols-5">
           {TABS.map((tab) => (

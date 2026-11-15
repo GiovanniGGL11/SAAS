@@ -26,16 +26,24 @@ export function AnimatedNumber({
   const ref = React.useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
   const reduceMotion = useReducedMotion();
+  /** Último valor mostrado: ao trocar o período, conta a partir dele (não do zero). */
+  const shown = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     const el = ref.current;
-    if (!el || !inView) return;
-    if (reduceMotion) {
+    if (!el) return;
+    // No celular o número já aparece pronto: contar enquanto a pessoa rola deixa a rolagem pesada.
+    const instant = reduceMotion || window.matchMedia('(max-width: 767px)').matches;
+    if (instant) {
       el.textContent = format(value, kind);
+      shown.current = value;
       return;
     }
-    const controls = animate(0, value, {
-      duration: 1.4,
+    if (!inView) return;
+    const from = shown.current ?? 0;
+    shown.current = value;
+    const controls = animate(from, value, {
+      duration: from === 0 ? 1.4 : 0.6,
       ease: [0.16, 1, 0.3, 1],
       onUpdate: (latest) => {
         el.textContent = format(latest, kind);
