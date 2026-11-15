@@ -2,7 +2,13 @@
 
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2Icon, MailIcon, SmartphoneIcon } from 'lucide-react';
+import {
+  CheckCircle2Icon,
+  CopyIcon,
+  MailIcon,
+  MessageCircleIcon,
+  SmartphoneIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -22,9 +28,12 @@ import {
 export function ProfessionalAccessCard({
   professionalId,
   name,
+  phone,
 }: {
   professionalId: string;
   name: string;
+  /** WhatsApp do profissional, para mandar o link do convite. */
+  phone?: string | null;
 }) {
   const queryClient = useQueryClient();
   const key = ['professional-access', professionalId];
@@ -103,6 +112,40 @@ export function ProfessionalAccessCard({
             <MailIcon className="size-4" /> Convite enviado para {data.email} em{' '}
             {new Date(data.sentAt).toLocaleDateString('pt-BR')}. Falta {first} aceitar pelo e-mail.
           </span>
+          {data.url && (
+            <div className="bg-foreground/[0.03] flex flex-col gap-2 rounded-xl p-3">
+              <span className="text-label-secondary text-[12px]">
+                O e-mail não chegou? Olhe a caixa de spam e as abas Promoções/Atualizações, ou mande
+                o link direto:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(data.url!);
+                      toast.success('Link do convite copiado.');
+                    } catch {
+                      toast.error('Não foi possível copiar. Use o botão do WhatsApp.');
+                    }
+                  }}
+                >
+                  <CopyIcon className="size-4" /> Copiar link
+                </Button>
+                <Button type="button" size="sm" variant="outline" asChild>
+                  <a
+                    href={whatsappInviteLink(phone, first, data.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <MessageCircleIcon className="size-4" /> Enviar pelo WhatsApp
+                  </a>
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -137,4 +180,14 @@ export function ProfessionalAccessCard({
       )}
     </section>
   );
+}
+
+/** WhatsApp com a mensagem do convite (sem número, abre para escolher o contato). */
+function whatsappInviteLink(phone: string | null | undefined, first: string, url: string) {
+  const text = `Oi, ${first}! Este é o seu acesso ao Atendafy, para ver sua agenda e seus ganhos pelo celular. Toque no link e crie sua senha: ${url}`;
+  const digits = (phone ?? '').replace(/\D/g, '');
+  const number = digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+  return number.length >= 12
+    ? `https://wa.me/${number}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/?text=${encodeURIComponent(text)}`;
 }

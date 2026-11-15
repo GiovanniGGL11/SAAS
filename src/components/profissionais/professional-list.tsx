@@ -43,7 +43,7 @@ const productionOf = (professional: ProfessionalWithProduction): Production =>
 function formatCommission(professional: SerializedProfessional): string {
   if (!professional.commissionType || professional.commissionValue === null) return '—';
   return professional.commissionType === 'PERCENTAGE'
-    ? `${professional.commissionValue}%`
+    ? `${professional.commissionValue.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
     : formatCurrencyBRL(professional.commissionValue);
 }
 

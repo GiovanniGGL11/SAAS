@@ -17,7 +17,14 @@ import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 export type ProfessionalAccess =
   | { status: 'no_email' }
   | { status: 'none'; email: string }
-  | { status: 'invited'; email: string; invitationId: string; sentAt: number }
+  | {
+      status: 'invited';
+      email: string;
+      invitationId: string;
+      sentAt: number;
+      /** Link do convite: dá para mandar pelo WhatsApp se o e-mail não chegar. */
+      url: string | null;
+    }
   | { status: 'active'; email: string | null };
 
 async function loadProfessional(companyId: string, id: string) {
@@ -56,6 +63,7 @@ async function accessFor(
       email: professional.email,
       invitationId: invitation.id,
       sentAt: invitation.createdAt,
+      url: invitation.url,
     };
   }
   return { status: 'none', email: professional.email };

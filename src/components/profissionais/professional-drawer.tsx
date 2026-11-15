@@ -276,7 +276,11 @@ export function ProfessionalDrawer({
             {/* Expediente tem gravação própria: precisa do profissional já salvo. */}
             {isEdit ? (
               <>
-                <ProfessionalAccessCard professionalId={professional.id} name={professional.name} />
+                <ProfessionalAccessCard
+                  professionalId={professional.id}
+                  name={professional.name}
+                  phone={professional.phone}
+                />
                 <AvailabilityEditor professionalId={professional.id} />
                 <AbsencesEditor professionalId={professional.id} />
               </>
