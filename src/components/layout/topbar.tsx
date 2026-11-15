@@ -7,7 +7,7 @@ import { NotificationBell } from '@/components/layout/notification-bell';
 
 export function Topbar() {
   return (
-    <header className="bg-background/95 md:bg-background/72 border-foreground/[0.06] sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b px-3 md:gap-3 md:px-6 md:backdrop-blur-xl md:backdrop-saturate-[1.8]">
+    <header className="bg-background/95 md:bg-background/85 border-foreground/[0.06] sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b px-3 md:gap-3 md:px-6 md:backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-1.5">
         <div className="min-w-0 overflow-hidden">
           <OrganizationSwitcher

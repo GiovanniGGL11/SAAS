@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
+import { ScrollingFlag } from '@/components/layout/scrolling-flag';
 import { DemoBanner } from '@/components/demo/demo-controls';
 import {
   NoActiveOrganizationError,
@@ -59,6 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </main>
       </div>
       <MobileTabBar />
+      <ScrollingFlag />
     </div>
   );
 }

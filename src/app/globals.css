@@ -261,3 +261,12 @@ input[type='number']::-webkit-outer-spin-button {
   appearance: none;
   margin: 0;
 }
+
+/*
+  Rolagem lisa: enquanto a página rola, os blocos não reagem ao mouse (senão cada bloco que passa
+  por baixo do cursor dispara a animação de destaque, com sombra). Volta ao parar de rolar.
+  A marcação vem de <ScrollingFlag />.
+*/
+html[data-scrolling] .group\/tile {
+  pointer-events: none;
+}
