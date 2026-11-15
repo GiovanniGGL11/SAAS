@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -34,9 +35,12 @@ import {
 } from '@/components/agenda/floating-menu';
 import { STATUS_COLORS, STATUS_LABELS, quickStatusActions } from '@/components/agenda/status';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { EmptyState } from '@/components/ui/empty-state';
 import { unwrapResult } from '@/lib/action-result';
+import { cn } from '@/lib/utils';
+import { professionalDayLoad, type DayLoad } from '@/lib/agenda-load';
 import {
   deleteScheduleBlockAction,
   getAppointmentsForRangeAction,
@@ -49,6 +53,7 @@ import {
   addDays,
   calendarDateToUtc,
   getTodayInTz,
+  isSameCalendarDate,
   startOfCalendarDateUtc,
   startOfWeek,
   utcToCalendarDate,
@@ -122,6 +127,12 @@ function usePref(key: string, fallback: string): string {
 const VIEW_KEY = 'agenda:view';
 const COLOR_KEY = 'agenda:color-mode';
 const HIDDEN_KEY = 'agenda:hidden-professionals';
+const STAFF_KEY = 'agenda:staff-filter';
+
+/** Visão Dia com vários profissionais: quem mostrar. */
+type StaffFilter = 'working' | 'all' | 'full';
+/** A partir de quanto a agenda do profissional conta como cheia. */
+const FULL_OCCUPANCY = 80;
 
 const SLOT_MINUTES = 15;
 const OPENING_MINUTES = 9 * 60;
@@ -142,6 +153,7 @@ export function AgendaView({
   services,
   clients,
   myProfessionalId,
+  toCloseCount = 0,
 }: {
   timezone: string;
   professionals: SerializedProfessional[];
@@ -149,6 +161,8 @@ export function AgendaView({
   clients: Client[];
   /** Profissional da pessoa logada (equipe): a agenda abre só com a coluna dela. */
   myProfessionalId?: string;
+  /** Atendimentos que já passaram e ainda não foram fechados (de qualquer dia). */
+  toCloseCount?: number;
 }) {
   const queryClient = useQueryClient();
   const today = React.useMemo(() => getTodayInTz(timezone), [timezone]);
@@ -176,6 +190,11 @@ export function AgendaView({
     [hiddenRaw],
   );
   const setHidden = (ids: Set<string>) => writePref(HIDDEN_KEY, [...ids].join(','));
+
+  const savedStaff = usePref(STAFF_KEY, 'working');
+  const staffFilter: StaffFilter =
+    savedStaff === 'all' || savedStaff === 'full' ? savedStaff : 'working';
+  const setStaffFilter = React.useCallback((next: StaffFilter) => writePref(STAFF_KEY, next), []);
 
   // Links dos avisos (/agenda?data=AAAA-MM-DD&agendamento=…) abrem o dia e o atendimento.
   const searchParams = useSearchParams();
@@ -273,7 +292,43 @@ export function AgendaView({
     queryFn: () => getScheduleContextAction({ startAt: rangeStartAt, endAt: rangeEndAt }),
   });
 
-  const visibleProfessionals = professionals.filter((p) => !hiddenProfessionalIds.has(p.id));
+  // ---- Expediente de cada profissional (dia da semana → faixas) -----------------------------
+  const availabilityByProfessional = new Map<string, { weekday: number; range: MinuteRange }[]>();
+  for (const a of contextQuery.data?.availabilities ?? []) {
+    const list = availabilityByProfessional.get(a.professionalId) ?? [];
+    list.push({
+      weekday: a.weekday,
+      range: { startMinutes: timeToMinutes(a.startTime), endMinutes: timeToMinutes(a.endTime) },
+    });
+    availabilityByProfessional.set(a.professionalId, list);
+  }
+
+  // ---- Ocupação do dia por profissional (visão Dia) -----------------------------------------
+  const anchorWeekday = weekdayOf(anchorDate);
+  const dayLoad = new Map<string, DayLoad>();
+  for (const professional of professionals) {
+    dayLoad.set(
+      professional.id,
+      professionalDayLoad({
+        appointments: (query.data ?? []).filter((a) => a.professionalId === professional.id),
+        schedule: availabilityByProfessional.get(professional.id),
+        weekday: anchorWeekday,
+      }),
+    );
+  }
+
+  // Filtro rápido da visão Dia (só faz sentido com mais de um profissional).
+  const staffFilterActive = view === 'day' && professionals.length > 1 && staffFilter !== 'all';
+  const passesStaffFilter = (id: string) => {
+    if (!staffFilterActive) return true;
+    const load = dayLoad.get(id);
+    return staffFilter === 'working'
+      ? Boolean(load?.works)
+      : (load?.occupancy ?? 0) >= FULL_OCCUPANCY;
+  };
+  const visibleProfessionals = professionals.filter(
+    (p) => !hiddenProfessionalIds.has(p.id) && passesStaffFilter(p.id),
+  );
   const visibleIds = new Set(visibleProfessionals.map((p) => p.id));
   const appointments = (query.data ?? []).filter((a) => visibleIds.has(a.professionalId));
 
@@ -360,15 +415,20 @@ export function AgendaView({
   const columns: GridColumn[] =
     view === 'day'
       ? visibleProfessionals.map((professional) => {
-          const count = appointments.filter(
-            (a) => a.professionalId === professional.id && a.status !== 'CANCELED',
-          ).length;
+          const load = dayLoad.get(professional.id);
+          const count = load?.count ?? 0;
+          const occupancy = load?.occupancy ?? null;
           return {
             id: professional.id,
             label: professional.name,
             date: anchorDate,
             accentColor: professional.color,
-            caption: count === 0 ? 'Agenda livre' : `${count} atendimento${count > 1 ? 's' : ''}`,
+            avatarUrl: professional.avatarUrl,
+            caption:
+              count === 0 && occupancy === null
+                ? 'Agenda livre'
+                : `${count} agend.${occupancy !== null ? ` · ${occupancy}% ocupado` : ''}`,
+            occupancy,
           };
         })
       : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((date) => ({
@@ -381,16 +441,6 @@ export function AgendaView({
         }));
 
   // ---- Expediente em cinza ------------------------------------------------------------------
-  const availabilityByProfessional = new Map<string, { weekday: number; range: MinuteRange }[]>();
-  for (const a of contextQuery.data?.availabilities ?? []) {
-    const list = availabilityByProfessional.get(a.professionalId) ?? [];
-    list.push({
-      weekday: a.weekday,
-      range: { startMinutes: timeToMinutes(a.startTime), endMinutes: timeToMinutes(a.endTime) },
-    });
-    availabilityByProfessional.set(a.professionalId, list);
-  }
-
   const openRangesByColumn = new Map<string, MinuteRange[]>();
   for (const column of columns) {
     const weekday = weekdayOf(column.date);
@@ -685,11 +735,32 @@ export function AgendaView({
             </div>
           )}
 
-          {appointments.length > 0 && (
-            <div className="hidden sm:block">
-              <AgendaSummary appointments={appointments} />
-            </div>
+          {view === 'day' && professionals.length > 1 && (
+            <SegmentedControl
+              size="sm"
+              className="self-start"
+              value={staffFilter}
+              onValueChange={setStaffFilter}
+              options={[
+                {
+                  value: 'working',
+                  label: isSameCalendarDate(anchorDate, today)
+                    ? 'Quem trabalha hoje'
+                    : 'Quem trabalha no dia',
+                },
+                { value: 'all', label: 'Todos' },
+                { value: 'full', label: 'Agenda cheia' },
+              ]}
+            />
           )}
+
+          <AgendaStats
+            appointments={(query.data ?? []).filter(
+              (a) => !hiddenProfessionalIds.has(a.professionalId),
+            )}
+            period={view === 'day' ? 'dia' : view === 'week' ? 'semana' : 'mês'}
+            toCloseCount={toCloseCount}
+          />
 
           {query.isLoading ? (
             <Skeleton className="h-[600px] w-full rounded-[22px]" />
@@ -716,9 +787,13 @@ export function AgendaView({
                     : 'Nenhum profissional cadastrado'
                 }
                 description={
-                  professionals.length
-                    ? 'Marque ao menos um profissional na coluna da esquerda.'
-                    : 'Cadastre um profissional pra começar a montar a agenda.'
+                  !professionals.length
+                    ? 'Cadastre um profissional pra começar a montar a agenda.'
+                    : staffFilterActive
+                      ? staffFilter === 'full'
+                        ? `Ninguém com mais de ${FULL_OCCUPANCY}% da agenda ocupada neste dia. Toque em "Todos" para ver a equipe.`
+                        : 'Ninguém da equipe tem expediente neste dia. Toque em "Todos" para ver a equipe.'
+                      : 'Marque ao menos um profissional na coluna da esquerda.'
                 }
                 className="py-0"
               />
@@ -886,30 +961,95 @@ export function AgendaView({
 }
 
 /** At-a-glance counts for the visible range (canceled and no-shows excluded from revenue). */
-function AgendaSummary({ appointments }: { appointments: GridAppointment[] }) {
-  const active = appointments.filter((a) => a.status !== 'CANCELED' && a.status !== 'NO_SHOW');
-  const done = appointments.filter((a) => a.status === 'DONE').length;
-  const toConfirm = appointments.filter((a) => a.status === 'SCHEDULED').length;
+/**
+ * Números do período na agenda: quantos agendamentos, quantos são de pacote/assinatura, quem já
+ * chegou, quem faltou e o que ainda falta fechar (de qualquer dia).
+ */
+function AgendaStats({
+  appointments,
+  period,
+  toCloseCount,
+}: {
+  appointments: GridAppointment[];
+  period: 'dia' | 'semana' | 'mês';
+  toCloseCount: number;
+}) {
+  const booked = appointments.filter((a) => a.status !== 'CANCELED');
+  const active = booked.filter((a) => a.status !== 'NO_SHOW');
+  const withPackage = active.filter((a) => a.clientPackageId).length;
+  const arrived = booked.filter((a) => a.status === 'IN_PROGRESS' || a.status === 'DONE').length;
+  const noShow = booked.filter((a) => a.status === 'NO_SHOW').length;
+  const toConfirm = booked.filter((a) => a.status === 'SCHEDULED').length;
   const expected = active.reduce((sum, a) => sum + a.priceSnapshot, 0);
 
-  const items = [
-    { label: 'Agendamentos', value: String(active.length) },
-    { label: 'A confirmar', value: String(toConfirm) },
-    { label: 'Concluídos', value: String(done) },
-    { label: 'Previsto no período', value: formatCurrencyBRL(expected) },
+  const items: {
+    label: string;
+    value: string;
+    dot: string;
+    hint?: string;
+    href?: string;
+    alert?: boolean;
+  }[] = [
+    { label: 'Agendamentos', value: String(active.length), dot: 'bg-system-blue' },
+    { label: 'Pacote ou assinatura', value: String(withPackage), dot: 'bg-system-orange' },
+    { label: 'Avulsos', value: String(active.length - withPackage), dot: 'bg-foreground/40' },
+    {
+      label: 'Chegaram',
+      value: String(arrived),
+      dot: 'bg-system-green',
+      hint: toConfirm ? `${toConfirm} a confirmar` : undefined,
+    },
+    { label: 'Faltaram', value: String(noShow), dot: 'bg-system-red' },
+    {
+      label: 'Para fechar',
+      value: String(toCloseCount),
+      dot: 'bg-system-indigo',
+      hint: 'de qualquer dia',
+      href: '/agenda/fechar',
+      alert: toCloseCount > 0,
+    },
+    {
+      label: `Previsto no ${period}`,
+      value: formatCurrencyBRL(expected),
+      dot: 'bg-foreground/25',
+    },
   ];
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className="bg-tile flex items-baseline gap-2 rounded-full px-4 py-1.5 text-[13px]"
-        >
-          <span className="text-label-secondary">{item.label}</span>
-          <span className="font-semibold tabular-nums">{item.value}</span>
-        </div>
-      ))}
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:gap-3 xl:grid-cols-7">
+      {items.map((item) => {
+        const body = (
+          <>
+            <span className="truncate text-[18px] leading-tight font-semibold tabular-nums md:text-[22px]">
+              {item.value}
+            </span>
+            <span className="text-label-secondary flex min-w-0 items-center gap-1.5 text-[11px] font-medium md:text-[12px]">
+              <span className={cn('size-1.5 shrink-0 rounded-full', item.dot)} aria-hidden />
+              <span className="truncate">{item.label}</span>
+            </span>
+            {item.hint && (
+              <span className="text-label-secondary truncate text-[11px]">{item.hint}</span>
+            )}
+          </>
+        );
+        const className = cn(
+          'bg-tile flex min-w-0 flex-col gap-0.5 rounded-2xl px-3 py-2.5 md:px-4 md:py-3',
+          item.alert && 'ring-system-indigo/40 ring-1',
+        );
+        return item.href ? (
+          <Link
+            key={item.label}
+            href={item.href}
+            className={cn(className, 'hover:bg-tile-hover transition-colors')}
+          >
+            {body}
+          </Link>
+        ) : (
+          <div key={item.label} className={className}>
+            {body}
+          </div>
+        );
+      })}
     </div>
   );
 }

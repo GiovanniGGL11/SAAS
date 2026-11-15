@@ -3,6 +3,7 @@ import { isCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-cur
 import { listActiveProfessionals } from '@/server/data/professionals';
 import { listActiveServices } from '@/server/data/services';
 import { listActiveClients } from '@/server/data/clients';
+import { countAppointmentsToClose } from '@/server/data/to-close';
 import { AgendaView } from '@/components/agenda/agenda-view';
 import { serializeProfessional, serializeService } from '@/lib/serialize';
 
@@ -10,10 +11,11 @@ export default async function AgendaPage() {
   const session = await requireCurrentCompany();
   const { company } = session;
 
-  const [professionals, services, clients] = await Promise.all([
+  const [professionals, services, clients, toCloseCount] = await Promise.all([
     listActiveProfessionals(company.id),
     listActiveServices(company.id),
     listActiveClients(company.id),
+    countAppointmentsToClose(company.id),
   ]);
 
   /*
@@ -37,6 +39,7 @@ export default async function AgendaPage() {
         services={services.map(serializeService)}
         clients={clients}
         myProfessionalId={myProfessionalId}
+        toCloseCount={toCloseCount}
       />
     </div>
   );

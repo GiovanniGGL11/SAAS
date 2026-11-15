@@ -32,8 +32,12 @@ export type GridColumn = {
   sublabel?: string;
   date: CalendarDate;
   accentColor?: string;
-  /** Linha de apoio no cabeçalho do profissional ("3 atendimentos"). */
+  /** Linha de apoio no cabeçalho do profissional ("5 agend. · 80% ocupado"). */
   caption?: string;
+  /** Foto do profissional (visão Dia); sem foto, as iniciais. */
+  avatarUrl?: string | null;
+  /** Quanto do expediente do dia já está marcado (0–100); vazio = sem expediente cadastrado. */
+  occupancy?: number | null;
 };
 
 function initials(name: string): string {
@@ -518,19 +522,36 @@ export function CalendarGrid({
                 {!column.sublabel && column.accentColor ? (
                   // Visão Dia, "agenda por pessoas": avatar de iniciais, nome e o total do dia.
                   <div className="flex max-w-full items-center gap-2 px-2">
-                    <span
-                      className="flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white md:size-8 md:text-[12px]"
-                      style={{ backgroundColor: column.accentColor }}
-                      aria-hidden
-                    >
-                      {initials(column.label)}
-                    </span>
+                    {column.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- foto enviada pelo salão (URL externa)
+                      <img
+                        src={column.avatarUrl}
+                        alt=""
+                        className="size-7 shrink-0 rounded-full object-cover ring-2 md:size-9"
+                        style={{ ['--tw-ring-color' as string]: column.accentColor }}
+                      />
+                    ) : (
+                      <span
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white md:size-9 md:text-[12px]"
+                        style={{ backgroundColor: column.accentColor }}
+                        aria-hidden
+                      >
+                        {initials(column.label)}
+                      </span>
+                    )}
                     <span className="min-w-0 text-left">
                       <span className="block truncate text-[13px] font-semibold">
                         {column.label}
                       </span>
                       {column.caption && (
-                        <span className="text-label-secondary block truncate text-[11px]">
+                        <span
+                          className={cn(
+                            'block truncate text-[11px]',
+                            (column.occupancy ?? 0) >= 90
+                              ? 'text-system-red font-medium'
+                              : 'text-label-secondary',
+                          )}
+                        >
                           {column.caption}
                         </span>
                       )}
