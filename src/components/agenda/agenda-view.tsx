@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -153,7 +152,6 @@ export function AgendaView({
   services,
   clients,
   myProfessionalId,
-  toCloseCount = 0,
 }: {
   timezone: string;
   professionals: SerializedProfessional[];
@@ -161,8 +159,6 @@ export function AgendaView({
   clients: Client[];
   /** Profissional da pessoa logada (equipe): a agenda abre só com a coluna dela. */
   myProfessionalId?: string;
-  /** Atendimentos que já passaram e ainda não foram fechados (de qualquer dia). */
-  toCloseCount?: number;
 }) {
   const queryClient = useQueryClient();
   const today = React.useMemo(() => getTodayInTz(timezone), [timezone]);
@@ -759,7 +755,6 @@ export function AgendaView({
               (a) => !hiddenProfessionalIds.has(a.professionalId),
             )}
             period={view === 'day' ? 'dia' : view === 'week' ? 'semana' : 'mês'}
-            toCloseCount={toCloseCount}
           />
 
           {query.isLoading ? (
@@ -963,16 +958,14 @@ export function AgendaView({
 /** At-a-glance counts for the visible range (canceled and no-shows excluded from revenue). */
 /**
  * Números do período na agenda: quantos agendamentos, quantos são de pacote/assinatura, quem já
- * chegou, quem faltou e o que ainda falta fechar (de qualquer dia).
+ * chegou e quem faltou.
  */
 function AgendaStats({
   appointments,
   period,
-  toCloseCount,
 }: {
   appointments: GridAppointment[];
   period: 'dia' | 'semana' | 'mês';
-  toCloseCount: number;
 }) {
   const booked = appointments.filter((a) => a.status !== 'CANCELED');
   const active = booked.filter((a) => a.status !== 'NO_SHOW');
@@ -987,8 +980,6 @@ function AgendaStats({
     value: string;
     dot: string;
     hint?: string;
-    href?: string;
-    alert?: boolean;
   }[] = [
     { label: 'Agendamentos', value: String(active.length), dot: 'bg-system-blue' },
     { label: 'Pacote ou assinatura', value: String(withPackage), dot: 'bg-system-orange' },
@@ -1001,14 +992,6 @@ function AgendaStats({
     },
     { label: 'Faltaram', value: String(noShow), dot: 'bg-system-red' },
     {
-      label: 'Para fechar',
-      value: String(toCloseCount),
-      dot: 'bg-system-indigo',
-      hint: 'de qualquer dia',
-      href: '/agenda/fechar',
-      alert: toCloseCount > 0,
-    },
-    {
       label: `Previsto no ${period}`,
       value: formatCurrencyBRL(expected),
       dot: 'bg-foreground/25',
@@ -1016,7 +999,7 @@ function AgendaStats({
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:gap-3 xl:grid-cols-7">
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 md:gap-3">
       {items.map((item) => {
         const body = (
           <>
@@ -1032,20 +1015,11 @@ function AgendaStats({
             )}
           </>
         );
-        const className = cn(
-          'bg-tile flex min-w-0 flex-col gap-0.5 rounded-2xl px-3 py-2.5 md:px-4 md:py-3',
-          item.alert && 'ring-system-indigo/40 ring-1',
-        );
-        return item.href ? (
-          <Link
+        return (
+          <div
             key={item.label}
-            href={item.href}
-            className={cn(className, 'hover:bg-tile-hover transition-colors')}
+            className="bg-tile flex min-w-0 flex-col gap-0.5 rounded-2xl px-3 py-2.5 md:px-4 md:py-3"
           >
-            {body}
-          </Link>
-        ) : (
-          <div key={item.label} className={className}>
             {body}
           </div>
         );
