@@ -5,6 +5,10 @@ import { requireAccess } from '@/server/data/form-permissions';
 import { assertFeature, featureAccessFor } from '@/server/billing/features';
 import { saveTemplate } from '@/server/data/forms';
 import { UserError } from '@/server/errors';
+import {
+  NoActiveOrganizationError,
+  UnauthenticatedError,
+} from '@/server/auth/require-current-company';
 import { GeminiError, generateJson, getGeminiConfig } from '@/server/assistant/gemini';
 import { reserveUnits, settleReservation } from '@/server/ai/quota';
 import { recordUsageEvent } from '@/server/ai/usage';
@@ -111,6 +115,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     // Leitura que falhou não gasta crédito.
     if (reservationId) await settleReservation(reservationId, 0).catch(() => undefined);
+    if (error instanceof UnauthenticatedError || error instanceof NoActiveOrganizationError) {
+      return fail('Entre na sua conta para importar a ficha.', 401);
+    }
     if (error instanceof UserError || error instanceof GeminiError) return fail(error.message);
     console.error('[fichas/importar]', error);
     return fail('Não foi possível importar a ficha agora. Tente de novo.', 500);
