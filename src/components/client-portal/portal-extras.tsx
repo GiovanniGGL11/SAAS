@@ -3,7 +3,13 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { ClipboardListIcon, FileTextIcon, HourglassIcon, PackageIcon } from 'lucide-react';
+import {
+  ClipboardListIcon,
+  FileTextIcon,
+  HourglassIcon,
+  PackageIcon,
+  RepeatIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -171,6 +177,42 @@ export function PortalExtrasSections({
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+
+      {extras.subscriptions.length > 0 && (
+        <Section title="Meus planos">
+          {extras.subscriptions.map((p) => (
+            <div key={p.id} className="bg-tile flex flex-col gap-2 rounded-[22px] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-[15px] font-medium">
+                  <RepeatIcon className="text-system-green size-4" />
+                  {p.name}
+                </span>
+                <span className="text-label-secondary text-[13px] tabular-nums">
+                  {formatCurrencyBRL(p.price)}/mês
+                </span>
+              </div>
+              <div
+                className="bg-foreground/[0.08] h-2 overflow-hidden rounded-full"
+                role="progressbar"
+                aria-valuenow={p.done}
+                aria-valuemax={p.total}
+                aria-label={`${p.done} de ${p.total} sessões neste mês`}
+              >
+                <div
+                  className="bg-system-green h-full rounded-full"
+                  style={{ width: `${Math.min(100, (p.done / Math.max(p.total, 1)) * 100)}%` }}
+                />
+              </div>
+              <div className="text-label-secondary text-[13px]">
+                Este mês: {p.done} de {p.total} sessões · {p.remaining} disponíve
+                {p.remaining === 1 ? 'l' : 'is'}
+                {p.renewsOn &&
+                  ` · renova em ${fmt(p.renewsOn, timezone, { day: '2-digit', month: '2-digit' })}`}
+              </div>
+            </div>
+          ))}
         </Section>
       )}
 
