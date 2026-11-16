@@ -20,6 +20,7 @@ import {
   Handshake,
   Link2,
   HandCoins,
+  Target,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -51,6 +52,13 @@ export const navItems: NavItem[] = [
     group: 'Visão geral',
   },
   { label: 'Agenda', href: '/agenda', icon: CalendarDays, color: '#ff3b30', group: 'Visão geral' },
+  {
+    label: 'Metas',
+    href: '/metas',
+    icon: Target,
+    color: '#ff2d55',
+    group: 'Visão geral',
+  },
   {
     label: 'Meus ganhos',
     href: '/meus-ganhos',

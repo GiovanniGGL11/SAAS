@@ -49,6 +49,7 @@ const isProtectedRoute = createRouteMatcher([
   '/link-do-cliente/(.*)',
   '/plataforma',
   '/meus-ganhos',
+  '/metas',
   '/configuracoes/(.*)',
 ]);
 

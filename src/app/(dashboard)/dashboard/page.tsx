@@ -40,6 +40,7 @@ import {
   PeriodTeam,
 } from '@/components/dashboard/dashboard-period';
 import { getDashboardPeriod } from '@/server/data/dashboard-period';
+import { getCompanyRevenueTarget } from '@/server/data/goals';
 
 function greetingFor(timezone: string, now: Date) {
   const hour = Number(
@@ -132,12 +133,20 @@ export default async function DashboardPage({
                 <div className="text-label-secondary text-[12px]">Comissão</div>
               </div>
             </div>
-            <Link
-              href="/meus-ganhos"
-              className="text-system-blue self-start text-[14px] font-medium hover:underline"
-            >
-              Ver meus ganhos
-            </Link>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              <Link
+                href="/meus-ganhos"
+                className="text-system-blue text-[14px] font-medium hover:underline"
+              >
+                Ver meus ganhos
+              </Link>
+              <Link
+                href="/metas"
+                className="text-system-blue text-[14px] font-medium hover:underline"
+              >
+                Ver minha meta
+              </Link>
+            </div>
           </AppleTile>
         </div>
         <TasksCard />
@@ -267,7 +276,10 @@ export default async function DashboardPage({
   const [period, busiestHours, goal, month, teamGoals] = await Promise.all([
     getDashboardPeriod(company.id, company.timezone, preset),
     getBusiestHours(company.id, company.timezone),
-    getRevenueGoal(company.clerkOrgId),
+    // Meta da aba Metas (recebido); sem ela, a meta antiga guardada no Clerk.
+    getCompanyRevenueTarget(company.id, company.timezone).then(
+      (target) => target ?? getRevenueGoal(company.clerkOrgId),
+    ),
     getMonthProgress(company.id, company.timezone),
     getProfessionalGoals(company.id, company.timezone),
   ]);

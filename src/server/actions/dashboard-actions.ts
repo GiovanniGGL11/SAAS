@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { toActionResult } from '@/server/action-result';
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import { setRevenueGoal } from '@/server/data/insights';
+import { setCompanyGoal } from '@/server/data/goals';
 import { getDashboardPeriod } from '@/server/data/dashboard-period';
 import { reportPresetInput } from '@/lib/validations/report';
 
@@ -23,8 +24,11 @@ export async function setRevenueGoalAction(input: unknown) {
         goal: z.number().positive('A meta precisa ser maior que zero.').max(99_999_999).nullable(),
       })
       .parse(input);
-    const { company } = await requireCompanyAdmin();
+    const { company, userId } = await requireCompanyAdmin();
     await setRevenueGoal(company.clerkOrgId, goal);
+    // A mesma meta vale na aba Metas (meta de recebido da empresa, a partir deste mês).
+    await setCompanyGoal(company, 'received', goal, userId);
     revalidatePath('/dashboard');
+    revalidatePath('/metas');
   });
 }
