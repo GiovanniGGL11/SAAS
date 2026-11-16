@@ -5,8 +5,9 @@
 */
 
 export const RECORDS_BUCKET = 'client-records';
-/** Tempo dos links das fotos (segundos). */
+/** Tempo dos links das fotos (segundos): 1 h para a equipe; o cliente recebe 10 min. */
 const SIGNED_URL_SECONDS = 60 * 60;
+export const CLIENT_SIGNED_URL_SECONDS = 10 * 60;
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
@@ -85,15 +86,18 @@ export async function uploadPhoto(path: string, body: Buffer, contentType: strin
   }
 }
 
-/** Links temporários (1 h) para várias fotos de uma vez. */
-export async function signedPhotoUrls(paths: string[]): Promise<Map<string, string>> {
+/** Links temporários para várias fotos de uma vez (padrão 1 h). */
+export async function signedPhotoUrls(
+  paths: string[],
+  expiresIn = SIGNED_URL_SECONDS,
+): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   const c = config();
   if (!c || paths.length === 0) return result;
   const res = await fetch(`${c.url}/storage/v1/object/sign/${RECORDS_BUCKET}`, {
     method: 'POST',
     headers: headers(c.key, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ expiresIn: SIGNED_URL_SECONDS, paths }),
+    body: JSON.stringify({ expiresIn, paths }),
   });
   if (!res.ok) {
     console.error('[storage] links', res.status, (await res.text().catch(() => '')).slice(0, 300));

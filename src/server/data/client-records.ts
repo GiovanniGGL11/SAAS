@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/db';
 import { UserError } from '@/server/errors';
-import { removePhotos, signedPhotoUrls } from '@/server/storage/supabase';
+import {
+  CLIENT_SIGNED_URL_SECONDS,
+  removePhotos,
+  signedPhotoUrls,
+} from '@/server/storage/supabase';
 
 /*
   Registros de evolução do cliente: blocos por tratamento ("Limpeza de pele", "Depilação"), cada
@@ -54,8 +58,10 @@ export async function listClientRecords(
       },
     },
   });
+  // Links curtos para o cliente (10 min): a página gera novos sempre que é aberta.
   const urls = await signedPhotoUrls(
     blocks.flatMap((b) => b.entries.flatMap((e) => e.photos.map((p) => p.storagePath))),
+    forClient ? CLIENT_SIGNED_URL_SECONDS : undefined,
   );
   return blocks.map((b) => ({
     id: b.id,

@@ -26,6 +26,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { QuoteBody } from '@/components/orcamentos/public-quote';
 import {
   getMyDocumentAction,
@@ -71,6 +72,8 @@ export function PortalExtrasSections({
   const router = useRouter();
   const [quote, setQuote] = React.useState<Quote | null>(null);
   const [doc, setDoc] = React.useState<Doc | null>(null);
+  // Foto do registro aberta numa janela por cima da página (sem levar o cliente para o link).
+  const [photoView, setPhotoView] = React.useState<{ urls: string[]; index: number } | null>(null);
   const done = (message: string) => {
     toast.success(message);
     router.refresh();
@@ -212,12 +215,14 @@ export function PortalExtrasSections({
                       <div className="grid grid-cols-3 gap-1.5">
                         {entry.photos
                           .filter((p) => p.url)
-                          .map((photo) => (
-                            <a
+                          .map((photo, photoIndex, list) => (
+                            <button
                               key={photo.id}
-                              href={photo.url!}
-                              target="_blank"
-                              rel="noreferrer"
+                              type="button"
+                              aria-label="Ver foto"
+                              onClick={() =>
+                                setPhotoView({ urls: list.map((p) => p.url!), index: photoIndex })
+                              }
                               className="aspect-square overflow-hidden rounded-xl bg-black/5"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element -- link temporário */}
@@ -227,7 +232,7 @@ export function PortalExtrasSections({
                                 className="size-full object-cover"
                                 loading="lazy"
                               />
-                            </a>
+                            </button>
                           ))}
                       </div>
                     )}
@@ -236,6 +241,7 @@ export function PortalExtrasSections({
               </ol>
             </details>
           ))}
+          <PhotoViewer view={photoView} onChange={setPhotoView} />
         </Section>
       )}
 
@@ -561,5 +567,52 @@ function ProfileSection({ profile }: { profile: PortalExtras['profile'] }) {
         </Button>
       )}
     </Section>
+  );
+}
+
+/** Foto em tela cheia dentro da área do cliente, com setas para as outras fotos do dia. */
+function PhotoViewer({
+  view,
+  onChange,
+}: {
+  view: { urls: string[]; index: number } | null;
+  onChange: (view: { urls: string[]; index: number } | null) => void;
+}) {
+  const go = (delta: number) =>
+    view &&
+    onChange({
+      urls: view.urls,
+      index: (view.index + delta + view.urls.length) % view.urls.length,
+    });
+  return (
+    <Dialog open={view !== null} onOpenChange={(open: boolean) => !open && onChange(null)}>
+      <DialogContent className="gap-2 p-2 sm:max-w-3xl">
+        <DialogTitle className="sr-only">Foto</DialogTitle>
+        {view && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- link temporário e privado */}
+            <img
+              src={view.urls[view.index]}
+              alt="Foto do seu tratamento"
+              className="max-h-[75vh] w-full rounded-2xl object-contain"
+              onContextMenu={(e) => e.preventDefault()}
+            />
+            {view.urls.length > 1 && (
+              <div className="flex items-center justify-between px-2 pb-1">
+                <Button variant="ghost" size="sm" onClick={() => go(-1)}>
+                  ‹ Anterior
+                </Button>
+                <span className="text-label-secondary text-[13px] tabular-nums">
+                  {view.index + 1} de {view.urls.length}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => go(1)}>
+                  Próxima ›
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
