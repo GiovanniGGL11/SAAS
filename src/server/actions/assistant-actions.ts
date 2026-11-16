@@ -7,6 +7,7 @@ import { assistantMessagesSchema } from '@/lib/assistant';
 import { toActionResult } from '@/server/action-result';
 import { isCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { requireFormAccess } from '@/server/auth/form-access';
+import { getOwnProfessional } from '@/server/auth/professional-scope';
 import { rateLimitByKey } from '@/server/rate-limit';
 import {
   AiAccessError,
@@ -38,6 +39,18 @@ async function aiSession() {
   });
 }
 
+/*
+  Login do profissional vê só a própria agenda e os próprios clientes; as ferramentas do assistente
+  enxergam a empresa toda. Até elas respeitarem esse recorte, o assistente fica fora para ele.
+*/
+const PROFESSIONAL_BLOCK_MESSAGE =
+  'O assistente ainda não está disponível no login do profissional. Peça à recepção ou ao administrador.';
+
+async function assertNotOwnProfessional() {
+  if (await getOwnProfessional())
+    throw new AiAccessError('not_allowed', PROFESSIONAL_BLOCK_MESSAGE);
+}
+
 /** Permissões de fichas só quando dá para carregar (a IA respeita as mesmas regras da tela). */
 async function formAccessOrUndefined() {
   try {
@@ -53,6 +66,7 @@ export async function sendAssistantMessageAction(input: unknown) {
     const session = await aiSession();
     // Bloqueio antes de qualquer outra coisa: plano sem IA não chega ao provedor.
     assertAiCapability(session, 'assistant');
+    await assertNotOwnProfessional();
     const reply = await handleAssistantMessage({
       session,
       messages,
@@ -72,6 +86,7 @@ export async function confirmAssistantActionAction(input: unknown) {
     const { proposalId } = z.object({ proposalId: z.string().min(1).max(64) }).parse(input);
     const session = await aiSession();
     rateLimitByKey(`assistant-confirm:${session.userId}`, 30, 60_000);
+    await assertNotOwnProfessional();
     const outcome = await confirmProposal(session, proposalId, await formAccessOrUndefined());
     if (outcome.status === 'COMPLETED' && outcome.effects) {
       scheduleGoogleSync(session.companyId, outcome.effects.appointmentIds);
@@ -99,6 +114,10 @@ export async function getAssistantProposalsAction(input: unknown) {
 export async function getAiStatusAction() {
   const session = await aiSession();
   const summary = aiAccessSummary(session);
+  if (await getOwnProfessional()) {
+    summary.assistant = false;
+    summary.assistantMessage = PROFESSIONAL_BLOCK_MESSAGE;
+  }
   const usage = summary.includedInPlan
     ? await getUsageSummary(
         session.companyId,

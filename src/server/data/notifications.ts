@@ -62,7 +62,12 @@ function dayAndTime(instant: Date, timezone: string) {
   return `${day} às ${formatTimeInTz(instant, timezone)}`;
 }
 
-async function clientActivity(companyId: string, timezone: string, now: Date): Promise<Notice[]> {
+async function clientActivity(
+  companyId: string,
+  timezone: string,
+  now: Date,
+  professionalId: string | null,
+): Promise<Notice[]> {
   const logs = await prisma.auditLog.findMany({
     where: {
       companyId,
@@ -78,7 +83,11 @@ async function clientActivity(companyId: string, timezone: string, now: Date): P
   if (logs.length === 0) return [];
 
   const appointments = await prisma.appointment.findMany({
-    where: { companyId, id: { in: [...new Set(logs.map((l) => l.entityId))] } },
+    where: {
+      companyId,
+      id: { in: [...new Set(logs.map((l) => l.entityId))] },
+      ...(professionalId ? { professionalId } : {}),
+    },
     select: {
       id: true,
       startAt: true,
@@ -111,10 +120,16 @@ async function clientActivity(companyId: string, timezone: string, now: Date): P
   });
 }
 
-async function upcoming(companyId: string, timezone: string, now: Date): Promise<Notice[]> {
+async function upcoming(
+  companyId: string,
+  timezone: string,
+  now: Date,
+  professionalId: string | null,
+): Promise<Notice[]> {
   const appointments = await prisma.appointment.findMany({
     where: {
       companyId,
+      ...(professionalId ? { professionalId } : {}),
       status: { in: ['SCHEDULED', 'CONFIRMED'] },
       startAt: { gte: now, lte: new Date(now.getTime() + UPCOMING_HOURS * 3_600_000) },
     },
@@ -138,12 +153,17 @@ async function upcoming(companyId: string, timezone: string, now: Date): Promise
   }));
 }
 
-async function tomorrowUnconfirmed(companyId: string, timezone: string): Promise<Notice[]> {
+async function tomorrowUnconfirmed(
+  companyId: string,
+  timezone: string,
+  professionalId: string | null,
+): Promise<Notice[]> {
   const tomorrow = addDays(getTodayInTz(timezone), 1);
   const startAt = calendarDateToUtc(tomorrow, 0, timezone);
   const count = await prisma.appointment.count({
     where: {
       companyId,
+      ...(professionalId ? { professionalId } : {}),
       status: 'SCHEDULED',
       startAt: { gte: startAt, lt: calendarDateToUtc(addDays(tomorrow, 1), 0, timezone) },
     },
@@ -219,9 +239,11 @@ async function followUp(
   companyId: string,
   timezone: string,
   now: Date,
-  viewer?: { userId: string; isAdmin: boolean },
+  viewer?: NoticeViewer,
 ): Promise<Notice[]> {
   const prefs = await getPreferences(companyId);
+  // Login do profissional: só os lembretes dele (tarefas e orçamentos são da recepção).
+  const own = !!viewer?.professionalId;
   const endOfToday = calendarDateToUtc(addDays(getTodayInTz(timezone), 1), 0, timezone);
   const [approvals, tasks, quotes] = await Promise.all([
     prefs.notifyApprovals && viewer
@@ -234,12 +256,12 @@ async function followUp(
           },
         })
       : 0,
-    prefs.notifyTasks
+    prefs.notifyTasks && !own
       ? prisma.task.count({
           where: { companyId, status: { in: ['OPEN', 'IN_PROGRESS'] }, dueAt: { lt: endOfToday } },
         })
       : 0,
-    prefs.notifyQuotes
+    prefs.notifyQuotes && !own
       ? prisma.quote.count({
           where: {
             companyId,
@@ -293,20 +315,26 @@ async function followUp(
   return notices;
 }
 
+/** Quem vê os avisos. `professionalId`: login do profissional, que só vê a própria agenda. */
+export type NoticeViewer = { userId: string; isAdmin: boolean; professionalId?: string | null };
+
 export async function listNotices(
   companyId: string,
   timezone: string,
   now = new Date(),
-  viewer?: { userId: string; isAdmin: boolean },
+  viewer?: NoticeViewer,
 ): Promise<Notice[]> {
+  const own = viewer?.professionalId ?? null;
+  // Estoque e aniversariantes de toda a base ficam de fora para o profissional (telas dele não têm).
+  const none = Promise.resolve<Notice[]>([]);
   const [activity, soon, unconfirmed, stock, shortages, birthdayNotices, follow] =
     await Promise.all([
-      clientActivity(companyId, timezone, now),
-      upcoming(companyId, timezone, now),
-      tomorrowUnconfirmed(companyId, timezone),
-      lowStock(companyId),
-      supplyShortages(companyId, now),
-      birthdays(companyId, timezone),
+      clientActivity(companyId, timezone, now, own),
+      upcoming(companyId, timezone, now, own),
+      tomorrowUnconfirmed(companyId, timezone, own),
+      own ? none : lowStock(companyId),
+      own ? none : supplyShortages(companyId, now),
+      own ? none : birthdays(companyId, timezone),
       followUp(companyId, timezone, now, viewer).catch(() => []),
     ]);
   return [
