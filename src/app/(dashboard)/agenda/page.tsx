@@ -22,9 +22,7 @@ export default async function AgendaPage() {
     continua vendo todos.
   */
   const own = await getOwnProfessional();
-  const visibleProfessionals = own
-    ? professionals.filter((p) => p.id === own.id)
-    : professionals;
+  const visibleProfessionals = own ? professionals.filter((p) => p.id === own.id) : professionals;
 
   return (
     <div className="flex flex-col gap-4">
