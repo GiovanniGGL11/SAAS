@@ -8,6 +8,7 @@ import {
   FileTextIcon,
   HourglassIcon,
   PackageIcon,
+  ChevronRightIcon,
   RepeatIcon,
   SparklesIcon,
 } from 'lucide-react';
@@ -183,16 +184,22 @@ export function PortalExtrasSections({
 
       {extras.records.length > 0 && (
         <Section title="Minha evolução">
-          {extras.records.map((block) => (
-            <div key={block.id} className="bg-tile flex flex-col gap-3 rounded-[22px] p-4">
-              <div className="flex items-center gap-2 text-[15px] font-medium">
+          {extras.records.map((block, index) => (
+            // Recolhível: só o mais recente começa aberto (com muitas fotos a página ficaria enorme).
+            <details
+              key={block.id}
+              open={index === 0}
+              className="bg-tile group flex flex-col gap-3 rounded-[22px] p-4"
+            >
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-[15px] font-medium [&::-webkit-details-marker]:hidden">
+                <ChevronRightIcon className="text-label-secondary size-4 transition-transform group-open:rotate-90" />
                 <SparklesIcon className="text-system-indigo size-4" />
-                {block.title}
-                <span className="text-label-secondary text-[12px] font-normal">
+                <span className="min-w-0 truncate">{block.title}</span>
+                <span className="text-label-secondary shrink-0 text-[12px] font-normal">
                   · {block.entries.length} {block.entries.length === 1 ? 'dia' : 'dias'}
                 </span>
-              </div>
-              <ol className="border-foreground/[0.08] flex flex-col gap-3 border-l-2 pl-3">
+              </summary>
+              <ol className="border-foreground/[0.08] mt-3 flex flex-col gap-3 border-l-2 pl-3">
                 {block.entries.map((entry) => (
                   <li key={entry.id} className="flex flex-col gap-1.5">
                     <span className="text-[13px] font-semibold tabular-nums">
@@ -227,7 +234,7 @@ export function PortalExtrasSections({
                   </li>
                 ))}
               </ol>
-            </div>
+            </details>
           ))}
         </Section>
       )}

@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarPlusIcon,
+  ChevronRightIcon,
   EyeOffIcon,
   ImagePlusIcon,
   LockIcon,
@@ -120,10 +121,11 @@ export function ClientRecordsTab({
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {data.blocks.map((block) => (
+          {data.blocks.map((block, index) => (
             <BlockCard
               key={block.id}
               block={block}
+              defaultOpen={index === 0}
               onAddDay={() => setEntryFor({ block, entry: null })}
               onEditDay={(entry) => setEntryFor({ block, entry })}
               onOpenPhoto={setViewer}
@@ -176,14 +178,20 @@ export function ClientRecordsTab({
   );
 }
 
+/** Dias mostrados com o bloco aberto, antes de "Ver todos os dias". */
+const RECENT_DAYS = 3;
+
 function BlockCard({
   block,
+  defaultOpen,
   onAddDay,
   onEditDay,
   onOpenPhoto,
   onChanged,
 }: {
   block: RecordBlockView;
+  /** Só o bloco mais recente começa aberto: com muitas fotos, a página não fica enorme. */
+  defaultOpen: boolean;
   onAddDay: () => void;
   onEditDay: (entry: RecordEntryView) => void;
   onOpenPhoto: (url: string) => void;
@@ -208,6 +216,14 @@ function BlockCard({
     onError: (e: Error) => toast.error(e.message),
   });
   const photos = block.entries.reduce((n, e) => n + e.photos.length, 0);
+  const [open, setOpen] = React.useState(defaultOpen);
+  const [showAll, setShowAll] = React.useState(false);
+  const lastDay = block.entries[0]?.date;
+  const recentThumbs = block.entries
+    .flatMap((e) => e.photos)
+    .filter((p) => p.url)
+    .slice(0, 3);
+  const visibleEntries = showAll ? block.entries : block.entries.slice(0, RECENT_DAYS);
 
   return (
     <article className="bg-tile flex flex-col gap-4 rounded-[22px] p-4 md:p-5">
@@ -231,16 +247,49 @@ function BlockCard({
             </Button>
           </form>
         ) : (
-          <div className="min-w-0">
-            <h3 className="truncate text-[18px] font-semibold">{block.title}</h3>
-            <p className="text-label-secondary text-[13px]">
-              {block.entries.length} {block.entries.length === 1 ? 'dia' : 'dias'} · {photos}{' '}
-              {photos === 1 ? 'foto' : 'fotos'}
-            </p>
-          </div>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <ChevronRightIcon
+              className={cn(
+                'text-label-secondary size-5 shrink-0 transition-transform',
+                open && 'rotate-90',
+              )}
+            />
+            <span className="min-w-0">
+              <span className="block truncate text-[18px] font-semibold">{block.title}</span>
+              <span className="text-label-secondary block text-[13px]">
+                {block.entries.length} {block.entries.length === 1 ? 'dia' : 'dias'} · {photos}{' '}
+                {photos === 1 ? 'foto' : 'fotos'}
+                {lastDay && ` · último em ${formatDay(lastDay)}`}
+              </span>
+            </span>
+            {!open && recentThumbs.length > 0 && (
+              <span className="ml-auto hidden shrink-0 -space-x-2 sm:flex">
+                {recentThumbs.map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element -- link temporário
+                  <img
+                    key={p.id}
+                    src={p.url!}
+                    alt=""
+                    className="ring-tile size-9 rounded-lg object-cover ring-2"
+                  />
+                ))}
+              </span>
+            )}
+          </button>
         )}
         <div className="flex items-center gap-1">
-          <Button size="sm" onClick={onAddDay}>
+          <Button
+            size="sm"
+            onClick={() => {
+              setOpen(true);
+              onAddDay();
+            }}
+          >
             <CalendarPlusIcon className="size-4" /> Adicionar dia
           </Button>
           <Button
@@ -267,22 +316,36 @@ function BlockCard({
         </div>
       </header>
 
-      {block.entries.length === 0 ? (
+      {!open ? null : block.entries.length === 0 ? (
         <p className="text-label-secondary text-[13px]">
           Nenhum dia ainda. Toque em “Adicionar dia” para registrar a primeira sessão.
         </p>
       ) : (
-        <ol className="border-foreground/[0.08] flex flex-col gap-4 border-l-2 pl-4">
-          {block.entries.map((entry) => (
-            <EntryItem
-              key={entry.id}
-              entry={entry}
-              onEdit={() => onEditDay(entry)}
-              onOpenPhoto={onOpenPhoto}
-              onChanged={onChanged}
-            />
-          ))}
-        </ol>
+        <>
+          <ol className="border-foreground/[0.08] flex flex-col gap-4 border-l-2 pl-4">
+            {visibleEntries.map((entry) => (
+              <EntryItem
+                key={entry.id}
+                entry={entry}
+                onEdit={() => onEditDay(entry)}
+                onOpenPhoto={onOpenPhoto}
+                onChanged={onChanged}
+              />
+            ))}
+          </ol>
+          {block.entries.length > RECENT_DAYS && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => setShowAll((v) => !v)}
+            >
+              {showAll
+                ? 'Mostrar só os mais recentes'
+                : `Ver todos os ${block.entries.length} dias`}
+            </Button>
+          )}
+        </>
       )}
     </article>
   );
