@@ -47,6 +47,7 @@ import { ClientFormsTab } from '@/components/fichas/client-forms-tab';
 import { ClientPackagesTab } from '@/components/pacotes/client-packages-tab';
 import { ClientSessionsTab } from '@/components/pacotes/client-sessions-tab';
 import { QuotesView } from '@/components/orcamentos/quotes-view';
+import { ClientRecordsTab } from '@/components/clientes/client-records-tab';
 import { usePlanFeatures } from '@/components/plan/use-plan-features';
 
 const TABS = [
@@ -56,6 +57,7 @@ const TABS = [
   { value: 'sessoes', label: 'Histórico das sessões' },
   { value: 'orcamentos', label: 'Orçamentos' },
   { value: 'historico', label: 'Linha do tempo' },
+  { value: 'registros', label: 'Registros' },
 ] as const;
 type Tab = (typeof TABS)[number]['value'];
 
@@ -276,6 +278,7 @@ export function ClientDetail({
       {tab === 'pacotes' && <ClientPackagesTab clientId={clientId} timezone={timezone} />}
       {tab === 'sessoes' && <ClientSessionsTab clientId={clientId} timezone={timezone} />}
       {tab === 'historico' && <ClientTimeline clientId={clientId} timezone={timezone} />}
+      {tab === 'registros' && <ClientRecordsTab clientId={clientId} clientName={client.name} />}
       {tab === 'orcamentos' && quotesEnabled && (
         <QuotesView timezone={timezone} clientId={clientId} clientName={client.name} />
       )}

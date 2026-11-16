@@ -9,6 +9,7 @@ import {
   HourglassIcon,
   PackageIcon,
   RepeatIcon,
+  SparklesIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -177,6 +178,57 @@ export function PortalExtrasSections({
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+
+      {extras.records.length > 0 && (
+        <Section title="Minha evolução">
+          {extras.records.map((block) => (
+            <div key={block.id} className="bg-tile flex flex-col gap-3 rounded-[22px] p-4">
+              <div className="flex items-center gap-2 text-[15px] font-medium">
+                <SparklesIcon className="text-system-indigo size-4" />
+                {block.title}
+                <span className="text-label-secondary text-[12px] font-normal">
+                  · {block.entries.length} {block.entries.length === 1 ? 'dia' : 'dias'}
+                </span>
+              </div>
+              <ol className="border-foreground/[0.08] flex flex-col gap-3 border-l-2 pl-3">
+                {block.entries.map((entry) => (
+                  <li key={entry.id} className="flex flex-col gap-1.5">
+                    <span className="text-[13px] font-semibold tabular-nums">
+                      {entry.date.split('-').reverse().join('/')}
+                    </span>
+                    {entry.notes && (
+                      <p className="text-[14px] whitespace-pre-wrap">{entry.notes}</p>
+                    )}
+                    {entry.photos.length > 0 && (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {entry.photos
+                          .filter((p) => p.url)
+                          .map((photo) => (
+                            <a
+                              key={photo.id}
+                              href={photo.url!}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="aspect-square overflow-hidden rounded-xl bg-black/5"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element -- link temporário */}
+                              <img
+                                src={photo.url!}
+                                alt=""
+                                className="size-full object-cover"
+                                loading="lazy"
+                              />
+                            </a>
+                          ))}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
         </Section>
       )}
 

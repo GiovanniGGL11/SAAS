@@ -1,3 +1,4 @@
+import { listClientRecords } from '@/server/data/client-records';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { prisma } from '@/lib/db';
@@ -340,7 +341,7 @@ export async function rescheduleOwnAppointment(
 export async function getPortalExtras(session: PortalSession) {
   const companyId = session.company.id;
   if (!(await companyHasFeature(companyId, 'clientPortal'))) return null;
-  const [packages, forms, quotes, offers, profile, jobs, pending] = await Promise.all([
+  const [packages, forms, quotes, offers, profile, jobs, pending, records] = await Promise.all([
     // Pacotes e assinaturas (planos mensais) ativos do cliente.
     prisma.clientPackage.findMany({
       where: { companyId, clientId: session.id, status: 'ACTIVE' },
@@ -386,6 +387,8 @@ export async function getPortalExtras(session: PortalSession) {
       orderBy: { createdAt: 'asc' },
       take: 20,
     }),
+    // Registros de evolução (blocos por tratamento), sem o que a equipe marcou como interno.
+    listClientRecords(companyId, session.id, 'client'),
   ]);
   return {
     packages: packages
@@ -422,6 +425,7 @@ export async function getPortalExtras(session: PortalSession) {
       service: o.entry.service.name,
     })),
     jobs,
+    records: records.filter((b) => b.entries.length > 0),
     pendingPayments: pending.map((p) => ({
       id: p.id,
       description: p.description,

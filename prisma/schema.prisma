@@ -143,6 +143,7 @@ model Company {
   periodGoals               PeriodGoal[]
   serviceProfessionals      ServiceProfessional[]
   trialClaims               TrialClaim[]
+  recordBlocks              ClientRecordBlock[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -313,6 +314,7 @@ model Client {
   campaignSends   CampaignRecipient[]
   formEntries     FormEntry[]
   sessionRecords  SessionRecord[]
+  recordBlocks    ClientRecordBlock[]
   quotes          Quote[]
   tasks           Task[]
   opportunities   Opportunity[]
@@ -2263,4 +2265,58 @@ model TrialClaim {
 
   @@index([kind, valueHash])
   @@index([companyId])
+}
+
+/// Registros de evolução do cliente, em blocos por tratamento ("Limpeza de pele", "Depilação").
+/// Cada bloco junta os dias de atendimento com anotações e fotos; o cliente acompanha pela área
+/// dele (menos o que estiver marcado como interno).
+model ClientRecordBlock {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  clientId        String
+  client          Client              @relation(fields: [clientId], references: [id])
+  title           String
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  entries         ClientRecordEntry[]
+
+  @@index([companyId, clientId])
+}
+
+/// Um dia do bloco: data, anotação (o cliente vê), anotação interna e fotos.
+model ClientRecordEntry {
+  id              String              @id @default(cuid())
+  companyId       String
+  blockId         String
+  block           ClientRecordBlock   @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  /// Dia do registro (data do calendário, sem hora).
+  date            DateTime            @db.Date
+  notes           String?
+  internalNotes   String?
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  photos          ClientRecordPhoto[]
+
+  @@index([blockId, date])
+}
+
+/// Foto do dia, guardada no armazenamento privado (Supabase Storage); abre por link temporário.
+model ClientRecordPhoto {
+  id              String            @id @default(cuid())
+  companyId       String
+  entryId         String
+  entry           ClientRecordEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  storagePath     String
+  contentType     String
+  sizeBytes       Int
+  caption         String?
+  /// Só a equipe vê (não aparece na área do cliente).
+  staffOnly       Boolean           @default(false)
+  createdByUserId String
+  createdAt       DateTime          @default(now())
+
+  @@index([entryId])
 }
