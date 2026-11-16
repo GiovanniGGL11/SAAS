@@ -6,6 +6,12 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  SignaturePad,
+  hasInk,
+  strokesToPng,
+  type Stroke,
+} from '@/components/pacotes/signature-pad';
+import {
   type Answers,
   type FormSchema,
   type Question,
@@ -123,9 +129,18 @@ function QuestionField({
     return (
       <div className="flex flex-col gap-0.5">
         <div className="text-label-secondary text-[13px]">{question.title}</div>
-        <div className="text-[15px] break-words whitespace-pre-wrap">
-          {answerText(question, value)}
-        </div>
+        {question.type === 'signature' && typeof value === 'string' && value ? (
+          // eslint-disable-next-line @next/next/no-img-element -- assinatura guardada como data URL
+          <img
+            src={value}
+            alt="Assinatura"
+            className="h-24 w-auto max-w-full self-start rounded-xl bg-white p-1"
+          />
+        ) : (
+          <div className="text-[15px] break-words whitespace-pre-wrap">
+            {answerText(question, value)}
+          </div>
+        )}
       </div>
     );
   }
@@ -181,6 +196,8 @@ function QuestionField({
             onChange={(e) => onChange(e.target.value.replace(/[^\d,.-]/g, ''))}
           />
         );
+      case 'signature':
+        return <SignatureField value={value} onChange={onChange} />;
       case 'multi_choice': {
         const selected = Array.isArray(value) ? (value as string[]) : [];
         return (
@@ -308,4 +325,45 @@ export function answeredProgress(schema: FormSchema, answers: Answers) {
     return !(v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0));
   });
   return { answered: answered.length, total: visible.length };
+}
+
+/** Pergunta "Assinatura": o cliente assina com o dedo, a caneta ou o mouse. */
+function SignatureField({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const [strokes, setStrokes] = React.useState<Stroke[]>([]);
+  const signed = typeof value === 'string' && value.length > 0;
+  if (signed && strokes.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element -- assinatura guardada como data URL */}
+        <img
+          src={value as string}
+          alt="Sua assinatura"
+          className="h-24 w-auto max-w-full rounded-xl bg-white p-1 ring-1 ring-black/10"
+        />
+        <button
+          type="button"
+          className="text-system-blue text-[13px] font-medium"
+          onClick={() => onChange(undefined)}
+        >
+          Assinar de novo
+        </button>
+      </div>
+    );
+  }
+  return (
+    <SignaturePad
+      strokes={strokes}
+      onChange={(next) => {
+        setStrokes(next);
+        onChange(hasInk(next) ? strokesToPng(next) : undefined);
+      }}
+      label="Assine aqui"
+    />
+  );
 }

@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PageHeader } from '@/components/layout/page';
+import { ImportPdfButton } from '@/components/fichas/import-pdf-button';
 import { FormRenderer } from '@/components/fichas/form-renderer';
 import { EntryDialog, type EntrySummary, useFormAccess } from '@/components/fichas/entry-dialog';
 import { EntryStatusBadge, FlagBadge } from '@/components/fichas/entry-status-badge';
@@ -74,11 +75,14 @@ export function FormsHome({ timezone, initialTab }: { timezone: string; initialT
         description="Formulários, questionários, termos e checklists, com histórico de cada envio."
         actions={
           access?.canManage && tab === 'modelos' ? (
-            <Button asChild>
-              <Link href="/fichas/modelos/novo">
-                <PlusIcon /> Novo modelo
-              </Link>
-            </Button>
+            <>
+              <ImportPdfButton />
+              <Button asChild>
+                <Link href="/fichas/modelos/novo">
+                  <PlusIcon /> Novo modelo
+                </Link>
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -194,7 +198,8 @@ function TemplatesTab({ canManage }: { canManage: boolean }) {
             />
             {canManage && (
               <div className="flex flex-wrap justify-center gap-2">
-                <Button asChild>
+                <ImportPdfButton variant="default" />
+                <Button asChild variant="outline">
                   <Link href="/fichas/modelos/novo">Criar modelo</Link>
                 </Button>
                 <Button

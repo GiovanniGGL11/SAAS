@@ -14,6 +14,7 @@ export const QUESTION_TYPES = [
   'multi_choice',
   'date',
   'number',
+  'signature',
 ] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
@@ -25,7 +26,12 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   multi_choice: 'Múltipla escolha',
   date: 'Data',
   number: 'Número',
+  signature: 'Assinatura',
 };
+
+/** Assinatura guardada na resposta: PNG (data URL) do traço. */
+export const SIGNATURE_DATA_URL = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
+const SIGNATURE_MAX_CHARS = 300_000;
 
 /** Quem responde a seção: o cliente (aparece no link), a equipe (nunca no link) ou ambos. */
 export const SECTION_AUDIENCES = ['any', 'client', 'staff'] as const;
@@ -227,6 +233,12 @@ function checkValue(question: Question, value: unknown): string | null {
       const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
       return Number.isFinite(n) ? null : 'Informe um número.';
     }
+    case 'signature':
+      return typeof value === 'string' &&
+        value.length <= SIGNATURE_MAX_CHARS &&
+        SIGNATURE_DATA_URL.test(value)
+        ? null
+        : 'Assine no quadro.';
   }
 }
 
@@ -281,6 +293,7 @@ export function answerText(question: Question, value: unknown): string {
     const [y, m, d] = value.split('-');
     return `${d}/${m}/${y}`;
   }
+  if (question.type === 'signature') return 'Assinado';
   return String(value);
 }
 

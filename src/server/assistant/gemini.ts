@@ -100,3 +100,64 @@ export async function generateContent(params: {
     },
   };
 }
+
+export type GeminiInputPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+/**
+ * Uma chamada só, com resposta em JSON no formato pedido (ex.: ler um PDF e devolver a estrutura).
+ * Arquivos vão em `inlineData` (base64), até ~20 MB no pedido.
+ */
+export async function generateJson(params: {
+  apiKey: string;
+  model: string;
+  systemInstruction: string;
+  parts: GeminiInputPart[];
+  responseSchema: Record<string, unknown>;
+  timeoutMs?: number;
+}): Promise<{ json: unknown; usage: ProviderUsage }> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(params.model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': params.apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: params.systemInstruction }] },
+      contents: [{ role: 'user', parts: params.parts }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+        responseSchema: params.responseSchema,
+      },
+    }),
+    signal: AbortSignal.timeout(params.timeoutMs ?? 90_000),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.error('[gemini] JSON respondeu', response.status, body.slice(0, 500));
+    throw new GeminiError(
+      response.status === 429
+        ? 'A leitura está sobrecarregada agora. Tente de novo em instantes.'
+        : 'Não consegui ler o arquivo agora. Tente de novo.',
+    );
+  }
+  const data = (await response.json()) as {
+    candidates?: { content?: { parts?: GeminiPart[] } }[];
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+  };
+  const text = (data.candidates?.[0]?.content?.parts ?? [])
+    .filter((p) => !p.thought)
+    .map((p) => p.text ?? '')
+    .join('');
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new GeminiError('Não consegui entender o conteúdo do arquivo. Tente outro PDF.');
+  }
+  return {
+    json,
+    usage: {
+      inputTokens: data.usageMetadata?.promptTokenCount ?? 0,
+      outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+      other: {},
+    },
+  };
+}
