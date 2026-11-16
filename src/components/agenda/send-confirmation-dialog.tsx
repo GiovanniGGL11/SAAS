@@ -43,7 +43,7 @@ export function SendConfirmationDialog({
         </DialogHeader>
 
         {confirmation && (
-          <div className="bg-system-green/10 ring-system-green/20 rounded-2xl p-4 text-[14px] leading-relaxed break-words whitespace-pre-wrap ring-1">
+          <div className="bg-system-green/10 ring-system-green/20 rounded-2xl p-4 text-[14px] leading-relaxed whitespace-pre-wrap ring-1 [overflow-wrap:anywhere]">
             {confirmation.message}
           </div>
         )}

@@ -30,6 +30,10 @@ import { addDays, getTodayInTz, startOfCalendarDateUtc } from '@/lib/time';
 import { DailySummaryCard } from '@/components/dashboard/daily-summary-card';
 import { TasksCard } from '@/components/dashboard/tasks-card';
 import { MobileSections } from '@/components/layout/mobile-sections';
+import { getOwnProfessional } from '@/server/auth/professional-scope';
+import { getMyEarnings } from '@/server/data/my-earnings';
+import { resolveReportRange } from '@/lib/report-range';
+import { formatCurrencyBRL } from '@/lib/serialize';
 import {
   DashboardPeriodProvider,
   PeriodResults,
@@ -70,6 +74,76 @@ export default async function DashboardPage({
     : 'last30';
 
   const today = getTodayInTz(company.timezone);
+
+  // Profissional com login próprio: o dia dele e quanto já fez no mês (nada da empresa toda).
+  const own = await getOwnProfessional();
+  if (own) {
+    const { greeting, date } = greetingFor(company.timezone, new Date());
+    const [mine, earnings] = await Promise.all([
+      listAppointmentsInRange(
+        company.id,
+        {
+          startAt: startOfCalendarDateUtc(today, company.timezone),
+          endAt: startOfCalendarDateUtc(addDays(today, 1), company.timezone),
+        },
+        { professionalId: own.id },
+      ),
+      getMyEarnings(company.id, own.id, resolveReportRange('thisMonth', company.timezone)),
+    ]);
+    return (
+      <div className="flex w-full flex-col gap-4 md:gap-5">
+        <DashboardHero
+          eyebrow={date}
+          title={`${greeting}, ${own.name.split(' ')[0]}!`}
+          subtitle="Seus horários de hoje e quanto você já fez no mês."
+        />
+        <div className="grid grid-cols-1 items-start gap-4 md:gap-5 lg:grid-cols-2">
+          <TodayAgendaCard
+            timezone={company.timezone}
+            appointments={mine.map((a) => ({
+              id: a.id,
+              startAt: a.startAt,
+              status: a.status,
+              clientName: a.client.name,
+              serviceName: a.serviceNameSnapshot,
+              professionalName: a.professional.name,
+              professionalColor: a.professional.color,
+            }))}
+          />
+          <AppleTile interactive={false} className="flex flex-col gap-4">
+            <TileEyebrow>Meu mês até agora</TileEyebrow>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <div className="text-[24px] leading-tight font-semibold tabular-nums">
+                  {earnings.appointments}
+                </div>
+                <div className="text-label-secondary text-[12px]">Atendimentos</div>
+              </div>
+              <div>
+                <div className="truncate text-[24px] leading-tight font-semibold tabular-nums">
+                  {formatCurrencyBRL(earnings.production)}
+                </div>
+                <div className="text-label-secondary text-[12px]">Produção</div>
+              </div>
+              <div>
+                <div className="text-system-green truncate text-[24px] leading-tight font-semibold tabular-nums">
+                  {earnings.commission === null ? '—' : formatCurrencyBRL(earnings.commission)}
+                </div>
+                <div className="text-label-secondary text-[12px]">Comissão</div>
+              </div>
+            </div>
+            <Link
+              href="/meus-ganhos"
+              className="text-system-blue self-start text-[14px] font-medium hover:underline"
+            >
+              Ver meus ganhos
+            </Link>
+          </AppleTile>
+        </div>
+        <TasksCard />
+      </div>
+    );
+  }
   // Créditos de IA do mês (só nos planos com assistente): aviso quando estiver acabando.
   const ai = featureAccessFor(company).entitlements.ai;
   const [overview, todayAppointments, aiCredits] = await Promise.all([

@@ -54,6 +54,27 @@ function periodTitle(
     : `${short(weekStartDate.month)} de ${weekStartDate.year} – ${short(end.month)} de ${end.year}`;
 }
 
+/** Versão curta do título para o celular ("Dom, 15 nov"): cabe numa linha ao lado das setas. */
+function periodTitleShort(
+  view: AgendaViewMode,
+  anchorDate: CalendarDate,
+  weekStartDate: CalendarDate,
+): string {
+  const short = (m: number) => MONTHS[m - 1].slice(0, 3);
+  if (view === 'day') {
+    const weekday =
+      WEEKDAYS[
+        new Date(Date.UTC(anchorDate.year, anchorDate.month - 1, anchorDate.day)).getUTCDay()
+      ];
+    return `${weekday.slice(0, 3)}, ${anchorDate.day} ${short(anchorDate.month)}`;
+  }
+  if (view === 'month') return `${MONTHS[anchorDate.month - 1]} ${anchorDate.year}`;
+  const end = addDays(weekStartDate, 6);
+  return end.month === weekStartDate.month
+    ? `${weekStartDate.day}–${end.day} ${short(end.month)}`
+    : `${weekStartDate.day} ${short(weekStartDate.month)} – ${end.day} ${short(end.month)}`;
+}
+
 /** O topo do Google Agenda: Hoje, ‹ ›, o período por extenso e a troca de visão à direita. */
 export function AgendaToolbar({
   view,
@@ -114,7 +135,8 @@ export function AgendaToolbar({
           <ChevronRightIcon className="size-5" />
         </Button>
         <h2 className="ml-1 text-[18px] font-semibold tracking-[-0.02em] first-letter:uppercase sm:text-[22px]">
-          {periodTitle(view, anchorDate, weekStartDate)}
+          <span className="sm:hidden">{periodTitleShort(view, anchorDate, weekStartDate)}</span>
+          <span className="hidden sm:inline">{periodTitle(view, anchorDate, weekStartDate)}</span>
         </h2>
       </div>
 

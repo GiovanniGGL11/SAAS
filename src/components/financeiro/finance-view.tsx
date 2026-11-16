@@ -130,15 +130,20 @@ export function FinanceView() {
           onValueChange={setPreset}
           options={REPORT_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
         />
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setInstallmentsOpen(true)}>
+        {/* Celular: entrada e saída lado a lado, parcelado embaixo (numa linha só estourava a tela). */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <Button
+            variant="outline"
+            className="order-3 col-span-2 sm:order-none"
+            onClick={() => setInstallmentsOpen(true)}
+          >
             Parcelado
           </Button>
           <Button variant="outline" onClick={() => openCreate('EXPENSE')}>
             <ArrowUpRightIcon className="text-system-red size-4" />
             Nova saída
           </Button>
-          <Button onClick={() => openCreate('INCOME')}>
+          <Button className="order-first sm:order-none" onClick={() => openCreate('INCOME')}>
             <ArrowDownLeftIcon className="size-4" />
             Nova entrada
           </Button>

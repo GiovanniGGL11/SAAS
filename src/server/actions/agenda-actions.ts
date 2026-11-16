@@ -1,11 +1,17 @@
 'use server';
 
+import {
+  assertOwnAppointment,
+  assertOwnProfessionalId,
+  getOwnProfessional,
+} from '@/server/auth/professional-scope';
 import { parseId } from '@/server/errors';
 
 import { revalidatePath } from 'next/cache';
 
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { prisma } from '@/lib/db';
+import { UserError } from '@/server/errors';
 import {
   AppointmentConflictError,
   cancelAppointment,
@@ -50,6 +56,8 @@ import { releaseExpiredDeposits } from '@/server/billing/deposit';
 export async function getAppointmentsForRangeAction(input: unknown) {
   const parsed = appointmentRangeInput.parse(input);
   const { company } = await requireCurrentCompany();
+  // Profissional logado vê só a própria agenda, peça o que pedir.
+  const own = await getOwnProfessional();
   // Sinal PIX vencido libera o horário antes de mostrar a agenda (rápido quando não há nenhum).
   if (company.depositPercent > 0) {
     await releaseExpiredDeposits(company.id).catch((error) => console.error('[sinal]', error));
@@ -59,7 +67,7 @@ export async function getAppointmentsForRangeAction(input: unknown) {
     company.id,
     { startAt: parsed.startAt, endAt: parsed.endAt },
     {
-      professionalId: parsed.professionalId,
+      professionalId: own ? own.id : parsed.professionalId,
       serviceId: parsed.serviceId,
       status: parsed.status,
     },
@@ -99,6 +107,7 @@ export async function createAppointmentAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = createAppointmentInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnProfessionalId(parsed.professionalId);
 
     const create = (startAt: Date, clientPackageId: string | null) =>
       createAppointment({
@@ -177,6 +186,8 @@ export async function moveAppointmentAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = moveAppointmentInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnAppointment(parsed.id);
+    if (parsed.professionalId) await assertOwnProfessionalId(parsed.professionalId);
 
     const appointment = await moveAppointment({
       companyId: company.id,
@@ -196,6 +207,7 @@ export async function updateAppointmentStatusAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = updateAppointmentStatusInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnAppointment(parsed.id);
 
     const appointment = await updateAppointmentStatus({
       companyId: company.id,
@@ -214,6 +226,7 @@ export async function cancelAppointmentAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = cancelAppointmentInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnAppointment(parsed.id);
 
     const appointment = await cancelAppointment({
       companyId: company.id,
@@ -238,6 +251,7 @@ export async function createScheduleBlockAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = createScheduleBlockInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnProfessionalId(parsed.professionalId);
     const block = await createScheduleBlock({
       companyId: company.id,
       ...parsed,
@@ -252,6 +266,7 @@ export async function deleteScheduleBlockAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = deleteScheduleBlockInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnScheduleBlock(company.id, parsed.id);
     await deleteScheduleBlock({ companyId: company.id, id: parsed.id, userId });
     revalidatePath('/agenda');
     return { id: parsed.id };
@@ -270,6 +285,7 @@ export async function resizeAppointmentAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = resizeAppointmentInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnAppointment(parsed.id);
     const appointment = await resizeAppointment({
       companyId: company.id,
       ...parsed,
@@ -302,6 +318,7 @@ export async function checkoutAppointmentAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = checkoutAppointmentInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnAppointment(parsed.id);
     const result = await checkoutAppointment({
       companyId: company.id,
       ...parsed,
@@ -319,6 +336,7 @@ export async function updateAppointmentDetailsAction(input: unknown) {
   return toActionResult(async () => {
     const parsed = updateAppointmentDetailsInput.parse(input);
     const { userId, company } = await requireCurrentCompany();
+    await assertOwnAppointment(parsed.id);
     const appointment = await updateAppointmentDetails({
       companyId: company.id,
       ...parsed,
@@ -328,4 +346,17 @@ export async function updateAppointmentDetailsAction(input: unknown) {
     revalidatePath('/agenda');
     return serializeAppointment(appointment);
   });
+}
+
+/** Bloqueio de horário: o profissional só remove os da própria agenda. */
+async function assertOwnScheduleBlock(companyId: string, blockId: string) {
+  const own = await getOwnProfessional();
+  if (!own) return;
+  const block = await prisma.scheduleBlock.findFirst({
+    where: { id: blockId, professional: { companyId } },
+    select: { professionalId: true },
+  });
+  if (block && block.professionalId !== own.id) {
+    throw new UserError('Este bloqueio é da agenda de outro profissional.');
+  }
 }

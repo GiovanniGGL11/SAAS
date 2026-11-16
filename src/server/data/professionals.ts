@@ -32,6 +32,8 @@ export type ProfessionalInput = {
   commissionType?: CommissionType | null;
   commissionValue?: number | null;
   monthlyGoal?: number | null;
+  /** Ausente = mantém a foto; null = remove. */
+  avatarUrl?: string | null;
 };
 
 export async function createProfessional(
@@ -48,6 +50,7 @@ export async function createProfessional(
       commissionType: data.commissionType ?? null,
       commissionValue: data.commissionValue ?? null,
       monthlyGoal: data.monthlyGoal || null,
+      avatarUrl: data.avatarUrl ?? null,
     },
   });
 }
@@ -67,6 +70,7 @@ export async function updateProfessional(
       commissionType: data.commissionType ?? null,
       commissionValue: data.commissionValue ?? null,
       monthlyGoal: data.monthlyGoal || null,
+      ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
     },
   });
   if (result.count === 0) throw new UserError('Profissional não encontrado.');

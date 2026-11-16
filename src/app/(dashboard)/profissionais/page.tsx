@@ -1,3 +1,4 @@
+import { denyProfessionalPage } from '@/server/auth/professional-scope';
 import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import {
   getProfessionalMonthlyProduction,
@@ -7,6 +8,8 @@ import { serializeProfessional } from '@/lib/serialize';
 import { ProfessionalList } from '@/components/profissionais/professional-list';
 
 export default async function ProfissionaisPage() {
+  // Profissional logado não abre esta tela (vê só a agenda, os clientes e os ganhos dele).
+  await denyProfessionalPage();
   const { company } = await requireCurrentCompany();
   const professionals = await listAllProfessionals(company.id);
 

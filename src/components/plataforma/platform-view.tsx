@@ -487,7 +487,7 @@ export function PlatformView({ data }: { data: PlatformData }) {
   return (
     <main className="font-apple mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:gap-8 md:px-8 md:py-10">
       {/* Cabeçalho com efeito de vidro, fixo ao rolar */}
-      <header className="bg-background/70 sticky top-0 z-20 -mx-4 flex flex-col gap-4 px-4 pt-2 pb-3 backdrop-blur-xl md:-mx-8 md:px-8">
+      <header className="bg-background/95 md:bg-background/70 sticky top-0 z-20 -mx-4 flex flex-col gap-4 px-4 pt-2 pb-3 md:-mx-8 md:px-8 md:backdrop-blur-xl">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <Link

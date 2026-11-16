@@ -66,11 +66,25 @@ export function InitialsAvatar({
   name,
   color = '#8e8e93',
   className,
+  imageUrl,
 }: {
   name: string;
   color?: string;
   className?: string;
+  /** Foto: quando houver, aparece no lugar das iniciais. */
+  imageUrl?: string | null;
 }) {
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- foto guardada como data URL
+      <img
+        src={imageUrl}
+        alt=""
+        aria-hidden
+        className={cn('size-8 shrink-0 rounded-full object-cover', className)}
+      />
+    );
+  }
   return (
     <span
       aria-hidden
