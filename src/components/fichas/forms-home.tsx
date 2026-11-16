@@ -588,8 +588,8 @@ function AccessTab() {
     <section className="flex flex-col gap-4">
       <div className="bg-system-blue/[0.06] rounded-[18px] p-4 text-[13px]">
         Toda a equipe vê se uma ficha está pendente, enviada ou revisada. As respostas (inclusive de
-        saúde) só aparecem para quem tiver “Ler respostas” — também para administradores, que
-        precisam se conceder essa permissão. Cada mudança fica registrada no histórico.
+        saúde) aparecem para os administradores e para quem da equipe tiver “Ler respostas”. Cada
+        mudança fica registrada no histórico.
       </div>
       {isLoading ? (
         <p className="text-label-secondary text-[14px]">Carregando equipe…</p>
@@ -621,14 +621,16 @@ function MemberPermissions({
   pending: boolean;
   onSave: (flags: Flags) => void;
 }) {
+  // Sem permissão salva: administrador tem acesso completo; equipe só pede e acompanha.
+  const isAdmin = member.role === 'admin';
   const initial: Flags = {
     canRequest: member.grant?.canRequest ?? true,
-    canRead: member.grant?.canRead ?? false,
-    canFill: member.grant?.canFill ?? false,
-    canReview: member.grant?.canReview ?? false,
-    canExport: member.grant?.canExport ?? false,
-    canManage: member.grant?.canManage ?? false,
-    canAudit: member.grant?.canAudit ?? false,
+    canRead: member.grant?.canRead ?? isAdmin,
+    canFill: member.grant?.canFill ?? isAdmin,
+    canReview: member.grant?.canReview ?? isAdmin,
+    canExport: member.grant?.canExport ?? isAdmin,
+    canManage: member.grant?.canManage ?? isAdmin,
+    canAudit: member.grant?.canAudit ?? isAdmin,
     scope: member.grant?.scope ?? 'ALL',
   };
   const [flags, setFlags] = React.useState(initial);

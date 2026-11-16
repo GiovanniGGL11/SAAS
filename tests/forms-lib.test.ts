@@ -273,7 +273,7 @@ describe('regras de renovação e exigência', () => {
 });
 
 describe('permissões', () => {
-  it('administrador sem concessão vê status e gerencia modelos, mas não lê respostas', () => {
+  it('administrador sem permissão salva lê, revisa e exporta as fichas', () => {
     const admin = resolveFormAccess({
       userId: 'u',
       isAdmin: true,
@@ -282,8 +282,18 @@ describe('permissões', () => {
     });
     expect(admin.canManage).toBe(true);
     expect(admin.canAudit).toBe(true);
-    expect(admin.canRead).toBe(false);
-    expect(admin.canExport).toBe(false);
+    // Dono/gerente lê as respostas das fichas que envia (antes precisava se dar permissão).
+    expect(admin.canRead && admin.canFill && admin.canReview && admin.canExport).toBe(true);
+    expect(admin.scope).toBe('ALL');
+    // Permissão salva para o administrador continua valendo (restrição de propósito).
+    const restricted = resolveFormAccess({
+      userId: 'u',
+      isAdmin: true,
+      grant: NO_GRANT,
+      professionalId: null,
+    });
+    expect(restricted.canRead).toBe(false);
+    expect(restricted.canManage).toBe(true);
   });
 
   it('recepção: pede fichas e acompanha, sem ler', () => {

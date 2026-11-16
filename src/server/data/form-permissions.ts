@@ -48,6 +48,18 @@ export const NO_GRANT: FormAccessFlags = {
   scope: 'ALL',
 };
 
+/** Administrador sem permissão salva: lê, preenche, revisa e exporta todas as fichas. */
+export const ADMIN_DEFAULT: FormAccessFlags = {
+  canManage: true,
+  canRequest: true,
+  canRead: true,
+  canFill: true,
+  canReview: true,
+  canExport: true,
+  canAudit: true,
+  scope: 'ALL',
+};
+
 /** Regra pura: o que vale para a pessoa, dado o papel e a linha de permissão (se houver). */
 export function resolveFormAccess(params: {
   userId: string;
@@ -55,7 +67,9 @@ export function resolveFormAccess(params: {
   grant: FormAccessFlags | null;
   professionalId: string | null;
 }): FormAccess {
-  const grant = params.grant ?? NO_GRANT;
+  // Dono/gerente sem permissão salva: acesso completo (é quem envia a ficha e precisa ver as
+  // respostas). Uma permissão salva para ele continua valendo — dá para restringir de propósito.
+  const grant = params.grant ?? (params.isAdmin ? ADMIN_DEFAULT : NO_GRANT);
   return {
     userId: params.userId,
     isAdmin: params.isAdmin,
