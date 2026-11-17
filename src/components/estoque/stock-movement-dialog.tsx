@@ -1,5 +1,6 @@
 'use client';
 
+import { formatQty } from '@/lib/stock-units';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -74,7 +75,7 @@ export function StockMovementDialog({
   const productOptions: ComboboxOption[] = products.map((p) => ({
     value: p.id,
     label: p.name,
-    description: `${p.quantity} em estoque`,
+    description: `${formatQty(p.quantity, p.unit)} em estoque`,
   }));
 
   return (

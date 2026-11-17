@@ -435,6 +435,8 @@ model Product {
   salePrice   Decimal  @db.Decimal(10, 2)
   quantity    Int      @default(0)
   minQuantity Int      @default(0)
+  /// Unidade de controle do estoque: un, par, ml, g, cx, pct, fl. Quantidades e custo são nela.
+  unit        String   @default("un")
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

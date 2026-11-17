@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
@@ -29,6 +29,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { createProductAction, updateProductAction } from '@/server/actions/stock-actions';
 import { productInput } from '@/lib/validations/stock';
+import { STOCK_UNITS, unitShort, type StockUnit } from '@/lib/stock-units';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { SerializedProduct } from '@/lib/serialize';
 
 export function ProductDrawer({
@@ -53,8 +61,10 @@ export function ProductDrawer({
       salePrice: product?.salePrice ?? 0,
       quantity: product?.quantity ?? 0,
       minQuantity: product?.minQuantity ?? 0,
+      unit: (product?.unit as StockUnit | undefined) ?? 'un',
     },
   });
+  const unit = unitShort(useWatch({ control: form.control, name: 'unit' }));
 
   const mutation = useMutation({
     mutationFn: (values: unknown) =>
@@ -113,13 +123,42 @@ export function ProductDrawer({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="unit"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Unidade de controle</FormLabel>
+                  <Select value={field.value ?? 'un'} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {STOCK_UNITS.map((u) => (
+                        <SelectItem key={u.value} value={u.value}>
+                          {u.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-xs">
+                    Em que você conta este produto: luvas em par, máscaras em unidade, sérum em ml.
+                    Estoque, mínimo, custo e o gasto de cada serviço ficam nessa unidade.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
                 name="costPrice"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preço de custo (R$)</FormLabel>
+                    <FormLabel>Custo por {unit} (R$)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -160,7 +199,7 @@ export function ProductDrawer({
                 name="quantity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Estoque inicial</FormLabel>
+                    <FormLabel>Estoque inicial ({unit})</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -185,7 +224,7 @@ export function ProductDrawer({
                 name="minQuantity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Estoque mínimo</FormLabel>
+                    <FormLabel>Estoque mínimo ({unit})</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
