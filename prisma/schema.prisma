@@ -143,6 +143,9 @@ model Company {
   periodGoals               PeriodGoal[]
   serviceProfessionals      ServiceProfessional[]
   trialClaims               TrialClaim[]
+  /// A equipe vê as metas da empresa na aba Metas (cada um sempre vê a própria meta).
+  shareGoalsWithTeam        Boolean                    @default(false)
+  recordBlocks              ClientRecordBlock[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -187,7 +190,9 @@ model Professional {
   updatedAt       DateTime        @updatedAt
 
   // Meta de faturamento do mês (serviços cobrados), acompanhada no painel.
-  monthlyGoal Float?
+  monthlyGoal             Float?
+  /// Meta de atendimentos concluídos no mês (vale todo mês até mudar).
+  monthlyAppointmentsGoal Int?
 
   availabilities         ProfessionalAvailability[]
   services               ServiceProfessional[]
@@ -270,37 +275,37 @@ model Service {
 }
 
 model Client {
-  id            String    @id @default(cuid())
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id])
-  name          String
-  phone         String?
-  email         String?
-  cpf           String?
-  birthDate     DateTime?
-  notes         String?
+  id                String    @id @default(cuid())
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id])
+  name              String
+  phone             String?
+  email             String?
+  cpf               String?
+  birthDate         DateTime?
+  notes             String?
   // Endereço opcional; o CEP é guardado só com dígitos e o resto vem do ViaCEP ou do usuário.
-  zipCode       String?
-  street        String?
-  number        String?
-  complement    String?
-  district      String?
-  city          String?
-  state         String?
-  isVip         Boolean   @default(false)
-  active        Boolean   @default(true)
+  zipCode           String?
+  street            String?
+  number            String?
+  complement        String?
+  district          String?
+  city              String?
+  state             String?
+  isVip             Boolean   @default(false)
+  active            Boolean   @default(true)
   // LGPD: preenchido quando o cliente não quer receber promoções (campanhas, aniversário).
   // Mensagens de serviço (confirmação, lembrete, avaliação) continuam.
   marketingOptOutAt DateTime?
   /// "client" (pelo link da mensagem) ou o id de quem registrou na equipe.
   marketingOptOutBy String?
   // Signed into the personal client-area link; bumping it revokes every link sent before.
-  portalVersion Int       @default(1)
+  portalVersion     Int       @default(1)
   // Quem indicou este cliente (programa de indicação).
-  referredById  String?
-  referredBy    Client?   @relation("Referrals", fields: [referredById], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  referredById      String?
+  referredBy        Client?   @relation("Referrals", fields: [referredById], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   appointments    Appointment[]
   loyaltyEntries  LoyaltyEntry[]
@@ -313,6 +318,7 @@ model Client {
   campaignSends   CampaignRecipient[]
   formEntries     FormEntry[]
   sessionRecords  SessionRecord[]
+  recordBlocks    ClientRecordBlock[]
   quotes          Quote[]
   tasks           Task[]
   opportunities   Opportunity[]
@@ -352,7 +358,7 @@ model Appointment {
   serviceNameSnapshot     String
   durationMinutesSnapshot Int
   /// Intervalo de preparo copiado do serviço ao marcar (o maior, se forem vários).
-  bufferMinutes           Int      @default(0)
+  bufferMinutes           Int     @default(0)
   priceSnapshot           Decimal @db.Decimal(10, 2)
 
   notes String?
@@ -2263,4 +2269,58 @@ model TrialClaim {
 
   @@index([kind, valueHash])
   @@index([companyId])
+}
+
+/// Registros de evolução do cliente, em blocos por tratamento ("Limpeza de pele", "Depilação").
+/// Cada bloco junta os dias de atendimento com anotações e fotos; o cliente acompanha pela área
+/// dele (menos o que estiver marcado como interno).
+model ClientRecordBlock {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  clientId        String
+  client          Client              @relation(fields: [clientId], references: [id])
+  title           String
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  entries         ClientRecordEntry[]
+
+  @@index([companyId, clientId])
+}
+
+/// Um dia do bloco: data, anotação (o cliente vê), anotação interna e fotos.
+model ClientRecordEntry {
+  id              String              @id @default(cuid())
+  companyId       String
+  blockId         String
+  block           ClientRecordBlock   @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  /// Dia do registro (data do calendário, sem hora).
+  date            DateTime            @db.Date
+  notes           String?
+  internalNotes   String?
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  photos          ClientRecordPhoto[]
+
+  @@index([blockId, date])
+}
+
+/// Foto do dia, guardada no armazenamento privado (Supabase Storage); abre por link temporário.
+model ClientRecordPhoto {
+  id              String            @id @default(cuid())
+  companyId       String
+  entryId         String
+  entry           ClientRecordEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  storagePath     String
+  contentType     String
+  sizeBytes       Int
+  caption         String?
+  /// Só a equipe vê (não aparece na área do cliente).
+  staffOnly       Boolean           @default(false)
+  createdByUserId String
+  createdAt       DateTime          @default(now())
+
+  @@index([entryId])
 }

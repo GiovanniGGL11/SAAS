@@ -60,7 +60,7 @@ export function shiftMonth(month: string, delta: number) {
   return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 }
 
-async function actuals(companyId: string, start: Date, end: Date) {
+export async function actuals(companyId: string, start: Date, end: Date) {
   const [received, done, clients, quotes] = await Promise.all([
     prisma.transaction.aggregate({
       where: { companyId, type: 'INCOME', status: 'PAID', paidAt: { gte: start, lt: end } },
@@ -101,7 +101,8 @@ export async function getPeriodGoals(
     month,
     running,
     items: GOAL_METRIC_KEYS.map((metric) => {
-      const target = targets.get(metric) ?? null;
+      // 0 = "sem meta a partir deste mês" (gravado pela aba Metas).
+      const target = targets.get(metric) || null;
       const value = actual[metric];
       const projection =
         running && elapsed > 0.05 ? Math.round((value / elapsed) * 100) / 100 : null;

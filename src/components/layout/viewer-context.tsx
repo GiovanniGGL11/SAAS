@@ -30,6 +30,7 @@ export const PROFESSIONAL_PATHS = [
   '/dashboard',
   '/agenda',
   '/clientes',
+  '/metas',
   '/meus-ganhos',
   '/atividades',
 ];

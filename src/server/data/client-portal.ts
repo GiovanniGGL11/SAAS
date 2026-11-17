@@ -1,3 +1,4 @@
+import { listClientRecords } from '@/server/data/client-records';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { prisma } from '@/lib/db';
@@ -340,18 +341,22 @@ export async function rescheduleOwnAppointment(
 export async function getPortalExtras(session: PortalSession) {
   const companyId = session.company.id;
   if (!(await companyHasFeature(companyId, 'clientPortal'))) return null;
-  const [packages, forms, quotes, offers, profile, jobs, pending] = await Promise.all([
+  const [packages, forms, quotes, offers, profile, jobs, pending, records] = await Promise.all([
+    // Pacotes e assinaturas (planos mensais) ativos do cliente.
     prisma.clientPackage.findMany({
-      where: { companyId, clientId: session.id, status: 'ACTIVE', recurring: false },
+      where: { companyId, clientId: session.id, status: 'ACTIVE' },
       select: {
         id: true,
         nameSnapshot: true,
         sessionsTotal: true,
+        sessionsUsed: true,
         periodEnd: true,
+        recurring: true,
+        price: true,
         movements: { select: { kind: true, quantity: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 20,
     }),
     listClientPortalForms(companyId, session.id),
     (await companyHasFeature(companyId, 'quotes'))
@@ -382,19 +387,35 @@ export async function getPortalExtras(session: PortalSession) {
       orderBy: { createdAt: 'asc' },
       take: 20,
     }),
+    // Registros de evolução (blocos por tratamento), sem o que a equipe marcou como interno.
+    listClientRecords(companyId, session.id, 'client'),
   ]);
   return {
-    packages: packages.map((p) => {
-      const done = sessionsDone(p.movements);
-      return {
+    packages: packages
+      .filter((p) => !p.recurring)
+      .map((p) => {
+        const done = sessionsDone(p.movements);
+        return {
+          id: p.id,
+          name: p.nameSnapshot,
+          done,
+          total: p.sessionsTotal,
+          remaining: Math.max(p.sessionsTotal - done, 0),
+          validUntil: p.periodEnd?.toISOString() ?? null,
+        };
+      }),
+    // Assinatura: sessões do mês atual (zeram a cada renovação) e quando renova.
+    subscriptions: packages
+      .filter((p) => p.recurring)
+      .map((p) => ({
         id: p.id,
         name: p.nameSnapshot,
-        done,
+        done: p.sessionsUsed,
         total: p.sessionsTotal,
-        remaining: Math.max(p.sessionsTotal - done, 0),
-        validUntil: p.periodEnd?.toISOString() ?? null,
-      };
-    }),
+        remaining: Math.max(p.sessionsTotal - p.sessionsUsed, 0),
+        price: Number(p.price),
+        renewsOn: p.periodEnd?.toISOString() ?? null,
+      })),
     forms,
     quotes,
     offers: offers.map((o) => ({
@@ -404,6 +425,7 @@ export async function getPortalExtras(session: PortalSession) {
       service: o.entry.service.name,
     })),
     jobs,
+    records: records.filter((b) => b.entries.length > 0),
     pendingPayments: pending.map((p) => ({
       id: p.id,
       description: p.description,

@@ -77,10 +77,11 @@ const reception = resolveFormAccess({
   grant: null,
   professionalId: null,
 });
+// Administrador com permissão salva sem "Ler respostas" (restrição de propósito): não lê.
 const adminNoGrant = resolveFormAccess({
   userId: 'user_admin',
   isAdmin: true,
-  grant: null,
+  grant: NO_GRANT,
   professionalId: null,
 });
 

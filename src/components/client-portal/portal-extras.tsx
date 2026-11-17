@@ -3,7 +3,15 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { ClipboardListIcon, FileTextIcon, HourglassIcon, PackageIcon } from 'lucide-react';
+import {
+  ClipboardListIcon,
+  FileTextIcon,
+  HourglassIcon,
+  PackageIcon,
+  ChevronRightIcon,
+  RepeatIcon,
+  SparklesIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { unwrapResult } from '@/lib/action-result';
@@ -18,6 +26,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { QuoteBody } from '@/components/orcamentos/public-quote';
 import {
   getMyDocumentAction,
@@ -63,6 +72,8 @@ export function PortalExtrasSections({
   const router = useRouter();
   const [quote, setQuote] = React.useState<Quote | null>(null);
   const [doc, setDoc] = React.useState<Doc | null>(null);
+  // Foto do registro aberta numa janela por cima da página (sem levar o cliente para o link).
+  const [photoView, setPhotoView] = React.useState<{ urls: string[]; index: number } | null>(null);
   const done = (message: string) => {
     toast.success(message);
     router.refresh();
@@ -171,6 +182,102 @@ export function PortalExtrasSections({
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+
+      {extras.records.length > 0 && (
+        <Section title="Minha evolução">
+          {extras.records.map((block, index) => (
+            // Recolhível: só o mais recente começa aberto (com muitas fotos a página ficaria enorme).
+            <details
+              key={block.id}
+              open={index === 0}
+              className="bg-tile group flex flex-col gap-3 rounded-[22px] p-4"
+            >
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-[15px] font-medium [&::-webkit-details-marker]:hidden">
+                <ChevronRightIcon className="text-label-secondary size-4 transition-transform group-open:rotate-90" />
+                <SparklesIcon className="text-system-indigo size-4" />
+                <span className="min-w-0 truncate">{block.title}</span>
+                <span className="text-label-secondary shrink-0 text-[12px] font-normal">
+                  · {block.entries.length} {block.entries.length === 1 ? 'dia' : 'dias'}
+                </span>
+              </summary>
+              <ol className="border-foreground/[0.08] mt-3 flex flex-col gap-3 border-l-2 pl-3">
+                {block.entries.map((entry) => (
+                  <li key={entry.id} className="flex flex-col gap-1.5">
+                    <span className="text-[13px] font-semibold tabular-nums">
+                      {entry.date.split('-').reverse().join('/')}
+                    </span>
+                    {entry.notes && (
+                      <p className="text-[14px] whitespace-pre-wrap">{entry.notes}</p>
+                    )}
+                    {entry.photos.length > 0 && (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {entry.photos
+                          .filter((p) => p.url)
+                          .map((photo, photoIndex, list) => (
+                            <button
+                              key={photo.id}
+                              type="button"
+                              aria-label="Ver foto"
+                              onClick={() =>
+                                setPhotoView({ urls: list.map((p) => p.url!), index: photoIndex })
+                              }
+                              className="aspect-square overflow-hidden rounded-xl bg-black/5"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element -- link temporário */}
+                              <img
+                                src={photo.url!}
+                                alt=""
+                                className="size-full object-cover"
+                                loading="lazy"
+                              />
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          ))}
+          <PhotoViewer view={photoView} onChange={setPhotoView} />
+        </Section>
+      )}
+
+      {extras.subscriptions.length > 0 && (
+        <Section title="Meus planos">
+          {extras.subscriptions.map((p) => (
+            <div key={p.id} className="bg-tile flex flex-col gap-2 rounded-[22px] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-[15px] font-medium">
+                  <RepeatIcon className="text-system-green size-4" />
+                  {p.name}
+                </span>
+                <span className="text-label-secondary text-[13px] tabular-nums">
+                  {formatCurrencyBRL(p.price)}/mês
+                </span>
+              </div>
+              <div
+                className="bg-foreground/[0.08] h-2 overflow-hidden rounded-full"
+                role="progressbar"
+                aria-valuenow={p.done}
+                aria-valuemax={p.total}
+                aria-label={`${p.done} de ${p.total} sessões neste mês`}
+              >
+                <div
+                  className="bg-system-green h-full rounded-full"
+                  style={{ width: `${Math.min(100, (p.done / Math.max(p.total, 1)) * 100)}%` }}
+                />
+              </div>
+              <div className="text-label-secondary text-[13px]">
+                Este mês: {p.done} de {p.total} sessões · {p.remaining} disponíve
+                {p.remaining === 1 ? 'l' : 'is'}
+                {p.renewsOn &&
+                  ` · renova em ${fmt(p.renewsOn, timezone, { day: '2-digit', month: '2-digit' })}`}
+              </div>
+            </div>
+          ))}
         </Section>
       )}
 
@@ -460,5 +567,52 @@ function ProfileSection({ profile }: { profile: PortalExtras['profile'] }) {
         </Button>
       )}
     </Section>
+  );
+}
+
+/** Foto em tela cheia dentro da área do cliente, com setas para as outras fotos do dia. */
+function PhotoViewer({
+  view,
+  onChange,
+}: {
+  view: { urls: string[]; index: number } | null;
+  onChange: (view: { urls: string[]; index: number } | null) => void;
+}) {
+  const go = (delta: number) =>
+    view &&
+    onChange({
+      urls: view.urls,
+      index: (view.index + delta + view.urls.length) % view.urls.length,
+    });
+  return (
+    <Dialog open={view !== null} onOpenChange={(open: boolean) => !open && onChange(null)}>
+      <DialogContent className="gap-2 p-2 sm:max-w-3xl">
+        <DialogTitle className="sr-only">Foto</DialogTitle>
+        {view && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- link temporário e privado */}
+            <img
+              src={view.urls[view.index]}
+              alt="Foto do seu tratamento"
+              className="max-h-[75vh] w-full rounded-2xl object-contain"
+              onContextMenu={(e) => e.preventDefault()}
+            />
+            {view.urls.length > 1 && (
+              <div className="flex items-center justify-between px-2 pb-1">
+                <Button variant="ghost" size="sm" onClick={() => go(-1)}>
+                  ‹ Anterior
+                </Button>
+                <span className="text-label-secondary text-[13px] tabular-nums">
+                  {view.index + 1} de {view.urls.length}
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => go(1)}>
+                  Próxima ›
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

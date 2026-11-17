@@ -28,7 +28,7 @@ function filledByLabel(data: EntryPdfData) {
   return '—';
 }
 
-export function writeEntry(w: PdfWriter, data: EntryPdfData, timezone: string) {
+export async function writeEntry(w: PdfWriter, data: EntryPdfData, timezone: string) {
   w.heading(`${data.formName}`, 15);
   w.text(
     `${FORM_TYPE_LABEL[data.templateType]} · versão ${data.version} do modelo${
@@ -66,7 +66,17 @@ export function writeEntry(w: PdfWriter, data: EntryPdfData, timezone: string) {
     }
     for (const question of questions) {
       w.text(question.title, { bold: true, size: 9.5, gap: 1 });
-      w.text(answerText(question, data.answers[question.id]), { size: 10, gap: 8 });
+      const value = data.answers[question.id];
+      if (
+        question.type === 'signature' &&
+        typeof value === 'string' &&
+        value.startsWith('data:image/png')
+      ) {
+        await w.png(value);
+        w.space(8);
+      } else {
+        w.text(answerText(question, value), { size: 10, gap: 8 });
+      }
     }
   }
 }
@@ -76,7 +86,7 @@ export async function buildEntryPdf(
 ) {
   const w = await PdfWriter.create(`${data.formName} — ${data.clientName}`);
   w.text(data.companyName, { bold: true, size: 11, gap: 6 });
-  writeEntry(w, data, data.timezone);
+  await writeEntry(w, data, data.timezone);
   return w.finish(`${data.companyName} · ${DISCLAIMER}`);
 }
 
@@ -222,7 +232,7 @@ export async function buildPackagePdf(data: PackagePdfData) {
   if (data.initialEntry) {
     w.divider();
     w.text('Ficha inicial', { muted: true, size: 9, gap: 2 });
-    writeEntry(w, data.initialEntry, data.timezone);
+    await writeEntry(w, data.initialEntry, data.timezone);
   }
   for (const session of data.sessions) {
     w.divider();
