@@ -200,6 +200,7 @@ export async function sellProductToAppointment(
         productId: product.id,
         type: 'SALE',
         quantity: params.quantity,
+        unitPrice: product.salePrice,
         reason: 'Venda em atendimento',
         createdByUserId,
       },

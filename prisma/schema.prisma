@@ -146,6 +146,8 @@ model Company {
   /// A equipe vê as metas da empresa na aba Metas (cada um sempre vê a própria meta).
   shareGoalsWithTeam        Boolean                    @default(false)
   recordBlocks              ClientRecordBlock[]
+  pricingProfile            PricingProfile?
+  pricingSimulations        PricingSimulation[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -360,6 +362,8 @@ model Appointment {
   /// Intervalo de preparo copiado do serviço ao marcar (o maior, se forem vários).
   bufferMinutes           Int     @default(0)
   priceSnapshot           Decimal @db.Decimal(10, 2)
+  /// Desconto dado na comanda (manual + cupom), gravado ao concluir e cobrar.
+  discountAmount          Decimal? @db.Decimal(10, 2)
 
   notes String?
 
@@ -467,6 +471,11 @@ model StockMovement {
   reason          String?
   /// Atendimento que consumiu (ou devolveu) este material: base do estorno.
   appointmentId   String?
+  /// Custo unitário no momento do movimento (gravado pelo banco a partir do custo do produto,
+  /// quando não informado). Mudar o custo depois não reescreve o passado. Vazio = movimento antigo.
+  unitCost        Decimal?          @db.Decimal(10, 2)
+  /// Preço de venda unitário na venda (movimentos SALE): base do ranking de produtos.
+  unitPrice       Decimal?          @db.Decimal(10, 2)
   createdByUserId String
   createdAt       DateTime          @default(now())
 
@@ -2325,4 +2334,50 @@ model ClientRecordPhoto {
   createdAt       DateTime          @default(now())
 
   @@index([entryId])
+}
+
+/// Parâmetros da calculadora de preço (um por empresa). Ficam guardados mesmo se o plano mudar.
+model PricingProfile {
+  id                  String   @id @default(cuid())
+  companyId           String   @unique
+  company             Company  @relation(fields: [companyId], references: [id])
+  /// Somar as contas fixas cadastradas (Financeiro → Contas fixas) às despesas fixas.
+  useRecurringExpenses Boolean @default(true)
+  /// Outras despesas fixas mensais que não estão nas contas fixas (R$).
+  extraFixedMonthly   Decimal  @default(0) @db.Decimal(12, 2)
+  /// Retirada mensal desejada pelo dono (pró-labore), R$.
+  ownerWithdrawal     Decimal  @default(0) @db.Decimal(12, 2)
+  /// Horas disponíveis para atender no mês (da equipe toda).
+  availableHours      Decimal  @default(160) @db.Decimal(8, 2)
+  /// Ocupação esperada da agenda, 0–100.
+  occupancyPercent    Decimal  @default(75) @db.Decimal(5, 2)
+  /// Impostos sobre a venda (Simples etc.), % do preço.
+  taxPercent          Decimal  @default(0) @db.Decimal(5, 2)
+  /// Margem de lucro desejada, % do preço.
+  targetMarginPercent Decimal  @default(20) @db.Decimal(5, 2)
+  /// Forma de pagamento mais comum (define a taxa da maquininha nas contas).
+  defaultPaymentMethod PaymentMethod?
+  updatedByUserId     String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+/// Simulação de preço salva (serviço ou produto de revenda), com os números do momento.
+model PricingSimulation {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  name            String
+  /// service | product
+  kind            String
+  serviceId       String?
+  productId       String?
+  /// Entradas usadas na conta (para reabrir a simulação como estava).
+  inputs          Json
+  /// Resultado na hora: preço atual, mínimo, para a meta, lucro/hora...
+  summary         Json
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@index([companyId, createdAt])
 }

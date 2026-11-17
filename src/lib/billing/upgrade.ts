@@ -34,6 +34,14 @@ const COPY: Partial<Record<FeatureKey, { title: string; text: string }>> = {
     title: 'WhatsApp automático',
     text: 'Confirmação, lembrete e pedido de avaliação saindo sozinhos do número do salão.',
   },
+  pricingCalculator: {
+    title: 'Calcular com meus serviços',
+    text: 'A calculadora usa os seus gastos, serviços e produtos de verdade: preço mínimo, preço para a sua margem, lucro por hora e simulações — e aplica o novo preço no catálogo com um toque.',
+  },
+  profitAnalysis: {
+    title: 'Lucro de verdade',
+    text: 'DRE gerencial por competência e por caixa, ponto de equilíbrio, previsto × realizado e quais serviços, produtos e profissionais mais dão lucro.',
+  },
   multiUnit: {
     title: 'Várias unidades',
     text: 'Todas as unidades num painel só, cada uma com a sua agenda, equipe e caixa.',

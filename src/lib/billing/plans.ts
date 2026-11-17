@@ -65,7 +65,11 @@ export type FeatureKey =
   /** Automações configuráveis (gatilho → condições → ações). */
   | 'automationRules'
   /** Indicadores avançados e metas (conversão, aprovação, tempo por etapa, prazos). */
-  | 'advancedKpis';
+  | 'advancedKpis'
+  /** Calculadora de preço com os dados reais (gastos, serviços, produtos), simulações e aplicar preço. */
+  | 'pricingCalculator'
+  /** DRE gerencial (competência × caixa), ponto de equilíbrio, previsto × realizado e rankings. */
+  | 'profitAnalysis';
 
 /** O que o plano INCLUI de IA. Incluir não basta: o recurso também precisa estar implementado (ver AI_IMPLEMENTED). */
 export type AiPlanEntitlements = {
@@ -173,6 +177,8 @@ const ESSENTIAL_FEATURES: Record<FeatureKey, boolean> = {
   serviceTracking: false,
   automationRules: false,
   advancedKpis: false,
+  pricingCalculator: false,
+  profitAnalysis: false,
 };
 
 const FULL_FEATURES: Record<FeatureKey, boolean> = {
@@ -193,6 +199,7 @@ const FULL_FEATURES: Record<FeatureKey, boolean> = {
   customFields: true,
   surveys: true,
   referrals: true,
+  pricingCalculator: true,
 };
 
 /** Só no Pro: rotinas automáticas e análises que dependem delas. */
@@ -207,6 +214,7 @@ const PRO_FEATURES: Record<FeatureKey, boolean> = {
   serviceTracking: true,
   automationRules: true,
   advancedKpis: true,
+  profitAnalysis: true,
 };
 
 export const PLANS: Plan[] = [
@@ -266,6 +274,7 @@ export const PLANS: Plan[] = [
       'Tudo do Básico',
       'Campanhas para chamar clientes de volta',
       'Comissões, metas e relatórios',
+      'Calculadora de preço com os seus custos',
       'Pacotes, assinaturas e fichas de atendimento',
       'Orçamentos que o cliente aprova pelo link',
       'Lista de espera e área do cliente',
@@ -306,7 +315,7 @@ export const PLANS: Plan[] = [
       'Várias unidades num painel só',
       'Renovação de pacotes e lista de espera no automático',
       'Resumo do dia pronto toda manhã',
-      'Lucro de cada serviço e indicadores avançados',
+      'DRE gerencial, ponto de equilíbrio e lucro por serviço',
       'Serviços em andamento e regras automáticas de tarefas',
     ],
   },

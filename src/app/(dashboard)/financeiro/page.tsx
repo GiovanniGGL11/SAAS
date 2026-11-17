@@ -8,7 +8,11 @@ export default async function FinanceiroPage() {
   const { company } = await requireAdminPage();
   return (
     <Suspense>
-      <FinanceShell commissionsOffer={upgradeOffer(company, 'commissions')} />
+      <FinanceShell
+        commissionsOffer={upgradeOffer(company, 'commissions')}
+        pricingOffer={upgradeOffer(company, 'pricingCalculator')}
+        profitOffer={upgradeOffer(company, 'profitAnalysis')}
+      />
     </Suspense>
   );
 }

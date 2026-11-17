@@ -224,7 +224,9 @@ export async function updateQuote(params: {
     if (quote.status === 'CANCELED')
       throw new UserError('Orçamento cancelado não pode ser alterado.');
     if (quote.convertedAt) {
-      throw new UserError('Este orçamento já foi convertido (pacote ou venda). Para mudar, crie um orçamento novo.');
+      throw new UserError(
+        'Este orçamento já foi convertido (pacote ou venda). Para mudar, crie um orçamento novo.',
+      );
     }
     if (quote.currentVersion !== params.expectedVersion) {
       throw new UserError(
@@ -974,6 +976,11 @@ export async function convertQuoteToSale(params: {
           productId: item.refId!,
           type: 'SALE',
           quantity: item.quantity,
+          // Preço unitário já com o desconto do item.
+          unitPrice:
+            Math.round(
+              ((item.unitPrice * item.quantity - (item.discount ?? 0)) / item.quantity) * 100,
+            ) / 100,
           reason: `Venda do orçamento #${quote.number}`,
           createdByUserId: params.userId,
         },
