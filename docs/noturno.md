@@ -36,6 +36,7 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-17: manutenção. Master trouxe metas, registros do cliente (fotos no Supabase Storage), importação de ficha em PDF e "Meus planos" na área do cliente (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
 - 2026-11-16: master trouxe o login do profissional (agenda/clientes só dele). Merge com 1 conflito em `sidebar.tsx` (ficou a versão do master, sem desfoque). Ajustes para respeitar o recorte do profissional:
   - Sino: profissional logado vê só avisos da própria agenda (atividade do cliente, próximas 2 h, amanhã sem confirmação) e os próprios lembretes; estoque, falta de material, aniversariantes, tarefas e orçamentos ficam de fora. Teste novo em `tests/notifications.test.ts`.
   - Assistente: bloqueado para o login do profissional (mensagem "ainda não está disponível no login do profissional"), porque as ferramentas enxergam a empresa toda. **Pendência:** recortar as ferramentas de leitura/escrita do assistente por `getOwnProfessional()` para liberar depois.
