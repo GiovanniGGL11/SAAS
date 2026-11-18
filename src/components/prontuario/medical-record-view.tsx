@@ -30,6 +30,8 @@ import { TreatmentPlanTab, type PlanQuoteView } from '@/components/prontuario/tr
 import { DocumentsTab } from '@/components/prontuario/documents-tab';
 import { AttachmentsTab } from '@/components/prontuario/attachments-tab';
 import { AiSummary } from '@/components/prontuario/ai-summary';
+import { OdontogramTab } from '@/components/prontuario/odontogram-tab';
+import { FaceMapTab } from '@/components/prontuario/face-map-tab';
 import { unwrapResult } from '@/lib/action-result';
 import { ageOn } from '@/lib/medical-records';
 import { formatPhone, whatsappLink } from '@/lib/phone';
@@ -40,7 +42,16 @@ import {
   getMedicalRecordAction,
 } from '@/server/actions/medical-record-actions';
 
-type Tab = 'evolucao' | 'plano' | 'documentos' | 'anamnese' | 'anexos' | 'registros' | 'sessoes';
+type Tab =
+  | 'evolucao'
+  | 'odontograma'
+  | 'mapa'
+  | 'plano'
+  | 'documentos'
+  | 'anamnese'
+  | 'anexos'
+  | 'registros'
+  | 'sessoes';
 
 /** Convênio do paciente no cabeçalho, com edição rápida. */
 function InsuranceLine({
@@ -153,10 +164,13 @@ export function MedicalRecordView({
   clientId,
   timezone,
   formsEnabled,
+  charts,
 }: {
   clientId: string;
   timezone: string;
   formsEnabled: boolean;
+  /** Odontograma (odonto) e mapa facial (estética e odonto). */
+  charts: { odontogram: boolean; faceMap: boolean };
 }) {
   const [tab, setTab] = React.useState<Tab>('evolucao');
   const { data, error } = useQuery({
@@ -310,6 +324,8 @@ export function MedicalRecordView({
         onValueChange={setTab}
         options={[
           { value: 'evolucao', label: 'Evolução' },
+          ...(charts.odontogram ? [{ value: 'odontograma' as const, label: 'Odontograma' }] : []),
+          ...(charts.faceMap ? [{ value: 'mapa' as const, label: 'Mapa facial' }] : []),
           {
             value: 'plano',
             label: data.pendingSessions
@@ -333,6 +349,10 @@ export function MedicalRecordView({
           when={dateTime}
         />
       )}
+      {tab === 'odontograma' && charts.odontogram && (
+        <OdontogramTab clientId={clientId} when={dateTime} />
+      )}
+      {tab === 'mapa' && charts.faceMap && <FaceMapTab clientId={clientId} when={dateTime} />}
       {tab === 'plano' && <TreatmentPlanTab clientId={clientId} plan={data.plan} when={dateTime} />}
       {tab === 'anamnese' &&
         (formsEnabled ? (

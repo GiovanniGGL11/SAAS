@@ -37,6 +37,16 @@ import {
   signedAttachmentUrl,
 } from '@/server/storage/supabase';
 import { summarizeMedicalRecord } from '@/server/ai/medical-summary';
+import {
+  addToothMark,
+  cancelFaceMap,
+  createFaceMap,
+  listFaceMaps,
+  listToothMarks,
+  markToothDone,
+  removeToothMark,
+} from '@/server/data/clinical-charts';
+import { clinicalCharts } from '@/lib/face-map';
 import { DOCUMENT_KINDS } from '@/lib/clinical-documents';
 import { SEGMENT_GROUPS } from '@/lib/onboarding/templates';
 import { evolutionTemplates, medicalRecordsEnabled } from '@/lib/medical-records';
@@ -336,5 +346,120 @@ export async function deleteAttachmentAction(input: unknown) {
     const { company, access } = await requireRecordAccess(clientId);
     const path = await deleteAttachment(company.id, clientId, id, access.userId);
     await removeAttachment(path);
+  });
+}
+
+// ── Odontograma e mapa facial (fase 5) ──────────────────────────────────────
+
+async function requireChartAccess(clientId: string, chart: 'odontogram' | 'faceMap') {
+  const session = await requireRecordAccess(clientId);
+  if (!clinicalCharts(session.company.segment)[chart]) {
+    throw new UserError(
+      chart === 'odontogram'
+        ? 'O odontograma é do ramo de odontologia.'
+        : 'O mapa facial é dos ramos de estética e odontologia.',
+    );
+  }
+  return session;
+}
+
+const markRef = z.object({ clientId: z.string().min(1).max(64), id: z.string().min(1).max(64) });
+
+export async function listToothMarksAction(rawClientId: unknown) {
+  return toActionResult(async () => {
+    const clientId = parseId(rawClientId);
+    const { company } = await requireChartAccess(clientId, 'odontogram');
+    return listToothMarks(company.id, clientId);
+  });
+}
+
+export async function addToothMarkAction(input: unknown) {
+  return toActionResult(async () => {
+    const data = z
+      .object({
+        clientId: z.string().min(1).max(64),
+        tooth: z.number().int(),
+        faces: z.array(z.string().max(2)).max(5),
+        condition: z.string().min(1).max(30),
+        status: z.string().min(1).max(20),
+        note: z.string().max(300).nullish(),
+      })
+      .parse(input);
+    const { company, access } = await requireChartAccess(data.clientId, 'odontogram');
+    const { clientId, ...mark } = data;
+    await addToothMark({
+      companyId: company.id,
+      clientId,
+      mark,
+      userId: access.userId,
+      userName: await currentUserName(),
+    });
+  });
+}
+
+export async function markToothDoneAction(input: unknown) {
+  return toActionResult(async () => {
+    const { clientId, id } = markRef.parse(input);
+    const { company } = await requireChartAccess(clientId, 'odontogram');
+    await markToothDone({ companyId: company.id, clientId, id, userName: await currentUserName() });
+  });
+}
+
+export async function removeToothMarkAction(input: unknown) {
+  return toActionResult(async () => {
+    const { clientId, id } = markRef.parse(input);
+    const { company } = await requireChartAccess(clientId, 'odontogram');
+    await removeToothMark({
+      companyId: company.id,
+      clientId,
+      id,
+      userName: await currentUserName(),
+    });
+  });
+}
+
+export async function listFaceMapsAction(rawClientId: unknown) {
+  return toActionResult(async () => {
+    const clientId = parseId(rawClientId);
+    const { company } = await requireChartAccess(clientId, 'faceMap');
+    return listFaceMaps(company.id, clientId);
+  });
+}
+
+export async function createFaceMapAction(input: unknown) {
+  return toActionResult(async () => {
+    const data = z
+      .object({
+        clientId: z.string().min(1).max(64),
+        title: z.string().max(100),
+        points: z.array(z.unknown()).max(100),
+        notes: z.string().max(2000).nullish(),
+      })
+      .parse(input);
+    const { company, access } = await requireChartAccess(data.clientId, 'faceMap');
+    await createFaceMap({
+      companyId: company.id,
+      clientId: data.clientId,
+      title: data.title,
+      points: data.points,
+      notes: data.notes,
+      professionalId: access.professionalId,
+      userId: access.userId,
+      userName: await currentUserName(),
+    });
+  });
+}
+
+export async function cancelFaceMapAction(input: unknown) {
+  return toActionResult(async () => {
+    const { clientId, id, reason } = markRef.extend({ reason: z.string().max(300) }).parse(input);
+    const { company } = await requireChartAccess(clientId, 'faceMap');
+    await cancelFaceMap({
+      companyId: company.id,
+      clientId,
+      id,
+      reason,
+      userName: await currentUserName(),
+    });
   });
 }

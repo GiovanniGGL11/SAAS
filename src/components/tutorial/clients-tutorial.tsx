@@ -183,6 +183,18 @@ export function ClientsTutorial() {
               Os <strong>Anexos</strong>: exames e documentos em PDF ou imagem, até 4 MB, guardados
               de forma privada.
             </>,
+            <>
+              O <strong>Odontograma</strong> (odonto): clique no dente, escolha o que há (cárie,
+              restauração, canal, coroa, implante...) e as faces. <strong>Vermelho</strong> é a
+              fazer e <strong>azul</strong> é feito ou já existente. Quando fizer, aperte{' '}
+              <strong>Feito</strong>. O que for removido continua no histórico.
+            </>,
+            <>
+              O <strong>Mapa facial</strong> (estética e odonto): em <strong>Nova aplicação</strong>
+              , clique no rosto para marcar cada ponto. A região aparece sozinha e o produto e a
+              quantidade se repetem do ponto anterior. O total por produto é somado. No retoque,{' '}
+              <strong>Repetir os pontos da última</strong> poupa tempo.
+            </>,
             'As fichas e termos, os registros com fotos e as sessões.',
           ]}
         />

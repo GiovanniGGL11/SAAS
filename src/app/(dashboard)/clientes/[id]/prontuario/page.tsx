@@ -4,6 +4,7 @@ import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import { canSeeClient } from '@/server/auth/professional-scope';
 import { hasFeature } from '@/server/billing/features';
 import { medicalRecordsEnabled } from '@/lib/medical-records';
+import { clinicalCharts } from '@/lib/face-map';
 import { MedicalRecordView } from '@/components/prontuario/medical-record-view';
 
 export const metadata = { title: 'Prontuário' };
@@ -19,6 +20,7 @@ export default async function ProntuarioPage({ params }: { params: Promise<{ id:
       clientId={id}
       timezone={company.timezone}
       formsEnabled={hasFeature(company, 'forms')}
+      charts={clinicalCharts(company.segment)}
     />
   );
 }

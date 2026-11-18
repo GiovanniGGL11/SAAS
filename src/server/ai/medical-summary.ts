@@ -14,13 +14,20 @@ import { reserveUnits, settleReservation } from '@/server/ai/quota';
 import { recordUsageEvent } from '@/server/ai/usage';
 import { getMedicalRecordHeader, listClinicalNotes } from '@/server/data/medical-records';
 import { getTreatmentPlan } from '@/server/data/treatment-plan';
+import { listFaceMaps, listToothMarks } from '@/server/data/clinical-charts';
+import { describeToothMark } from '@/lib/odontogram';
+import { clinicalCharts, faceMapTotals, formatAmount } from '@/lib/face-map';
 import type { FormAccess } from '@/server/data/form-permissions';
 
 /** Créditos de IA por resumo (uma chamada, mas com o prontuário inteiro de entrada). */
 export const SUMMARY_UNITS = 2;
 const FEATURE = 'medical_record_summary';
 
-type SummaryCompany = Parameters<typeof featureAccessFor>[0] & { id: string; timezone: string };
+type SummaryCompany = Parameters<typeof featureAccessFor>[0] & {
+  id: string;
+  timezone: string;
+  segment?: string | null;
+};
 
 /**
  * Resumo do prontuário com IA. Quem chama já conferiu o acesso ao prontuário e ao paciente; as
@@ -42,11 +49,20 @@ export async function summarizeMedicalRecord(params: {
     );
   }
 
-  const [header, notes, plan] = await Promise.all([
+  const charts = clinicalCharts(company.segment);
+  const [header, notes, plan, marks, faceMaps] = await Promise.all([
     getMedicalRecordHeader(company.id, clientId),
     listClinicalNotes(company.id, clientId, access),
     getTreatmentPlan(company.id, clientId),
+    charts.odontogram ? listToothMarks(company.id, clientId) : Promise.resolve([]),
+    charts.faceMap ? listFaceMaps(company.id, clientId) : Promise.resolve([]),
   ]);
+  const day = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: company.timezone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
   const input = {
     age: ageOn(header.client.birthDate),
     clientNotes: header.client.notes,
@@ -56,6 +72,19 @@ export async function summarizeMedicalRecord(params: {
     returnSuggestion: header.returnSuggestion,
     notes,
     plan,
+    dentalPending: marks
+      .filter((m) => !m.removedAt && m.status === 'planned')
+      .map((m) => describeToothMark(m) + (m.note ? ` (${m.note})` : '')),
+    faceMaps: faceMaps
+      .filter((m) => !m.canceledAt)
+      .slice(0, 5)
+      .map((m) => {
+        const totals = faceMapTotals(m.points)
+          .map((t) => `${t.product} ${formatAmount(t.amount, t.unit)}`)
+          .join(', ');
+        const areas = [...new Set(m.points.map((p) => p.area))].join(', ');
+        return `${day.format(m.createdAt)}: ${m.title}${totals ? ` (${totals})` : ''} em ${areas}`;
+      }),
   };
   if (!hasSummaryContent(input)) {
     throw new UserError(

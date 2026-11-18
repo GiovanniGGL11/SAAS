@@ -24,6 +24,10 @@ export type SummaryInput = {
     amendedAt: Date | string | null;
   }[];
   plan: { title: string; items: { description: string; total: number; done: number }[] }[];
+  /** Odontograma: o que está marcado a fazer (ex.: "36 · Cárie (O) · a fazer"). */
+  dentalPending?: string[];
+  /** Últimas aplicações do mapa facial (ex.: "10/11/2026: Toxina botulínica, 24 U"). */
+  faceMaps?: string[];
 };
 
 export type MedicalSummary = {
@@ -43,7 +47,7 @@ Regras:
 - Frases curtas e diretas. Cada item da lista com no máximo 2 frases.
 - overview: 2 ou 3 frases com o quadro geral (idade, há quanto tempo é atendido, o que trata).
 - alerts: alergias, medicamentos, doenças e outros cuidados que aparecem nos alertas ou nas evoluções. Lista vazia se não houver.
-- treatment: procedimentos do plano com o andamento (ex.: "Clareamento: 2 de 3 sessões feitas"). Lista vazia se não houver plano.
+- treatment: procedimentos do plano com o andamento (ex.: "Clareamento: 2 de 3 sessões feitas"), o que está a fazer no odontograma e as últimas aplicações do mapa facial. Lista vazia se não houver nada disso.
 - recent: o que aconteceu nos últimos atendimentos, do mais recente para o mais antigo, com a data. No máximo 5 itens.
 - attention: o que a profissional deve olhar no próximo atendimento, segundo o que já foi registrado (retorno atrasado, sessões que faltam, queixa que se repete, orientação pendente). Lista vazia se não houver.
 - Se houver pouca informação, diga isso no overview em vez de encher.`;
@@ -77,6 +81,8 @@ export function hasSummaryContent(input: SummaryInput): boolean {
     input.notes.length > 0 ||
     input.alerts.length > 0 ||
     input.plan.some((q) => q.items.length > 0) ||
+    !!input.dentalPending?.length ||
+    !!input.faceMaps?.length ||
     !!input.clientNotes?.trim()
   );
 }
@@ -123,6 +129,15 @@ export function buildSummaryPrompt(input: SummaryInput, timezone: string, now = 
     q.items.map((i) => `- ${i.description} (${q.title}): ${i.done} de ${i.total} sessões feitas`),
   );
   lines.push(...(items.length ? items : ['Nenhum.']));
+
+  if (input.dentalPending?.length) {
+    lines.push('', '## Odontograma: a fazer');
+    for (const d of input.dentalPending.slice(0, 40)) lines.push(`- ${clip(d, 200)}`);
+  }
+  if (input.faceMaps?.length) {
+    lines.push('', '## Mapa facial: últimas aplicações');
+    for (const f of input.faceMaps.slice(0, 5)) lines.push(`- ${clip(f, 300)}`);
+  }
 
   // Só a versão em vigor de cada evolução: a retificada sai, a retificação fica.
   const current = input.notes
