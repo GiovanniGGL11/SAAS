@@ -24,6 +24,7 @@ import { Surface } from '@/components/layout/page';
 import { ClientFormsTab } from '@/components/fichas/client-forms-tab';
 import { ClientRecordsTab } from '@/components/clientes/client-records-tab';
 import { ClientSessionsTab } from '@/components/pacotes/client-sessions-tab';
+import { TreatmentPlanTab, type PlanQuoteView } from '@/components/prontuario/treatment-plan-tab';
 import { unwrapResult } from '@/lib/action-result';
 import { ageOn } from '@/lib/medical-records';
 import { formatPhone, whatsappLink } from '@/lib/phone';
@@ -33,7 +34,7 @@ import {
   getMedicalRecordAction,
 } from '@/server/actions/medical-record-actions';
 
-type Tab = 'evolucao' | 'anamnese' | 'registros' | 'sessoes';
+type Tab = 'evolucao' | 'plano' | 'anamnese' | 'registros' | 'sessoes';
 
 /**
  * Prontuário do paciente: cabeçalho com alertas da anamnese, próxima consulta e retorno; a
@@ -193,6 +194,12 @@ export function MedicalRecordView({
         onValueChange={setTab}
         options={[
           { value: 'evolucao', label: 'Evolução' },
+          {
+            value: 'plano',
+            label: data.pendingSessions
+              ? `Plano de tratamento · ${data.pendingSessions}`
+              : 'Plano de tratamento',
+          },
           { value: 'anamnese', label: 'Anamnese e termos' },
           { value: 'registros', label: 'Registros e fotos' },
           { value: 'sessoes', label: 'Sessões' },
@@ -204,9 +211,11 @@ export function MedicalRecordView({
           clientId={clientId}
           notes={data.notes}
           templates={data.templates}
+          plan={data.plan}
           when={dateTime}
         />
       )}
+      {tab === 'plano' && <TreatmentPlanTab clientId={clientId} plan={data.plan} when={dateTime} />}
       {tab === 'anamnese' &&
         (formsEnabled ? (
           <ClientFormsTab clientId={clientId} clientName={client.name} timezone={timezone} />
@@ -237,27 +246,52 @@ function Evolution({
   clientId,
   notes,
   templates,
+  plan,
   when,
 }: {
   clientId: string;
   notes: Note[];
   templates: { key: string; label: string; text: string }[];
+  plan: PlanQuoteView[];
   when: (d: Date | string) => string;
 }) {
   const queryClient = useQueryClient();
   const [text, setText] = React.useState('');
   const [amending, setAmending] = React.useState<Note | null>(null);
   const [confirm, setConfirm] = React.useState(false);
+  /** Procedimentos do plano feitos neste atendimento ("quoteId:índice"). */
+  const [checked, setChecked] = React.useState<Set<string>>(() => new Set());
   const composer = React.useRef<HTMLTextAreaElement>(null);
+  const pendingItems = plan.flatMap((q) =>
+    q.items
+      .filter((i) => !i.viaPackage && i.done < i.total)
+      .map((i) => ({ ...i, key: `${i.quoteId}:${i.itemIndex}`, quoteNumber: q.number })),
+  );
 
   const save = useMutation({
     mutationFn: () =>
-      addClinicalNoteAction({ clientId, text, amendsId: amending?.id ?? null }).then(unwrapResult),
+      addClinicalNoteAction({
+        clientId,
+        text,
+        amendsId: amending?.id ?? null,
+        procedures: amending
+          ? []
+          : pendingItems
+              .filter((i) => checked.has(i.key))
+              .map((i) => ({ quoteId: i.quoteId, itemIndex: i.itemIndex })),
+      }).then(unwrapResult),
     onSuccess: () => {
-      toast.success(amending ? 'Retificação salva.' : 'Evolução salva.');
+      toast.success(
+        amending
+          ? 'Retificação salva.'
+          : checked.size
+            ? `Evolução salva e ${checked.size} ${checked.size === 1 ? 'sessão marcada' : 'sessões marcadas'} no plano.`
+            : 'Evolução salva.',
+      );
       setText('');
       setAmending(null);
       setConfirm(false);
+      setChecked(new Set());
       queryClient.invalidateQueries({ queryKey: ['medical-record', clientId] });
     },
     onError: (e: Error) => {
@@ -317,6 +351,32 @@ function Evolution({
           placeholder="Descreva o atendimento: queixa, avaliação, procedimento, orientações..."
           aria-label="Texto da evolução"
         />
+        {!amending && pendingItems.length > 0 && (
+          <fieldset className="bg-foreground/[0.03] flex flex-col gap-1.5 rounded-xl p-3">
+            <legend className="text-[12px] font-medium">
+              Procedimentos do plano feitos neste atendimento
+            </legend>
+            {pendingItems.map((item) => (
+              <label key={item.key} className="flex items-center gap-2 text-[13px]">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--system-blue)]"
+                  checked={checked.has(item.key)}
+                  onChange={(e) => {
+                    const next = new Set(checked);
+                    if (e.target.checked) next.add(item.key);
+                    else next.delete(item.key);
+                    setChecked(next);
+                  }}
+                />
+                <span className="min-w-0 flex-1">{item.description}</span>
+                <span className="text-label-secondary text-[12px] tabular-nums">
+                  sessão {item.done + 1} de {item.total} · orç. #{item.quoteNumber}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-label-secondary text-[12px]">
             Depois de salva, a evolução não pode ser apagada. Para corrigir, use Retificar.

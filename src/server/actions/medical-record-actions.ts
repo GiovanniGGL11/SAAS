@@ -16,6 +16,12 @@ import {
   getMedicalRecordHeader,
   listClinicalNotes,
 } from '@/server/data/medical-records';
+import {
+  getTreatmentPlan,
+  markProcedureDone,
+  pendingSessions,
+  undoProcedureDone,
+} from '@/server/data/treatment-plan';
 import { SEGMENT_GROUPS } from '@/lib/onboarding/templates';
 import { evolutionTemplates, medicalRecordsEnabled } from '@/lib/medical-records';
 
@@ -45,13 +51,35 @@ export async function getMedicalRecordAction(rawClientId: unknown) {
   return toActionResult(async () => {
     const clientId = parseId(rawClientId);
     const { company, access } = await requireRecordAccess(clientId);
-    const [header, notes] = await Promise.all([
+    const [header, notes, plan] = await Promise.all([
       getMedicalRecordHeader(company.id, clientId),
       listClinicalNotes(company.id, clientId, access),
+      getTreatmentPlan(company.id, clientId),
     ]);
-    return { ...header, notes, templates: evolutionTemplates(company.segment) };
+    return {
+      ...header,
+      notes,
+      plan,
+      pendingSessions: pendingSessions(plan),
+      templates: evolutionTemplates(company.segment),
+    };
   });
 }
+
+/** Nome de quem está usando (para "feito por" e "escrito por"). */
+async function currentUserName() {
+  const user = await currentUser();
+  return (
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+    user?.primaryEmailAddress?.emailAddress ||
+    'Equipe'
+  );
+}
+
+const procedureRef = z.object({
+  quoteId: z.string().min(1).max(64),
+  itemIndex: z.number().int().min(0).max(100),
+});
 
 export async function addClinicalNoteAction(input: unknown) {
   return toActionResult(async () => {
@@ -61,14 +89,31 @@ export async function addClinicalNoteAction(input: unknown) {
         text: z.string().max(20_000),
         appointmentId: z.string().min(1).max(64).nullish(),
         amendsId: z.string().min(1).max(64).nullish(),
+        /** Procedimentos do plano feitos neste atendimento (marcados junto com a evolução). */
+        procedures: z.array(procedureRef).max(30).optional(),
       })
       .parse(input);
     const { company, access } = await requireRecordAccess(data.clientId);
-    const user = await currentUser();
-    const authorName =
-      [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
-      user?.primaryEmailAddress?.emailAddress ||
-      'Equipe';
+    const authorName = await currentUserName();
+    // Confere os procedimentos ANTES de salvar a evolução (para não salvar só metade).
+    if (data.procedures?.length) {
+      const plan = await getTreatmentPlan(company.id, data.clientId);
+      const asked = new Map<string, number>();
+      for (const p of data.procedures) {
+        const key = `${p.quoteId}:${p.itemIndex}`;
+        asked.set(key, (asked.get(key) ?? 0) + 1);
+        const item = plan
+          .find((q) => q.quoteId === p.quoteId)
+          ?.items.find((i) => i.itemIndex === p.itemIndex);
+        if (!item || item.viaPackage || item.done + (asked.get(key) ?? 0) > item.total) {
+          throw new UserError(
+            item
+              ? `"${item.description}" não tem mais sessões para marcar.`
+              : 'Procedimento não encontrado no plano deste paciente.',
+          );
+        }
+      }
+    }
     const note = await createClinicalNote({
       companyId: company.id,
       clientId: data.clientId,
@@ -78,8 +123,53 @@ export async function addClinicalNoteAction(input: unknown) {
       authorUserId: access.userId,
       authorName,
     });
+    for (const p of data.procedures ?? []) {
+      await markProcedureDone({
+        companyId: company.id,
+        clientId: data.clientId,
+        quoteId: p.quoteId,
+        itemIndex: p.itemIndex,
+        userId: access.userId,
+        userName: authorName,
+        appointmentId: data.appointmentId,
+        clinicalNoteId: note.id,
+      });
+    }
     revalidatePath(`/clientes/${data.clientId}/prontuario`);
     return note;
+  });
+}
+
+/** Plano de tratamento: marca uma sessão feita de um procedimento. */
+export async function markProcedureDoneAction(input: unknown) {
+  return toActionResult(async () => {
+    const data = procedureRef
+      .extend({
+        clientId: z.string().min(1).max(64),
+        note: z.string().max(500).nullish(),
+      })
+      .parse(input);
+    const { company, access } = await requireRecordAccess(data.clientId);
+    return markProcedureDone({
+      companyId: company.id,
+      clientId: data.clientId,
+      quoteId: data.quoteId,
+      itemIndex: data.itemIndex,
+      userId: access.userId,
+      userName: await currentUserName(),
+      note: data.note,
+    });
+  });
+}
+
+/** Plano de tratamento: desfaz uma sessão marcada por engano. */
+export async function undoProcedureDoneAction(input: unknown) {
+  return toActionResult(async () => {
+    const { clientId, id } = z
+      .object({ clientId: z.string().min(1).max(64), id: z.string().min(1).max(64) })
+      .parse(input);
+    const { company, access } = await requireRecordAccess(clientId);
+    await undoProcedureDone(company.id, clientId, id, access.userId);
   });
 }
 

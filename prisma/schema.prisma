@@ -163,6 +163,7 @@ model Company {
   pricingSimulations        PricingSimulation[]
   clinicalNotes             ClinicalNote[]
   returnContacts            ReturnContact[]
+  treatmentProcedures       TreatmentProcedure[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -337,6 +338,7 @@ model Client {
   sessionRecords  SessionRecord[]
   recordBlocks    ClientRecordBlock[]
   clinicalNotes   ClinicalNote[]
+  treatmentProcedures TreatmentProcedure[]
   quotes          Quote[]
   tasks           Task[]
   opportunities   Opportunity[]
@@ -2443,4 +2445,27 @@ model ReturnContact {
 
   @@unique([companyId, clientId, serviceId, lastVisitAt])
   @@index([companyId, status])
+}
+
+/// Plano de tratamento: uma sessão feita de um procedimento de orçamento aprovado (o item da versão
+/// aprovada, pela posição). Orçamento convertido em pacote conta pelas sessões do pacote, não aqui.
+model TreatmentProcedure {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id])
+  quoteId        String
+  /// Posição do item na versão aprovada do orçamento.
+  itemIndex      Int
+  appointmentId  String?
+  /// Evolução do prontuário em que foi marcada (opcional).
+  clinicalNoteId String?
+  note           String?
+  doneAt         DateTime @default(now())
+  doneByUserId   String
+  doneByName     String
+
+  @@index([companyId, clientId])
+  @@index([quoteId, itemIndex])
 }
