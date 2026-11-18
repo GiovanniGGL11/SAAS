@@ -339,10 +339,11 @@ describe('IA: planos, franquia e execução segura', () => {
       },
       'user_dono',
     );
+    // Dono/gerente lê e preenche por padrão; aqui, uma restrição explícita (sem permissão).
     const noForms = resolveFormAccess({
       userId: 'user_dono',
       isAdmin: true,
-      grant: null,
+      grant: NO_GRANT,
       professionalId: null,
     });
     const filler = resolveFormAccess({

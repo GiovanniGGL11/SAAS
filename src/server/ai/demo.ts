@@ -62,18 +62,20 @@ export async function askAiDemo(params: {
   }
   const config = getGeminiConfig();
   if (!config) throw new AiAccessError('provider_not_configured');
-  rateLimitByKey(`assistant-demo:${session.companyId}`, 3, 60_000);
+  const exhausted = new UserError(
+    `Você já usou as ${AI_DEMO_QUESTIONS} perguntas de demonstração. O assistente completo está nos planos Profissional e Pro.`,
+  );
+  // Acabou: avisa isso (e não "muitas tentativas"), sem contar no limite por minuto.
+  if (((await aiDemoState(session))?.remaining ?? 0) <= 0) throw exhausted;
+  rateLimitByKey(`assistant-demo:${session.companyId}`, 6, 60_000);
 
-  // Gasta uma pergunta antes de chamar o provedor (só se ainda houver).
+  // Gasta uma pergunta antes de chamar o provedor (conferido no próprio UPDATE: dois cliques
+  // ao mesmo tempo não passam do limite).
   const spent = await prisma.company.updateMany({
     where: { id: session.companyId, aiDemoUsed: { lt: AI_DEMO_QUESTIONS } },
     data: { aiDemoUsed: { increment: 1 } },
   });
-  if (spent.count === 0) {
-    throw new UserError(
-      `Você já usou as ${AI_DEMO_QUESTIONS} perguntas de demonstração. O assistente completo está nos planos Profissional e Pro.`,
-    );
-  }
+  if (spent.count === 0) throw exhausted;
 
   const run = params.run ?? runAssistant;
   let reply: AssistantReply | null = null;
