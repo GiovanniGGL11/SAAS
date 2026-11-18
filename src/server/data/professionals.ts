@@ -28,6 +28,7 @@ export type ProfessionalInput = {
   name: string;
   email?: string | null;
   phone?: string | null;
+  registry?: string | null;
   color: string;
   commissionType?: CommissionType | null;
   commissionValue?: number | null;
@@ -46,6 +47,7 @@ export async function createProfessional(
       name: data.name,
       email: data.email || null,
       phone: data.phone || null,
+      registry: data.registry?.trim() || null,
       color: data.color,
       commissionType: data.commissionType ?? null,
       commissionValue: data.commissionValue ?? null,
@@ -66,6 +68,7 @@ export async function updateProfessional(
       name: data.name,
       email: data.email || null,
       phone: data.phone || null,
+      ...(data.registry !== undefined ? { registry: data.registry?.trim() || null } : {}),
       color: data.color,
       commissionType: data.commissionType ?? null,
       commissionValue: data.commissionValue ?? null,

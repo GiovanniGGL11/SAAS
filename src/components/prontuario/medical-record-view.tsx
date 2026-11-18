@@ -10,6 +10,7 @@ import {
   CalendarDaysIcon,
   FilePenLineIcon,
   HistoryIcon,
+  IdCardIcon,
   MessageCircleIcon,
   RotateCcwIcon,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Surface } from '@/components/layout/page';
@@ -25,16 +27,121 @@ import { ClientFormsTab } from '@/components/fichas/client-forms-tab';
 import { ClientRecordsTab } from '@/components/clientes/client-records-tab';
 import { ClientSessionsTab } from '@/components/pacotes/client-sessions-tab';
 import { TreatmentPlanTab, type PlanQuoteView } from '@/components/prontuario/treatment-plan-tab';
+import { DocumentsTab } from '@/components/prontuario/documents-tab';
+import { AttachmentsTab } from '@/components/prontuario/attachments-tab';
 import { unwrapResult } from '@/lib/action-result';
 import { ageOn } from '@/lib/medical-records';
 import { formatPhone, whatsappLink } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import {
+  updateInsuranceAction,
   addClinicalNoteAction,
   getMedicalRecordAction,
 } from '@/server/actions/medical-record-actions';
 
-type Tab = 'evolucao' | 'plano' | 'anamnese' | 'registros' | 'sessoes';
+type Tab = 'evolucao' | 'plano' | 'documentos' | 'anamnese' | 'anexos' | 'registros' | 'sessoes';
+
+/** Convênio do paciente no cabeçalho, com edição rápida. */
+function InsuranceLine({
+  clientId,
+  name,
+  number,
+  plan,
+}: {
+  clientId: string;
+  name: string | null;
+  number: string | null;
+  plan: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = React.useState(false);
+  const [form, setForm] = React.useState({
+    name: name ?? '',
+    number: number ?? '',
+    plan: plan ?? '',
+  });
+  const save = useMutation({
+    mutationFn: () =>
+      updateInsuranceAction({
+        clientId,
+        name: form.name || null,
+        number: form.number || null,
+        plan: form.plan || null,
+      }).then(unwrapResult),
+    onSuccess: () => {
+      toast.success('Convênio salvo.');
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: ['medical-record', clientId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (!editing) {
+    return (
+      <p className="text-label-secondary flex flex-wrap items-center gap-1.5 text-[12px]">
+        <IdCardIcon className="size-3.5" />
+        {name ? (
+          <>
+            Convênio: <strong className="text-foreground">{name}</strong>
+            {plan ? ` · ${plan}` : ''}
+            {number ? ` · carteirinha ${number}` : ''}
+          </>
+        ) : (
+          'Particular (sem convênio)'
+        )}
+        <button
+          type="button"
+          className="text-system-blue ml-1 hover:underline"
+          onClick={() => {
+            setForm({ name: name ?? '', number: number ?? '', plan: plan ?? '' });
+            setEditing(true);
+          }}
+        >
+          {name ? 'Editar' : 'Informar convênio'}
+        </button>
+      </p>
+    );
+  }
+  return (
+    <form
+      className="bg-foreground/[0.03] grid gap-2 rounded-xl p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <Input
+        placeholder="Convênio (ex.: Unimed)"
+        value={form.name}
+        maxLength={80}
+        onChange={(e) => setForm({ ...form, name: e.target.value })}
+        aria-label="Nome do convênio"
+      />
+      <Input
+        placeholder="Plano"
+        value={form.plan}
+        maxLength={80}
+        onChange={(e) => setForm({ ...form, plan: e.target.value })}
+        aria-label="Plano do convênio"
+      />
+      <Input
+        placeholder="Nº da carteirinha"
+        value={form.number}
+        maxLength={40}
+        onChange={(e) => setForm({ ...form, number: e.target.value })}
+        aria-label="Número da carteirinha"
+      />
+      <div className="flex gap-1.5">
+        <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>
+          Cancelar
+        </Button>
+        <Button type="submit" size="sm" disabled={save.isPending}>
+          Salvar
+        </Button>
+      </div>
+    </form>
+  );
+}
 
 /**
  * Prontuário do paciente: cabeçalho com alertas da anamnese, próxima consulta e retorno; a
@@ -185,6 +292,12 @@ export function MedicalRecordView({
               Observações do cadastro: {client.notes}
             </p>
           )}
+          <InsuranceLine
+            clientId={clientId}
+            name={client.insuranceName}
+            number={client.insuranceNumber}
+            plan={client.insurancePlan}
+          />
         </div>
       </Surface>
 
@@ -200,7 +313,9 @@ export function MedicalRecordView({
               ? `Plano de tratamento · ${data.pendingSessions}`
               : 'Plano de tratamento',
           },
+          { value: 'documentos', label: 'Documentos' },
           { value: 'anamnese', label: 'Anamnese e termos' },
+          { value: 'anexos', label: 'Anexos' },
           { value: 'registros', label: 'Registros e fotos' },
           { value: 'sessoes', label: 'Sessões' },
         ]}
@@ -227,6 +342,10 @@ export function MedicalRecordView({
             </Link>
           </p>
         ))}
+      {tab === 'documentos' && (
+        <DocumentsTab clientId={clientId} patientName={client.name} timezone={timezone} />
+      )}
+      {tab === 'anexos' && <AttachmentsTab clientId={clientId} timezone={timezone} />}
       {tab === 'registros' && <ClientRecordsTab clientId={clientId} clientName={client.name} />}
       {tab === 'sessoes' && <ClientSessionsTab clientId={clientId} timezone={timezone} />}
     </div>

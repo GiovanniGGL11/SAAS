@@ -113,6 +113,9 @@ export async function getMedicalRecordHeader(companyId: string, clientId: string
       isVip: true,
       active: true,
       createdAt: true,
+      insuranceName: true,
+      insuranceNumber: true,
+      insurancePlan: true,
     },
   });
   if (!client) throw new UserError('Paciente não encontrado.');

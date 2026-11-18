@@ -9,7 +9,7 @@ import { toActionResult } from '@/server/action-result';
 import { UserError, parseId } from '@/server/errors';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { requireFormAccess } from '@/server/auth/form-access';
-import { canSeeClient } from '@/server/auth/professional-scope';
+import { canSeeClient, getOwnProfessional } from '@/server/auth/professional-scope';
 import { requireAccess } from '@/server/data/form-permissions';
 import {
   createClinicalNote,
@@ -22,6 +22,21 @@ import {
   pendingSessions,
   undoProcedureDone,
 } from '@/server/data/treatment-plan';
+import {
+  cancelClinicalDocument,
+  createClinicalDocument,
+  deleteAttachment,
+  findAttachment,
+  listAttachments,
+  listClinicalDocuments,
+  updateClientInsurance,
+} from '@/server/data/clinical-documents';
+import {
+  isStorageConfigured,
+  removeAttachment,
+  signedAttachmentUrl,
+} from '@/server/storage/supabase';
+import { DOCUMENT_KINDS } from '@/lib/clinical-documents';
 import { SEGMENT_GROUPS } from '@/lib/onboarding/templates';
 import { evolutionTemplates, medicalRecordsEnabled } from '@/lib/medical-records';
 
@@ -193,5 +208,123 @@ export async function saveMedicalRecordsSettingsAction(input: unknown) {
       data: { segment: data.segment, medicalRecordsMode: data.mode === 'auto' ? null : data.mode },
     });
     revalidatePath('/', 'layout');
+  });
+}
+
+// ---- Fase 3: documentos, convênio e anexos -------------------------------------------------------
+
+/** Documentos do paciente e os profissionais que podem assinar (o da pessoa logada primeiro). */
+export async function listDocumentsAction(rawClientId: unknown) {
+  return toActionResult(async () => {
+    const clientId = parseId(rawClientId);
+    const { company } = await requireRecordAccess(clientId);
+    const [documents, professionals, own] = await Promise.all([
+      listClinicalDocuments(company.id, clientId),
+      prisma.professional.findMany({
+        where: { companyId: company.id, active: true },
+        select: { id: true, name: true, registry: true },
+        orderBy: { name: 'asc' },
+      }),
+      getOwnProfessional(),
+    ]);
+    return {
+      documents,
+      professionals,
+      defaultProfessionalId: own?.id ?? professionals[0]?.id ?? null,
+    };
+  });
+}
+
+export async function createDocumentAction(input: unknown) {
+  return toActionResult(async () => {
+    const data = z
+      .object({
+        clientId: z.string().min(1).max(64),
+        kind: z.enum(DOCUMENT_KINDS),
+        title: z.string().max(120),
+        body: z.string().max(20_000),
+        professionalId: z.string().min(1).max(64),
+      })
+      .parse(input);
+    const { company, access } = await requireRecordAccess(data.clientId);
+    const doc = await createClinicalDocument({
+      companyId: company.id,
+      ...data,
+      authorUserId: access.userId,
+      authorName: await currentUserName(),
+    });
+    return doc;
+  });
+}
+
+export async function cancelDocumentAction(input: unknown) {
+  return toActionResult(async () => {
+    const data = z
+      .object({
+        clientId: z.string().min(1).max(64),
+        id: z.string().min(1).max(64),
+        reason: z.string().max(300),
+      })
+      .parse(input);
+    const { company, access } = await requireRecordAccess(data.clientId);
+    await cancelClinicalDocument({
+      companyId: company.id,
+      ...data,
+      userId: access.userId,
+      userName: await currentUserName(),
+    });
+  });
+}
+
+export async function updateInsuranceAction(input: unknown) {
+  return toActionResult(async () => {
+    const data = z
+      .object({
+        clientId: z.string().min(1).max(64),
+        name: z.string().max(80).nullable(),
+        number: z.string().max(40).nullable(),
+        plan: z.string().max(80).nullable(),
+      })
+      .parse(input);
+    const { company } = await requireRecordAccess(data.clientId);
+    await updateClientInsurance({ companyId: company.id, ...data });
+  });
+}
+
+export async function listAttachmentsAction(rawClientId: unknown) {
+  return toActionResult(async () => {
+    const clientId = parseId(rawClientId);
+    const { company } = await requireRecordAccess(clientId);
+    return {
+      attachments: await listAttachments(company.id, clientId),
+      storage: isStorageConfigured(),
+    };
+  });
+}
+
+/** Link temporário (5 min) para abrir ou baixar um anexo. */
+export async function attachmentLinkAction(input: unknown) {
+  return toActionResult(async () => {
+    const { clientId, id, download } = z
+      .object({
+        clientId: z.string().min(1).max(64),
+        id: z.string().min(1).max(64),
+        download: z.boolean().optional(),
+      })
+      .parse(input);
+    const { company } = await requireRecordAccess(clientId);
+    const row = await findAttachment(company.id, clientId, id);
+    return { url: await signedAttachmentUrl(row.storagePath, download ? row.name : undefined) };
+  });
+}
+
+export async function deleteAttachmentAction(input: unknown) {
+  return toActionResult(async () => {
+    const { clientId, id } = z
+      .object({ clientId: z.string().min(1).max(64), id: z.string().min(1).max(64) })
+      .parse(input);
+    const { company, access } = await requireRecordAccess(clientId);
+    const path = await deleteAttachment(company.id, clientId, id, access.userId);
+    await removeAttachment(path);
   });
 }

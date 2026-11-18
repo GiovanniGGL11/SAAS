@@ -6,6 +6,8 @@ export const professionalInput = z.object({
   name: z.string().min(1, 'Informe o nome').max(200),
   email: z.union([z.email('E-mail inválido. Confira o endereço.'), z.literal('')]).optional(),
   phone: z.string().max(30).optional(),
+  /** Registro no conselho (ex.: CRO-RS 21): sai nas prescrições e laudos do prontuário. */
+  registry: z.string().max(60).optional(),
   color: z.string().min(1, 'Selecione uma cor'),
   commissionType: z.enum(['FIXED', 'PERCENTAGE']).nullable().optional(),
   commissionValue: z.coerce.number().min(0).nullable().optional(),

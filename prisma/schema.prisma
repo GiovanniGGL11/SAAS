@@ -164,6 +164,8 @@ model Company {
   clinicalNotes             ClinicalNote[]
   returnContacts            ReturnContact[]
   treatmentProcedures       TreatmentProcedure[]
+  clinicalDocuments         ClinicalDocument[]
+  clientAttachments         ClientAttachment[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -199,6 +201,8 @@ model Professional {
   phone           String?
   color           String
   avatarUrl       String?
+  /// Registro no conselho (ex.: "CRO-RS 21", "CRM-SP 123456"): sai nas prescrições e laudos.
+  registry        String?
   /// Conta de login (Clerk) do próprio profissional: vê só a agenda, os clientes e os ganhos dele.
   userId          String?
   active          Boolean         @default(true)
@@ -301,6 +305,10 @@ model Client {
   email             String?
   cpf               String?
   birthDate         DateTime?
+  /// Convênio do paciente (prontuário): nome, número da carteirinha e plano.
+  insuranceName     String?
+  insuranceNumber   String?
+  insurancePlan     String?
   notes             String?
   // Endereço opcional; o CEP é guardado só com dígitos e o resto vem do ViaCEP ou do usuário.
   zipCode           String?
@@ -339,6 +347,8 @@ model Client {
   recordBlocks    ClientRecordBlock[]
   clinicalNotes   ClinicalNote[]
   treatmentProcedures TreatmentProcedure[]
+  clinicalDocuments   ClinicalDocument[]
+  attachments         ClientAttachment[]
   quotes          Quote[]
   tasks           Task[]
   opportunities   Opportunity[]
@@ -2468,4 +2478,48 @@ model TreatmentProcedure {
 
   @@index([companyId, clientId])
   @@index([quoteId, itemIndex])
+}
+
+/// Prescrição, atestado, laudo, declaração ou orientações emitidos pelo prontuário. Não se apaga:
+/// um documento errado é anulado (fica visível como anulado) e outro é emitido.
+model ClinicalDocument {
+  id                   String    @id @default(cuid())
+  companyId            String
+  company              Company   @relation(fields: [companyId], references: [id])
+  clientId             String
+  client               Client    @relation(fields: [clientId], references: [id])
+  /// receita | atestado | laudo | declaracao | orientacoes | outro
+  kind                 String
+  title                String
+  body                 String
+  /// Profissional responsável (o nome e o registro saem impressos; guardados como estavam no dia).
+  professionalId       String?
+  professionalName     String
+  professionalRegistry String?
+  authorUserId         String
+  authorName           String
+  createdAt            DateTime  @default(now())
+  canceledAt           DateTime?
+  canceledByName       String?
+  cancelReason         String?
+
+  @@index([companyId, clientId, createdAt])
+}
+
+/// Anexo do prontuário (exame, laudo de fora, documento): arquivo no armazenamento privado.
+model ClientAttachment {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id])
+  clientId         String
+  client           Client   @relation(fields: [clientId], references: [id])
+  name             String
+  storagePath      String
+  contentType      String
+  sizeBytes        Int
+  uploadedByUserId String
+  uploadedByName   String
+  createdAt        DateTime @default(now())
+
+  @@index([companyId, clientId, createdAt])
 }
