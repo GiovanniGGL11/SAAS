@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import {
+  BookOpenIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   KeyboardIcon,
@@ -141,6 +143,11 @@ export function AgendaToolbar({
       </div>
 
       <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon-sm" asChild>
+          <Link href="/agenda/tutorial" aria-label="Como usar a agenda" title="Como usar a agenda">
+            <BookOpenIcon className="size-4" />
+          </Link>
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
