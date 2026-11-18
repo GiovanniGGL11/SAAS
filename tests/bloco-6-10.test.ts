@@ -153,6 +153,11 @@ describe('indicações, serviços em andamento, regras, indicadores, modelos e a
       version: 1,
       contentHash: d.current.contentHash,
     });
+    // Lançamentos de antes (o teste de indicações, na mesma empresa, conclui um atendimento):
+    // daqui para frente, converter e concluir o serviço em andamento não pode lançar nada.
+    const transactionsBefore = await prisma.transaction.count({
+      where: { companyId: f.company.id },
+    });
     const results = await Promise.allSettled([
       convertQuoteToJob(f.company.id, 'u', quote.id),
       convertQuoteToJob(f.company.id, 'u', quote.id),
@@ -173,12 +178,10 @@ describe('indicações, serviços em andamento, regras, indicadores, modelos e a
     await expect(
       moveJob(f.company.id, admin, job.id, { toStageId: stages[0].id, fromStageId: job.stageId }),
     ).rejects.toThrow(/movido por outra pessoa/);
-    // Concluir não lança nada no financeiro.
-    expect(
-      await prisma.transaction.count({
-        where: { companyId: f.company.id, category: { not: 'x' } },
-      }),
-    ).toBe(0);
+    // Converter e concluir não lançam nada no financeiro.
+    expect(await prisma.transaction.count({ where: { companyId: f.company.id } })).toBe(
+      transactionsBefore,
+    );
 
     expect(await listClientJobs(f.company.id, f.client.id)).toHaveLength(0);
     await updateJob(f.company.id, admin, job.id, {
