@@ -2,6 +2,8 @@
 
 import { z } from 'zod';
 
+import { revalidatePath } from 'next/cache';
+
 import { prisma } from '@/lib/db';
 import { listTeamMembers } from '@/server/team';
 import { toActionResult } from '@/server/action-result';
@@ -11,6 +13,11 @@ import { appBaseUrl } from '@/server/app-url';
 import { requireCompanyAdmin, requireCurrentCompany } from '@/server/auth/require-current-company';
 import { requireFormAccess } from '@/server/auth/form-access';
 import { requireAccess } from '@/server/data/form-permissions';
+import { assertOwnAppointment, getViewerScope } from '@/server/auth/professional-scope';
+import { findClientByPhone } from '@/server/data/client-match';
+import { SIGNUP_INVITE_DAYS, signSignupInvite } from '@/server/data/signup-invite';
+import { hasFeature } from '@/server/billing/features';
+import { whatsappLink } from '@/lib/phone';
 import { listFormPermissions, setFormPermission } from '@/server/data/form-permissions';
 import { actorNames } from '@/server/data/audit-history';
 import { systemActorLabel } from '@/lib/audit-describe';
@@ -20,6 +27,8 @@ import {
   createStarterAnamnesis,
   duplicateTemplate,
   getAppointmentForms,
+  listWhatsappFormOptions,
+  prepareFormForWhatsapp,
   getEntryDetail,
   getEntryRevision,
   getTemplate,
@@ -346,6 +355,209 @@ export async function requestAppointmentFormsAction(rawAppointmentId: unknown) {
     assertFeature(company, 'forms');
     requireAccess(access, 'canRequest', 'pedir fichas');
     return getAppointmentForms(company.id, appointmentId, { ensure: true, userId: access.userId });
+  });
+}
+
+/**
+ * Fichas que dá para mandar pelo WhatsApp a partir do agendamento. Sem o recurso de fichas no
+ * plano, diz só isso (a tela mostra o convite em vez do botão).
+ */
+export async function getWhatsappFormOptionsAction(rawAppointmentId: unknown) {
+  return toActionResult(async () => {
+    const appointmentId = parseId(rawAppointmentId);
+    const { company, access } = await requireFormAccess();
+    if (!hasFeature(company, 'forms')) return { available: false as const };
+    await assertOwnAppointment(appointmentId);
+    const result = await listWhatsappFormOptions(company.id, appointmentId);
+    return { available: true as const, canRequest: access.canRequest, ...result };
+  });
+}
+
+/**
+ * "Enviar pelo WhatsApp" na agenda: pede a ficha, gera o link de 7 dias e devolve a mensagem
+ * pronta para o número do cliente. Nada sai sozinho: quem envia é a pessoa, no WhatsApp dela.
+ */
+export async function sendFormViaWhatsappAction(input: unknown) {
+  return toActionResult(async () => {
+    const { appointmentId, templateId } = z
+      .object({ appointmentId: id, templateId: id })
+      .parse(input);
+    const { company, access } = await requireFormAccess();
+    assertFeature(company, 'forms');
+    await assertOwnAppointment(appointmentId);
+    const result = await prepareFormForWhatsapp(company.id, access, appointmentId, templateId);
+    if (result.alreadyAnswered) return result;
+    const appointment = await prisma.appointment.findFirstOrThrow({
+      where: { id: appointmentId, companyId: company.id },
+      select: {
+        startAt: true,
+        serviceNameSnapshot: true,
+        client: { select: { name: true, phone: true } },
+      },
+    });
+    const template = await prisma.formTemplate.findFirstOrThrow({
+      where: { id: templateId, companyId: company.id },
+      select: { name: true },
+    });
+    const url = `${await appBaseUrl()}/ficha/${result.token}`;
+    const firstName = appointment.client.name.trim().split(/\s+/)[0];
+    const when = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: company.timezone,
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(appointment.startAt);
+    const message =
+      `Olá, ${firstName}! Para o seu atendimento de ${appointment.serviceNameSnapshot} em ${when}, ` +
+      `preencha e assine a ficha "${template.name}" pelo celular:\n${url}\n\n` +
+      `Leva poucos minutos e o link vale ${FORM_LINK_DAYS} dias. ${company.name}`;
+    return {
+      alreadyAnswered: false as const,
+      url,
+      message,
+      whatsappUrl: whatsappLink(appointment.client.phone, message),
+      expiresAt: result.expiresAt.toISOString(),
+    };
+  });
+}
+
+// ---- Enviar ficha pelo WhatsApp, pelo telefone (aba Fichas) -------------------------------------
+
+/** Equipe que pode pedir fichas; a profissional com login próprio não usa esta tela. */
+async function requireFormSender() {
+  const session = await requireFormAccess();
+  assertFeature(session.company, 'forms');
+  requireAccess(session.access, 'canRequest', 'pedir fichas');
+  const scope = await getViewerScope();
+  if (scope.professional) {
+    throw new UserError('Envie a ficha pelo agendamento do cliente, na agenda.');
+  }
+  return session;
+}
+
+/** Modelo que o cliente pode preencher (não "só a equipe"), ativo e desta empresa. */
+async function clientFillableTemplate(companyId: string, templateId: string) {
+  const template = await prisma.formTemplate.findFirst({
+    where: { id: templateId, companyId, status: 'ACTIVE' },
+    select: {
+      id: true,
+      name: true,
+      versions: { orderBy: { version: 'desc' }, take: 1, select: { fillableBy: true } },
+    },
+  });
+  if (!template) throw new UserError('Modelo de ficha não encontrado.');
+  if (template.versions[0]?.fillableBy === 'PROFESSIONAL') {
+    throw new UserError('Este modelo é preenchido só pela equipe.');
+  }
+  return template;
+}
+
+const phoneInput = z
+  .string()
+  .max(40)
+  .transform((v) => v.replace(/\D/g, ''))
+  .refine((v) => v.length >= 10 && v.length <= 15, 'Confira o telefone, com DDD.');
+
+/** Consulta o número: já é cliente? (mesmo celular escrito de jeitos diferentes conta). */
+export async function findClientForFormAction(input: unknown) {
+  return toActionResult(async () => {
+    const { phone } = z.object({ phone: phoneInput }).parse(input);
+    const { company } = await requireFormSender();
+    const client = await findClientByPhone(company.id, phone);
+    return {
+      phone,
+      client: client ? { id: client.id, name: client.name, active: client.active } : null,
+    };
+  });
+}
+
+/** Link da ficha de um cliente já cadastrado, com a mensagem pronta para o WhatsApp dele. */
+async function formMessageFor(
+  company: { id: string; name: string },
+  access: Awaited<ReturnType<typeof requireFormSender>>['access'],
+  client: { id: string; name: string; phone: string | null },
+  template: { id: string; name: string },
+) {
+  const { entry } = await requestEntry(
+    {
+      companyId: company.id,
+      userId: access.userId,
+      clientId: client.id,
+      templateId: template.id,
+      source: 'manual',
+    },
+    access,
+  );
+  const { token } = await createEntryLink(company.id, access, entry.id, FORM_LINK_DAYS);
+  const url = `${await appBaseUrl()}/ficha/${token}`;
+  const firstName = client.name.trim().split(/\s+/)[0];
+  const message =
+    `Olá, ${firstName}! ${company.name} pediu para você preencher e assinar a ficha ` +
+    `"${template.name}" pelo celular:\n${url}\n\n` +
+    `Leva poucos minutos e o link vale ${FORM_LINK_DAYS} dias.`;
+  return { kind: 'form' as const, url, message, whatsappUrl: whatsappLink(client.phone, message) };
+}
+
+/** Cliente já cadastrado: pede a ficha e prepara a mensagem. */
+export async function sendFormToClientAction(input: unknown) {
+  return toActionResult(async () => {
+    const { clientId, templateId } = z.object({ clientId: id, templateId: id }).parse(input);
+    const { company, access } = await requireFormSender();
+    const template = await clientFillableTemplate(company.id, templateId);
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, companyId: company.id },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!client) throw new UserError('Cliente não encontrado.');
+    return formMessageFor(company, access, client, template);
+  });
+}
+
+/** Cliente novo, só a ficha: cadastra com nome e telefone e pede a ficha. */
+export async function createClientAndSendFormAction(input: unknown) {
+  return toActionResult(async () => {
+    const { phone, name, templateId } = z
+      .object({
+        phone: phoneInput,
+        name: z.string().trim().min(2, 'Informe o nome do cliente.').max(200),
+        templateId: id,
+      })
+      .parse(input);
+    const { company, access } = await requireFormSender();
+    const template = await clientFillableTemplate(company.id, templateId);
+    // Alguém pode ter cadastrado o número enquanto a tela estava aberta: não duplica.
+    const client =
+      (await findClientByPhone(company.id, phone)) ??
+      (await prisma.client.create({
+        data: { companyId: company.id, name, phone },
+      }));
+    revalidatePath('/clientes');
+    return formMessageFor(company, access, client, template);
+  });
+}
+
+/**
+ * Cliente novo, cadastro + ficha: um link só. A pessoa faz o próprio cadastro (vira cliente) e
+ * segue direto para a ficha. Nenhum cliente é criado agora: só quando ela enviar o cadastro.
+ */
+export async function sendSignupInviteAction(input: unknown) {
+  return toActionResult(async () => {
+    const { phone, templateId } = z.object({ phone: phoneInput, templateId: id }).parse(input);
+    const { company } = await requireFormSender();
+    const template = await clientFillableTemplate(company.id, templateId);
+    const { token } = signSignupInvite(company.id, template.id);
+    const url = `${await appBaseUrl()}/cadastro/${company.slug}?convite=${token}&tel=${phone}`;
+    const message =
+      `Olá! ${company.name} preparou o seu cadastro e a ficha "${template.name}". ` +
+      `Pelo link você se cadastra e, em seguida, preenche e assina a ficha pelo celular:\n${url}\n\n` +
+      `Leva poucos minutos e o link vale ${SIGNUP_INVITE_DAYS} dias.`;
+    return {
+      kind: 'invite' as const,
+      url,
+      message,
+      whatsappUrl: whatsappLink(phone, message),
+    };
   });
 }
 

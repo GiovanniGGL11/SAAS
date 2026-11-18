@@ -14,6 +14,7 @@ import {
   getSignupCompany,
   submitSelfSignup,
 } from '@/server/data/self-signup';
+import { completeSignupInvite } from '@/server/data/signup-invite';
 
 const text = (max: number) => z.string().max(max).optional();
 
@@ -40,15 +41,29 @@ export async function submitSelfSignupAction(input: unknown) {
         marketingOptIn: z.boolean().optional(),
         // Armadilha para robôs: campo escondido que gente de verdade não preenche.
         website: z.string().max(200).optional(),
+        /** Convite "cadastro + ficha" mandado pela equipe. */
+        invite: z.string().max(300).optional(),
       })
       .parse(input);
-    if (data.website) return { status: 'ok' as const };
+    if (data.website) return { status: 'ok' as const, formPath: null };
+
+    if (data.invite) {
+      try {
+        const { formToken } = await completeSignupInvite(data.slug, data.invite, data);
+        return { status: 'ok' as const, formPath: formToken ? `/ficha/${formToken}` : null };
+      } catch (error) {
+        if (error instanceof SignupValidationError) {
+          return { status: 'invalid' as const, fields: error.fields };
+        }
+        throw error;
+      }
+    }
 
     const company = await getSignupCompany(data.slug);
     if (!company) throw new UserError('O cadastro por link não está disponível agora.');
     try {
       await submitSelfSignup(company.id, company.config, data);
-      return { status: 'ok' as const };
+      return { status: 'ok' as const, formPath: null };
     } catch (error) {
       if (error instanceof SignupValidationError) {
         return { status: 'invalid' as const, fields: error.fields };

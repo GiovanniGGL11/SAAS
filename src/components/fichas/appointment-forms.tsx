@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { EntryDialog, type EntrySummary, useFormAccess } from '@/components/fichas/entry-dialog';
 import { EntryStatusBadge } from '@/components/fichas/entry-status-badge';
 import { SessionRecordDialog } from '@/components/pacotes/session-record-dialog';
+import { WhatsappFormSender } from '@/components/fichas/whatsapp-form-sender';
 import {
   getAppointmentFormsAction,
   requestAppointmentFormsAction,
@@ -120,6 +121,7 @@ export function AppointmentForms({
           ))}
         </ul>
       )}
+      <WhatsappFormSender appointmentId={appointmentId} clientId={clientId} canceled={canceled} />
       {pendingRequired.length > 0 && !canceled && (
         <p className="text-[12px] text-amber-800 dark:text-amber-300">
           Para iniciar o atendimento, resolva as fichas exigidas acima (o agendamento não é

@@ -1613,3 +1613,136 @@ export async function getReleasedDocument(companyId: string, clientId: string, e
     })),
   };
 }
+
+// ---- Enviar pelo WhatsApp, direto da agenda -------------------------------------------------------
+
+export type WhatsappFormOption = {
+  templateId: string;
+  name: string;
+  /** Exigida pelo serviço ou pacote deste atendimento (as anamneses aparecem mesmo sem exigência). */
+  required: boolean;
+  /** new: ainda não pedida · open: pedida, esperando o cliente · answered: já respondida e valendo. */
+  state: 'new' | 'open' | 'answered';
+  answeredAt: Date | null;
+};
+
+/**
+ * Fichas que dá para mandar ao cliente deste atendimento: as exigidas pelo serviço/pacote que o
+ * cliente pode preencher, mais as anamneses ativas da empresa. Só consulta: não pede nada.
+ */
+export async function listWhatsappFormOptions(companyId: string, appointmentId: string) {
+  const appointment = await findAppointment(prisma, companyId, appointmentId);
+  const items = await evaluateAppointmentForms(prisma, companyId, appointment);
+  const stateOf = (entry: { status: string; submittedAt: Date | null } | null) =>
+    !entry
+      ? ('new' as const)
+      : entry.status === 'SUBMITTED' || entry.status === 'REVIEWED'
+        ? ('answered' as const)
+        : ('open' as const);
+  const options: WhatsappFormOption[] = items
+    .filter((i) => i.fillableBy !== 'PROFESSIONAL')
+    .map((i) => ({
+      templateId: i.templateId,
+      name: i.templateName,
+      required: true,
+      state: stateOf(i.entry),
+      answeredAt: i.entry?.submittedAt ?? null,
+    }));
+
+  const anamneses = await prisma.formTemplate.findMany({
+    where: {
+      companyId,
+      status: 'ACTIVE',
+      type: 'ANAMNESIS',
+      id: { notIn: options.map((o) => o.templateId) },
+    },
+    include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+    orderBy: { name: 'asc' },
+  });
+  const usable = anamneses.filter(
+    (t) => t.versions[0] && t.versions[0].fillableBy !== 'PROFESSIONAL',
+  );
+  if (usable.length) {
+    const entries = await prisma.formEntry.findMany({
+      where: {
+        companyId,
+        clientId: appointment.clientId,
+        templateId: { in: usable.map((t) => t.id) },
+      },
+      select: {
+        id: true,
+        templateId: true,
+        status: true,
+        appointmentId: true,
+        submittedAt: true,
+        createdAt: true,
+      },
+    });
+    for (const t of usable) {
+      const current = currentEntryFor(
+        entries.filter((e) => e.templateId === t.id),
+        t.versions[0],
+        { appointmentId: appointment.id, at: appointment.startAt },
+      );
+      options.push({
+        templateId: t.id,
+        name: t.name,
+        required: false,
+        state: stateOf(current),
+        answeredAt: current?.submittedAt ?? null,
+      });
+    }
+  }
+  return { canceled: appointment.status === 'CANCELED', options };
+}
+
+/**
+ * "Enviar pelo WhatsApp": pede a ficha para este atendimento (reaproveitando a que ainda vale pela
+ * regra "pedir de novo"; repetir não duplica) e gera o link de 7 dias. Se o cliente já respondeu
+ * e a resposta ainda vale, não gera link: avisa.
+ */
+export async function prepareFormForWhatsapp(
+  companyId: string,
+  access: FormAccess,
+  appointmentId: string,
+  templateId: string,
+) {
+  requireAccess(access, 'canRequest', 'pedir fichas');
+  const appointment = await findAppointment(prisma, companyId, appointmentId);
+  if (appointment.status === 'CANCELED') throw new UserError('Este agendamento está cancelado.');
+
+  // Fichas exigidas pelo atendimento: pedidas do jeito certo (serviço ou pacote).
+  const items = await getAppointmentForms(companyId, appointmentId, {
+    ensure: true,
+    userId: access.userId,
+  });
+  let entry: { id: string; status: string; submittedAt: Date | null } | null =
+    items.find((i) => i.templateId === templateId)?.entry ?? null;
+  if (!entry) {
+    const template = await prisma.formTemplate.findFirst({
+      where: { id: templateId, companyId, status: 'ACTIVE' },
+      select: { type: true },
+    });
+    if (!template) throw new UserError('Modelo de ficha não encontrado.');
+    if (template.type !== 'ANAMNESIS') {
+      throw new UserError('Esta ficha não é pedida para este atendimento.');
+    }
+    const requested = await requestEntry(
+      {
+        companyId,
+        userId: access.userId,
+        clientId: appointment.clientId,
+        templateId,
+        appointmentId,
+        source: 'auto',
+      },
+      access,
+    );
+    entry = requested.entry;
+  }
+  if (entry.status === 'SUBMITTED' || entry.status === 'REVIEWED') {
+    return { alreadyAnswered: true as const, submittedAt: entry.submittedAt };
+  }
+  const { token, expiresAt } = await createEntryLink(companyId, access, entry.id);
+  return { alreadyAnswered: false as const, entryId: entry.id, token, expiresAt };
+}

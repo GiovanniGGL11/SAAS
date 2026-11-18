@@ -79,12 +79,21 @@ export function SelfSignupForm({
   slug,
   companyName,
   config,
+  invite,
+  initialPhone,
 }: {
   slug: string;
   companyName: string;
   config: SignupConfig;
+  /** Convite "cadastro + ficha": depois do cadastro, a pessoa vai direto para a ficha. */
+  invite?: string;
+  /** Telefone para o qual o convite foi mandado (só preenche o campo; a pessoa pode mudar). */
+  initialPhone?: string;
 }) {
-  const [values, setValues] = React.useState<Values>(EMPTY);
+  const [values, setValues] = React.useState<Values>(() => ({
+    ...EMPTY,
+    phone: initialPhone ?? '',
+  }));
   const [marketingOptIn, setMarketingOptIn] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [done, setDone] = React.useState(false);
@@ -96,12 +105,17 @@ export function SelfSignupForm({
 
   const submit = useMutation({
     mutationFn: () =>
-      withNetworkRetry(() => submitSelfSignupAction({ slug, ...values, marketingOptIn })).then(
-        unwrapResult,
-      ),
+      withNetworkRetry(() =>
+        submitSelfSignupAction({ slug, ...values, marketingOptIn, invite }),
+      ).then(unwrapResult),
     onSuccess: (result) => {
       if (result.status === 'invalid') {
         setErrors(result.fields);
+        return;
+      }
+      // Convite: cadastro feito, segue direto para a ficha (anamnese) no mesmo celular.
+      if (result.status === 'ok' && result.formPath) {
+        window.location.assign(result.formPath);
         return;
       }
       setDone(true);
