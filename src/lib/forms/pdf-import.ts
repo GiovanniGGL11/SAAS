@@ -59,7 +59,7 @@ export const IMPORT_INSTRUCTIONS = `Você recebe, em PDF, a ficha (normalmente d
 Regras:
 - Mantenha a MESMA ORDEM do papel, de cima para baixo: se o nome vem antes do CPF, a pergunta do nome vem antes.
 - Cada campo a preencher vira uma pergunta, com o mesmo texto do papel (sem dois-pontos no final, sem sublinhados).
-- Tipos: nome, CPF, RG, telefone, e-mail, endereço, profissão e respostas curtas → short_text; observações, descrições e respostas longas → long_text; datas (inclusive nascimento) → date; idade, peso, altura e medidas → number; perguntas de Sim/Não → yes_no; listas de marcar várias opções → multi_choice (liste as opções); escolha de uma opção só → single_choice (liste as opções); linha de assinatura do cliente → signature.
+- Tipos: nome, CPF, RG, telefone, e-mail, endereço, profissão e respostas curtas → short_text; CEP → cep; observações, descrições e respostas longas → long_text; datas (inclusive nascimento) → date; idade, peso, altura e medidas → number; perguntas de Sim/Não → yes_no; listas de marcar várias opções → multi_choice (liste as opções); escolha de uma opção só → single_choice (liste as opções); linha de assinatura do cliente → signature.
 - Depois de uma pergunta Sim/Não com "Qual?", "Quais?" ou "Se sim, ..." no papel, crie em seguida uma pergunta short_text com esse texto (ex.: "Se sim, qual?").
 - Títulos e blocos do papel viram seções. Texto de termo, declaração ou consentimento vai na descrição da seção (até 1000 caracteres), e a assinatura do cliente fica nessa mesma seção.
 - Partes que só o profissional preenche (avaliação, procedimento realizado, assinatura do profissional) ficam numa seção com audience "staff". As demais usam "any".

@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
+import { lookupCep } from '@/lib/address';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -196,6 +197,16 @@ function QuestionField({
             onChange={(e) => onChange(e.target.value.replace(/[^\d,.-]/g, ''))}
           />
         );
+      case 'cep':
+        return (
+          <CepField
+            id={id}
+            value={typeof value === 'string' ? value : ''}
+            invalid={!!error}
+            describedBy={describedBy}
+            onChange={onChange}
+          />
+        );
       case 'signature':
         return <SignatureField value={value} onChange={onChange} />;
       case 'multi_choice': {
@@ -365,5 +376,97 @@ function SignatureField({
       }}
       label="Assine aqui"
     />
+  );
+}
+
+/**
+ * Pergunta de CEP: aceita só números, formata 00000-000 e, com os 8 dígitos, consulta o endereço
+ * (ViaCEP). Achou: a resposta guarda o CEP e o endereço. Não existe: fica só com os números e a
+ * ficha não deixa enviar ("CEP inválido ou não encontrado"). Consulta fora do ar: guarda o CEP
+ * formatado, para não travar quem está preenchendo.
+ */
+function CepField({
+  id,
+  value,
+  invalid,
+  describedBy,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  invalid: boolean;
+  describedBy?: string;
+  onChange: (value: string) => void;
+}) {
+  const digitsOf = (v: string) => v.replace(/\D/g, '').slice(0, 8);
+  const [typed, setTyped] = React.useState(() => digitsOf(value.split(' · ')[0] ?? ''));
+  const [status, setStatus] = React.useState<'idle' | 'loading' | 'found' | 'missing' | 'offline'>(
+    () => (value.includes(' · ') ? 'found' : 'idle'),
+  );
+  const address = value.includes(' · ') ? value.split(' · ').slice(1).join(' · ') : '';
+  const masked = typed.length > 5 ? `${typed.slice(0, 5)}-${typed.slice(5)}` : typed;
+  const request = React.useRef(0);
+
+  const change = async (raw: string) => {
+    const digits = digitsOf(raw);
+    setTyped(digits);
+    if (digits.length < 8) {
+      setStatus('idle');
+      onChange(digits);
+      return;
+    }
+    const cep = `${digits.slice(0, 5)}-${digits.slice(5)}`;
+    const mine = ++request.current;
+    setStatus('loading');
+    try {
+      const found = await lookupCep(digits);
+      if (mine !== request.current) return;
+      if (!found) {
+        setStatus('missing');
+        // Só os números: a validação recusa (CEP que não existe).
+        onChange(digits);
+        return;
+      }
+      const parts = [
+        found.street,
+        found.district,
+        [found.city, found.state].filter(Boolean).join('/'),
+      ].filter(Boolean);
+      setStatus('found');
+      onChange(parts.length ? `${cep} · ${parts.join(', ')}` : cep);
+    } catch {
+      if (mine !== request.current) return;
+      setStatus('offline');
+      onChange(cep);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Input
+        id={id}
+        inputMode="numeric"
+        autoComplete="postal-code"
+        placeholder="00000-000"
+        className="h-11 w-full text-[16px] sm:w-56 md:h-9 md:text-sm"
+        value={masked}
+        maxLength={9}
+        aria-invalid={invalid || status === 'missing'}
+        aria-describedby={describedBy}
+        onChange={(e) => void change(e.target.value)}
+      />
+      {status === 'loading' && (
+        <span className="text-label-secondary text-[12px]">Buscando o endereço…</span>
+      )}
+      {status === 'found' && address && <span className="text-[13px]">{address}</span>}
+      {status === 'missing' && (
+        <span className="text-system-red text-[12px]">CEP não encontrado. Confira os números.</span>
+      )}
+      {status === 'offline' && (
+        <span className="text-label-secondary text-[12px]">
+          Não deu para buscar o endereço agora; o CEP foi guardado.
+        </span>
+      )}
+    </div>
   );
 }

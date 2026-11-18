@@ -41,7 +41,8 @@ export function FormsTutorial() {
             'Dê um nome e organize as perguntas em seções (Ex.: Dados de saúde, Termo de consentimento).',
             <>
               Em cada pergunta, escolha o tipo: texto curto ou longo, sim ou não, escolha única ou
-              várias, data, número ou <strong>assinatura</strong>. Marque se é obrigatória.
+              várias, data, número, <strong>CEP</strong> ou <strong>assinatura</strong>. Marque se é
+              obrigatória. No tipo CEP, o sistema confere se o CEP existe e preenche o endereço.
             </>,
             <>
               Em <strong>Quem responde</strong>, por seção: Todos, Cliente ou{' '}
