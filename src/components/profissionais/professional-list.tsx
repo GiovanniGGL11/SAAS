@@ -22,6 +22,7 @@ import {
 } from '@/components/layout/list-controls';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ProfessionalDrawer } from '@/components/profissionais/professional-drawer';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import {
   listProfessionalsAction,
   setProfessionalActiveAction,
@@ -107,10 +108,13 @@ export function ProfessionalList({
         title="Profissionais"
         description={`${activeCount} ${activeCount === 1 ? 'profissional ativo' : 'profissionais ativos'} · ${formatCurrencyBRL(teamRevenue)} produzidos no mês.`}
         actions={
-          <Button onClick={openCreate}>
-            <PlusIcon className="size-4" />
-            Novo profissional
-          </Button>
+          <>
+            <HowToButton href="/profissionais/tutorial" />
+            <Button onClick={openCreate}>
+              <PlusIcon className="size-4" />
+              Novo profissional
+            </Button>
+          </>
         }
       />
 
