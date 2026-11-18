@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { unwrapResult } from '@/lib/action-result';
 import { ENTRY_STATUS_LABEL, FORM_TYPE_LABEL } from '@/lib/forms/schema';
 import { Button } from '@/components/ui/button';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -76,6 +77,7 @@ export function FormsHome({ timezone, initialTab }: { timezone: string; initialT
         actions={
           access?.canManage && tab === 'modelos' ? (
             <>
+              <HowToButton href="/fichas/tutorial" />
               <ImportPdfButton />
               <Button asChild>
                 <Link href="/fichas/modelos/novo">
@@ -83,7 +85,9 @@ export function FormsHome({ timezone, initialTab }: { timezone: string; initialT
                 </Link>
               </Button>
             </>
-          ) : undefined
+          ) : (
+            <HowToButton href="/fichas/tutorial" />
+          )
         }
       />
       <SegmentedControl

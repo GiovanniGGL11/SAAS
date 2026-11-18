@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { unwrapResult } from '@/lib/action-result';
 import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -112,6 +113,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
         description={`${products.filter((p) => p.active).length} produtos ativos · ${formatCurrencyBRL(stockValue)} em estoque (preço de custo).`}
         actions={
           <>
+            <HowToButton href="/estoque/tutorial" />
             <Button variant="outline" onClick={() => setHistoryOpen(true)}>
               Histórico
             </Button>

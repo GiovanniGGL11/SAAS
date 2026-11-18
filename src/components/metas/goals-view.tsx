@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PageHeader } from '@/components/layout/page';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { InitialsAvatar } from '@/components/layout/list-controls';
 import {
   Dialog,
@@ -106,6 +107,7 @@ export function GoalsView({
             ? 'Defina as metas da empresa e de cada profissional e acompanhe o mês dia a dia.'
             : 'Acompanhe a sua meta do mês, definida pelo responsável.'
         }
+        actions={<HowToButton href="/metas/tutorial" />}
       />
 
       {/* Mês em andamento */}
