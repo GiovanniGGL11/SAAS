@@ -5,6 +5,7 @@ import {
   Path,
   Section,
   Steps,
+  Sub,
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
@@ -49,6 +50,11 @@ export function FormsTutorial() {
             <>
               Use <strong>Mostrar esta pergunta</strong> para perguntas que só aparecem dependendo
               de outra resposta (Ex.: &quot;Qual alergia?&quot; só se respondeu &quot;Sim&quot;).
+            </>,
+            <>
+              Ligue <strong>Alerta no prontuário</strong> nas perguntas importantes (alergia,
+              medicamento, gestação). A resposta aparece em vermelho no topo do prontuário do
+              paciente. Em &quot;sim ou não&quot;, só quando a resposta é Sim.
             </>,
             <>
               Confira na <strong>Prévia</strong> (celular ou computador, visão do cliente ou da
@@ -96,23 +102,37 @@ export function FormsTutorial() {
       </Section>
 
       <Section id="enviar" title="Enviar para o cliente preencher">
+        <p>
+          O cliente abre no celular, responde, assina com o dedo e envia. O link vale 7 dias. Nada é
+          enviado sozinho: o WhatsApp abre com a mensagem pronta e você aperta enviar.
+        </p>
+        <Sub>Pela agenda (o jeito mais rápido)</Sub>
+        <p>
+          Abra o agendamento e, em <strong>Fichas e registro</strong>, toque em{' '}
+          <strong>Enviar pelo WhatsApp</strong> na anamnese. A mensagem já cita o serviço, o dia e o
+          horário. Se o cliente já respondeu e a ficha ainda vale, o sistema avisa em vez de mandar
+          de novo.
+        </p>
+        <Sub>Pelo número do telefone</Sub>
+        <Path items={['Fichas', 'Enviar ficha pelo WhatsApp']} />
         <Steps
           items={[
+            'Escolha a ficha e digite o WhatsApp do cliente. Toque em Consultar número.',
+            'Já é cliente: o nome aparece. Toque em Enviar pelo WhatsApp.',
             <>
-              Na ficha do cliente (aba Fichas) clique em <strong>Nova ficha</strong>, ou abra o
-              atendimento em <strong>Fichas e registro</strong>.
+              Não é cliente: responda <strong>Sim, cliente novo</strong>. Depois escolha:{' '}
+              <strong>Enviar cadastro + ficha</strong> (a pessoa faz o próprio cadastro e segue
+              direto para a ficha, num link só, e já entra como cliente) ou{' '}
+              <strong>Só a ficha</strong> (você digita o nome e ela entra só com nome e telefone).
             </>,
-            'Escolha o modelo. Se for de um pacote, dá para vincular a ele.',
-            <>
-              Clique em <strong>Gerar link</strong> e depois em <strong>Copiar link</strong>. Mande
-              pelo WhatsApp ou como preferir. Nada é enviado sozinho, e o link vale 7 dias.
-            </>,
-            'O cliente abre no celular, responde, assina com o dedo e envia.',
           ]}
         />
+        <Sub>Pela ficha do cliente</Sub>
         <p>
-          Prefere preencher junto com o cliente, na hora? Abra a ficha e preencha você mesmo. O
-          rascunho fica salvo enquanto você digita.
+          Na aba Fichas do cliente, clique em <strong>Nova ficha</strong>, escolha o modelo e use{' '}
+          <strong>Gerar link</strong> e <strong>Copiar link</strong>. Prefere preencher junto com o
+          cliente, na hora? Abra a ficha e preencha você mesmo; o rascunho fica salvo enquanto você
+          digita.
         </p>
       </Section>
 

@@ -14,7 +14,8 @@ const SECTIONS = [
   { id: 'ficha', label: 'A ficha do cliente' },
   { id: 'registros', label: 'Registros de evolução' },
   { id: 'area', label: 'Área do cliente' },
-  { id: 'retorno', label: 'Retorno sugerido' },
+  { id: 'retorno', label: 'Retorno do paciente' },
+  { id: 'prontuario', label: 'Prontuário' },
   { id: 'importar', label: 'Importar clientes' },
   { id: 'duvidas', label: 'Dúvidas comuns' },
 ] as const;
@@ -124,12 +125,52 @@ export function ClientsTutorial() {
         </p>
       </Section>
 
-      <Section id="retorno" title="Retorno sugerido">
+      <Section id="retorno" title="Retorno do paciente">
         <p>
-          Se o serviço tem <strong>Sugerir retorno após</strong> (em Serviços), a ficha do cliente
-          mostra quando ele deveria voltar, contando do último atendimento concluído, com a mensagem
-          pronta para enviar. Quem já tem horário marcado não aparece.
+          Se o serviço tem <strong>Sugerir retorno após</strong> (em Serviços), o sistema calcula
+          quando cada cliente deveria voltar, contando do último atendimento concluído. Quem já tem
+          horário marcado não entra.
         </p>
+        <Bullets
+          items={[
+            <>
+              <strong>3 dias antes:</strong> o sininho avisa &quot;retornos chegando&quot;.
+            </>,
+            <>
+              <strong>No dia:</strong> aparece uma janela na tela com a mensagem pronta. Aperte{' '}
+              <strong>Enter</strong> para abrir o WhatsApp do cliente e envie. Ou escolha{' '}
+              <strong>Lembrar amanhã</strong> (volta em 24 horas) ou <strong>Não chamar</strong>.
+            </>,
+            <>
+              <strong>Automático:</strong> ligue <strong>Retorno do paciente</strong> em
+              Configurações › WhatsApp automático e a mensagem sai sozinha às 8h, pelo número do
+              salão. Quem pediu para não receber promoções fica de fora.
+            </>,
+          ]}
+        />
+        <p>
+          A janela e o aviso aparecem para o dono e a recepção. Quem entra com login de profissional
+          não recebe.
+        </p>
+      </Section>
+
+      <Section id="prontuario" title="Prontuário (saúde, estética e odonto)">
+        <p>
+          Nesses ramos, a ficha do cliente ganha o botão <strong>Prontuário</strong> (ligue ou
+          desligue em Configurações › Ramo e prontuário). Lá ficam:
+        </p>
+        <Bullets
+          items={[
+            'Idade, contato e, em vermelho, os alertas da anamnese (alergia, medicamentos...).',
+            'A próxima consulta e o retorno previsto.',
+            <>
+              A <strong>Evolução</strong> de cada atendimento, com modelos de texto do seu ramo. Ela
+              nunca é apagada: para corrigir, use <strong>Retificar</strong> e a anterior fica
+              visível como retificada.
+            </>,
+            'As fichas e termos, os registros com fotos e as sessões.',
+          ]}
+        />
       </Section>
 
       <Section id="importar" title="Importar clientes de outro sistema">
