@@ -161,12 +161,27 @@ export function ClientsTutorial() {
         </p>
         <Bullets
           items={[
-            'Idade, contato e, em vermelho, os alertas da anamnese (alergia, medicamentos...).',
+            'Idade, contato, convênio e, em vermelho, os alertas da anamnese (alergia, medicamentos...).',
             'A próxima consulta e o retorno previsto.',
             <>
               A <strong>Evolução</strong> de cada atendimento, com modelos de texto do seu ramo. Ela
               nunca é apagada: para corrigir, use <strong>Retificar</strong> e a anterior fica
               visível como retificada.
+            </>,
+            <>
+              O <strong>Plano de tratamento</strong>: os procedimentos dos orçamentos aprovados, com
+              as sessões feitas e as que faltam. Marque com <strong>Sessão feita</strong> ou nas
+              caixinhas da Nova evolução. Orçamento que virou pacote anda sozinho pela comanda.
+            </>,
+            <>
+              Os <strong>Documentos</strong>: receituário, atestado, laudo, declaração de
+              comparecimento e orientações, com modelo pronto. <strong>Emitir e imprimir</strong>{' '}
+              abre a versão para imprimir ou salvar em PDF, com o nome e o registro do profissional
+              (cadastre o registro em Profissionais). Errou? Anule com o motivo e emita outro.
+            </>,
+            <>
+              Os <strong>Anexos</strong>: exames e documentos em PDF ou imagem, até 4 MB, guardados
+              de forma privada.
             </>,
             'As fichas e termos, os registros com fotos e as sessões.',
           ]}
