@@ -14,6 +14,7 @@ import { BusinessPreferencesCard } from '@/components/configuracoes/business-pre
 import { CustomFieldsCard } from '@/components/configuracoes/custom-fields-card';
 import { MedicalRecordsCard } from '@/components/configuracoes/medical-records-card';
 import { PageHeader } from '@/components/layout/page';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { OpenDemoCard } from '@/components/demo/demo-controls';
 
 export default async function ConfiguracoesPage() {
@@ -25,6 +26,7 @@ export default async function ConfiguracoesPage() {
       <PageHeader
         title="Configurações"
         description="WhatsApp automático, inteligência artificial, preferências, campos personalizados, lembretes, fuso horário e equipe."
+        actions={<HowToButton href="/configuracoes/tutorial" />}
       />
 
       {/* O que o cliente vê ganhou página própria (menu lateral → Link do cliente). */}
