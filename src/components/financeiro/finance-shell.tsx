@@ -1,9 +1,12 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { BookOpenIcon } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page';
+import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { FinanceView } from '@/components/financeiro/finance-view';
 import { IncomeStatementView } from '@/components/financeiro/income-statement-view';
@@ -51,6 +54,13 @@ export function FinanceShell({
       <PageHeader
         title="Financeiro"
         description="Fluxo de caixa, contas, resultado do mês e taxas."
+        actions={
+          <Button variant="outline" asChild>
+            <Link href="/financeiro/tutorial">
+              <BookOpenIcon /> Como usar
+            </Link>
+          </Button>
+        }
       />
       <SegmentedControl
         value={tab}
