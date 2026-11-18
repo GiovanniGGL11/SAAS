@@ -3,6 +3,7 @@ import { getSubscriptionState } from '@/server/billing/subscription';
 import { trialUsageSummary } from '@/server/billing/trial-usage';
 import { officialWhatsappReady } from '@/server/whatsapp/cloud-api';
 import { SubscriptionView } from '@/components/assinatura/subscription-view';
+import { cycleOf } from '@/lib/billing/plans';
 
 export const metadata = { title: 'Assinatura' };
 
@@ -17,7 +18,7 @@ export default async function AssinaturaPage() {
       state={{ ...state, hasSubscription: Boolean(company.asaasSubscriptionId) }}
       companyName={company.name}
       trialUsage={trialUsage}
-      billingCycle={company.billingCycle === 'YEARLY' ? 'YEARLY' : 'MONTHLY'}
+      billingCycle={cycleOf(company.billingCycle)}
       officialWhatsapp={officialWhatsappReady()}
     />
   );

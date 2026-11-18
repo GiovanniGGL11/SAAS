@@ -13,7 +13,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { unwrapResult } from '@/lib/action-result';
 import { formatCurrencyBRL } from '@/lib/serialize';
 import {
-  ANNUAL_DISCOUNT,
+  BILLING_CYCLES,
+  CYCLE_DISCOUNT,
+  CYCLE_MONTHS,
   PLANS,
   chargeCents,
   getPlan,
@@ -21,6 +23,18 @@ import {
   type BillingCycle,
   type PlanId,
 } from '@/lib/billing/plans';
+
+const CYCLE_LABEL: Record<BillingCycle, string> = {
+  MONTHLY: 'Mensal',
+  QUARTERLY: 'Trimestral',
+  YEARLY: 'Anual',
+};
+/** "por ano", "a cada 3 meses" (o que cada cobrança paga). */
+const CYCLE_PERIOD: Record<BillingCycle, string> = {
+  MONTHLY: '/mês',
+  QUARTERLY: 'a cada 3 meses',
+  YEARLY: 'por ano',
+};
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
 import { TrialClaimCard } from '@/components/assinatura/trial-claim-card';
@@ -209,7 +223,7 @@ export function SubscriptionView({
                   ? `${state.trialDaysLeft} ${state.trialDaysLeft === 1 ? 'dia' : 'dias'} de teste grátis`
                   : 'O teste grátis terminou'
                 : current
-                  ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${billingCycle === 'YEARLY' ? `${formatCurrencyBRL(chargeCents(current, 0, 'YEARLY') / 100)}/ano` : `${formatCurrencyBRL(planPrice(current))}/mês`}`
+                  ? `Plano ${current.name}${current.legacy ? ' (plano anterior)' : ''} · ${billingCycle === 'MONTHLY' ? `${formatCurrencyBRL(planPrice(current))}/mês` : `${formatCurrencyBRL(chargeCents(current, 0, billingCycle) / 100)} ${CYCLE_PERIOD[billingCycle]}`}`
                   : '—'}
           </div>
           <div className="text-label-secondary text-[13px]">
@@ -250,13 +264,13 @@ export function SubscriptionView({
             className="self-start"
             value={cycle}
             onValueChange={setCycle}
-            options={[
-              { value: 'MONTHLY', label: 'Mensal' },
-              {
-                value: 'YEARLY',
-                label: `Anual · ${Math.round(ANNUAL_DISCOUNT * 100)}% de desconto`,
-              },
-            ]}
+            options={BILLING_CYCLES.map((c) => ({
+              value: c,
+              label:
+                CYCLE_DISCOUNT[c] > 0
+                  ? `${CYCLE_LABEL[c]} · −${Math.round(CYCLE_DISCOUNT[c] * 100)}%`
+                  : CYCLE_LABEL[c],
+            }))}
           />
           <div id="planos" className="grid scroll-mt-24 gap-4 md:grid-cols-3">
             {offered.map((plan) => (
@@ -290,15 +304,18 @@ export function SubscriptionView({
                 <div>
                   <span className="text-[28px] font-bold tracking-tight">
                     {formatCurrencyBRL(
-                      cycle === 'YEARLY' ? chargeCents(plan, 0, 'YEARLY') / 1200 : planPrice(plan),
+                      cycle === 'MONTHLY'
+                        ? planPrice(plan)
+                        : chargeCents(plan, 0, cycle) / (100 * CYCLE_MONTHS[cycle]),
                     )}
                   </span>
                   <span className="text-label-secondary text-[14px]">/mês</span>
-                  {cycle === 'YEARLY' ? (
+                  {cycle !== 'MONTHLY' ? (
                     <p className="text-label-secondary text-[12px]">
-                      {formatCurrencyBRL(chargeCents(plan, 0, 'YEARLY') / 100)} por ano, de uma vez{' '}
+                      {formatCurrencyBRL(chargeCents(plan, 0, cycle) / 100)} {CYCLE_PERIOD[cycle]},
+                      de uma vez{' '}
                       <span className="line-through">
-                        {formatCurrencyBRL(planPrice(plan) * 12)}
+                        {formatCurrencyBRL(planPrice(plan) * CYCLE_MONTHS[cycle])}
                       </span>
                     </p>
                   ) : (

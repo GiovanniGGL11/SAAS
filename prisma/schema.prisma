@@ -58,7 +58,7 @@ model Company {
   selfSignupEnabled   Boolean            @default(false)
   /// Campos pedidos: { email|birthDate|cpf|address|notes: "off" | "optional" | "required" }.
   selfSignupFields    Json?
-  /// Ciclo da assinatura do Atendafy: MONTHLY ou YEARLY (anual com desconto, pago de uma vez).
+  /// Ciclo da assinatura do Atendafy: MONTHLY, QUARTERLY (trimestral) ou YEARLY (anual), com desconto e pago de uma vez nos dois últimos.
   billingCycle        String             @default("MONTHLY")
   plan                String?
   currentPeriodEnd    DateTime?

@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { prisma } from '@/lib/db';
-import { ANNUAL_DISCOUNT, chargeCents, getPlan } from '@/lib/billing/plans';
+import {
+  ANNUAL_DISCOUNT,
+  QUARTERLY_DISCOUNT,
+  chargeCents,
+  cycleOf,
+  getPlan,
+  monthlyEquivalentCents,
+} from '@/lib/billing/plans';
 import { handleBillingWebhook, startSubscription } from '@/server/billing/subscription';
 import { officialAllowance, runDailyWhatsapp, sendOnce } from '@/server/whatsapp/automation';
 import { addDays, calendarDateToUtc, getTodayInTz } from '@/lib/time';
@@ -17,6 +24,15 @@ describe('plano anual', () => {
     expect(chargeCents(getPlan('profissional')!, 0, 'MONTHLY')).toBe(7990);
     // Pro com 12 profissionais: os 2 extras também entram no anual.
     expect(chargeCents(getPlan('pro')!, 12, 'YEARLY')).toBe(Math.round(16990 * 12 * 0.8));
+  });
+
+  it('trimestral: 3 mensalidades com 10% de desconto; receita mensal = cobrança ÷ 3', () => {
+    expect(QUARTERLY_DISCOUNT).toBe(0.1);
+    expect(chargeCents(getPlan('profissional')!, 0, 'QUARTERLY')).toBe(21573); // 79,90 × 3 × 0,9
+    expect(chargeCents(getPlan('essencial')!, 0, 'QUARTERLY')).toBe(10773); // 39,90 × 3 × 0,9
+    expect(monthlyEquivalentCents(getPlan('profissional')!, 0, 'QUARTERLY')).toBeCloseTo(7191, 0);
+    expect(cycleOf('QUARTERLY')).toBe('QUARTERLY');
+    expect(cycleOf('qualquer coisa')).toBe('MONTHLY');
   });
 
   describe('assinatura na Asaas', () => {
@@ -77,6 +93,32 @@ describe('plano anual', () => {
       const paid = await prisma.company.findUniqueOrThrow({ where: { id: f.company.id } });
       expect(paid.subscriptionStatus).toBe('ACTIVE');
       expect(paid.currentPeriodEnd!.toISOString().slice(0, 10)).toBe('2031-01-10');
+    });
+
+    it('cria a assinatura trimestral e o pagamento vale 3 meses', async () => {
+      const company = await prisma.company.findUniqueOrThrow({ where: { id: f.company.id } });
+      await startSubscription(company, {
+        planId: 'profissional',
+        name: 'Studio Teste',
+        cpfCnpj: '529.982.247-25',
+        email: 'dono@exemplo.com',
+        cycle: 'QUARTERLY',
+      });
+      const sub = calls.find((c) => c.url.endsWith('/subscriptions'))!;
+      expect(sub.body).toMatchObject({
+        cycle: 'QUARTERLY',
+        value: 215.73,
+        description: 'Atendafy — plano Profissional trimestral',
+      });
+      const saved = await prisma.company.findUniqueOrThrow({ where: { id: f.company.id } });
+      expect(saved.billingCycle).toBe('QUARTERLY');
+
+      await handleBillingWebhook({
+        event: 'PAYMENT_CONFIRMED',
+        payment: { subscription: `sub_anual_${f.company.id}`, dueDate: '2030-01-10' },
+      });
+      const paid = await prisma.company.findUniqueOrThrow({ where: { id: f.company.id } });
+      expect(paid.currentPeriodEnd!.toISOString().slice(0, 10)).toBe('2030-04-10');
     });
   });
 });
