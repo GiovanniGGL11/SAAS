@@ -47,12 +47,13 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+// Chama o vitest direto pelo Node (sem shell/npx): funciona igual no Windows e no Linux e não
+// junta argumentos num texto de comando (o aviso DEP0190 do Node).
+const vitestEntry = path.join(root, 'node_modules', 'vitest', 'vitest.mjs');
 function runOnce(file) {
-  const result = spawnSync(npx, ['--no-install', 'vitest', 'run', path.join('tests', file)], {
+  const result = spawnSync(process.execPath, [vitestEntry, 'run', path.join('tests', file)], {
     cwd: root,
     encoding: 'utf8',
-    shell: process.platform === 'win32',
     maxBuffer: 64 * 1024 * 1024,
     timeout: 10 * 60_000,
   });
