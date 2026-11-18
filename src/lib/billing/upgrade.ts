@@ -58,6 +58,13 @@ export type UpgradeOffer = {
   perDay: number;
   /** "a mais por dia que o Básico" ou só "por dia". */
   perDayIsExtra: boolean;
+  /** O recurso travado (para o botão "Testar grátis"). */
+  feature?: FeatureKey;
+  /**
+   * Teste grátis do recurso: disponível (nunca testado) ou já usado (com a data em que acabou).
+   * `null`/ausente = este recurso não tem teste.
+   */
+  trial?: { available: boolean; endedAt: string | null; days: number } | null;
 };
 
 /** Plano mais barato que libera o recurso, com a conta do preço por dia. */

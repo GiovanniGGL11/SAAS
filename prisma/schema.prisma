@@ -60,6 +60,11 @@ model Company {
   selfSignupFields    Json?
   /// Ciclo da assinatura do Atendafy: MONTHLY, QUARTERLY (trimestral) ou YEARLY (anual), com desconto e pago de uma vez nos dois últimos.
   billingCycle        String             @default("MONTHLY")
+  /// Teste de 3 dias de recursos fora do plano, uma vez por recurso:
+  /// { "<recurso>": { "startedAt": ISO, "endsAt": ISO } }. Fica guardado depois que acaba.
+  featureTrials       Json               @default("{}")
+  /// Perguntas de demonstração do assistente de IA já usadas (plano sem IA; poucas, uma vez só).
+  aiDemoUsed          Int                @default(0)
   plan                String?
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?

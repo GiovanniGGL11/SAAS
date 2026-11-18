@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/drawer';
 import { SimpleMarkdown } from '@/components/assistant/simple-markdown';
 import { AiCreditsMeter } from '@/components/assistant/ai-credits-meter';
+import { AssistantDemo } from '@/components/assistant/assistant-demo';
 
 type ProposalState = {
   proposal: AssistantProposal;
@@ -169,19 +170,23 @@ function AssistantPanel({ configured, prefill }: { configured: boolean; prefill?
           </DrawerTitle>
           <DrawerDescription className="text-xs">{status.companyName}</DrawerDescription>
         </DrawerHeader>
-        <div className="px-4 pb-6">
-          <div className="bg-tile flex flex-col gap-2 rounded-2xl p-4 text-sm">
-            <p className="flex items-center gap-2 font-medium">
-              <LockIcon className="size-4" /> Indisponível
-            </p>
-            <p className="text-label-secondary">{status.assistantMessage}</p>
-            {status.isAdmin && !status.includedInPlan && (
-              <Button variant="outline" size="sm" className="self-start" asChild>
-                <Link href="/assinatura">Conhecer os planos</Link>
-              </Button>
-            )}
+        {status.demo ? (
+          <AssistantDemo demo={status.demo} />
+        ) : (
+          <div className="px-4 pb-6">
+            <div className="bg-tile flex flex-col gap-2 rounded-2xl p-4 text-sm">
+              <p className="flex items-center gap-2 font-medium">
+                <LockIcon className="size-4" /> Indisponível
+              </p>
+              <p className="text-label-secondary">{status.assistantMessage}</p>
+              {status.isAdmin && !status.includedInPlan && (
+                <Button variant="outline" size="sm" className="self-start" asChild>
+                  <Link href="/assinatura">Conhecer os planos</Link>
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </>
     );
   }

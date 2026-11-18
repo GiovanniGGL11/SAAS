@@ -43,6 +43,7 @@ import {
 } from '@/lib/pricing';
 import type { UpgradeOffer } from '@/lib/billing/upgrade';
 import type { PricingContext } from '@/server/data/pricing';
+import { FeatureTrialButton } from '@/components/assinatura/feature-trial-button';
 import {
   applyPriceAction,
   deletePricingSimulationAction,
@@ -281,12 +282,32 @@ function PricingDemo({ offer }: { offer: UpgradeOffer }) {
             </p>
           </div>
         </div>
-        <Link
-          href="/assinatura"
-          className="bg-system-blue shrink-0 rounded-full px-5 py-2 text-center text-[14px] font-semibold text-white"
-        >
-          Calcular com meus serviços
-        </Link>
+        <div className="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+          {offer.trial?.available && offer.feature ? (
+            <>
+              <FeatureTrialButton
+                feature={offer.feature}
+                days={offer.trial.days}
+                label={`Calcular com meus serviços · ${offer.trial.days} dias grátis`}
+                className="px-5 py-2 text-[14px]"
+              />
+              <span className="text-label-secondary text-center text-[11px] sm:text-right">
+                Uma vez, sem cobrança. Ou{' '}
+                <Link href="/assinatura" className="text-system-blue underline">
+                  veja os planos
+                </Link>
+                .
+              </span>
+            </>
+          ) : (
+            <Link
+              href="/assinatura"
+              className="bg-system-blue rounded-full px-5 py-2 text-center text-[14px] font-semibold text-white"
+            >
+              Calcular com meus serviços
+            </Link>
+          )}
+        </div>
       </div>
       <Calculator mode="demo" />
     </div>

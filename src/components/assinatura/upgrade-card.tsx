@@ -3,6 +3,7 @@ import { LockIcon, SparklesIcon } from 'lucide-react';
 
 import { formatCurrencyBRL } from '@/lib/serialize';
 import type { UpgradeOffer } from '@/lib/billing/upgrade';
+import { FeatureTrialButton } from '@/components/assinatura/feature-trial-button';
 
 /**
  * No lugar de um recurso que o plano não inclui: o que ele faz, em qual plano está e quanto
@@ -35,15 +36,40 @@ export function UpgradeCard({ offer }: { offer: UpgradeOffer }) {
           {formatCurrencyBRL(offer.perDay)} {offer.perDayIsExtra ? 'a mais por dia' : 'por dia'}
         </span>
       </p>
-      <Link
-        href="/assinatura"
-        className="bg-system-blue rounded-full px-6 py-2.5 text-[15px] font-semibold text-white shadow-[0_10px_30px_-12px_var(--system-blue)] transition-transform hover:scale-[1.03] active:scale-[0.98]"
-      >
-        Ver planos e assinar
-      </Link>
-      <span className="text-label-secondary text-[12px]">
-        Seus dados ficam guardados. Ao assinar, o recurso libera na hora.
-      </span>
+      {offer.trial?.available && offer.feature ? (
+        <>
+          <FeatureTrialButton feature={offer.feature} days={offer.trial.days} />
+          <span className="text-label-secondary max-w-sm text-[12px]">
+            Libera de verdade, com os seus dados, por {offer.trial.days} dias. Uma vez por recurso,
+            sem cobrança. O que você fizer fica guardado.
+          </span>
+          <Link
+            href="/assinatura"
+            className="text-system-blue text-[14px] font-semibold underline-offset-2 hover:underline"
+          >
+            Ver planos e assinar
+          </Link>
+        </>
+      ) : (
+        <>
+          {offer.trial && !offer.trial.available && offer.trial.endedAt && (
+            <span className="text-label-secondary text-[13px]">
+              Você testou este recurso até{' '}
+              {new Date(offer.trial.endedAt).toLocaleDateString('pt-BR')}. O que fez no teste
+              continua guardado.
+            </span>
+          )}
+          <Link
+            href="/assinatura"
+            className="bg-system-blue rounded-full px-6 py-2.5 text-[15px] font-semibold text-white shadow-[0_10px_30px_-12px_var(--system-blue)] transition-transform hover:scale-[1.03] active:scale-[0.98]"
+          >
+            Ver planos e assinar
+          </Link>
+          <span className="text-label-secondary text-[12px]">
+            Seus dados ficam guardados. Ao assinar, o recurso libera na hora.
+          </span>
+        </>
+      )}
     </section>
   );
 }
