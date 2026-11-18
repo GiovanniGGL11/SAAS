@@ -49,6 +49,12 @@ export type Question = {
   required: boolean;
   options?: ChoiceOption[];
   showIf?: ShowIf | null;
+  /**
+   * Mostrar como alerta no topo do prontuário (alergia, medicamento, gestação...). Em "sim ou
+   * não", o alerta aparece quando a resposta é "Sim", junto com as respostas das perguntas que
+   * dependem dela ("Quais?").
+   */
+  alert?: boolean;
 };
 
 export type Section = {
@@ -95,6 +101,7 @@ const questionSchema = z.object({
   required: z.boolean(),
   options: z.array(optionSchema).max(50).optional(),
   showIf: z.object({ questionId: idString, optionId: idString }).nullable().optional(),
+  alert: z.boolean().optional(),
 });
 
 const sectionSchema = z.object({

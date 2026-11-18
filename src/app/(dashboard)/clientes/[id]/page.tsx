@@ -4,6 +4,7 @@ import { requireCurrentCompany } from '@/server/auth/require-current-company';
 import { getClientDetailAction } from '@/server/actions/client-actions';
 
 import { ClientDetail } from '@/components/clientes/client-detail';
+import { medicalRecordsEnabled } from '@/lib/medical-records';
 
 export default async function ClienteDetailPage({
   params,
@@ -20,6 +21,12 @@ export default async function ClienteDetailPage({
   if (!data) notFound();
 
   return (
-    <ClientDetail clientId={id} timezone={company.timezone} initialData={data} initialTab={aba} />
+    <ClientDetail
+      clientId={id}
+      timezone={company.timezone}
+      initialData={data}
+      initialTab={aba}
+      medicalRecords={medicalRecordsEnabled(company)}
+    />
   );
 }

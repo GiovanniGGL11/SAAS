@@ -68,11 +68,14 @@ export function ClientDetail({
   initialData,
   timezone,
   initialTab,
+  medicalRecords = false,
 }: {
   clientId: string;
   initialData: ClientDetailData;
   timezone: string;
   initialTab?: string;
+  /** Prontuário ligado (ramos de saúde, estética e odonto): mostra o botão "Prontuário". */
+  medicalRecords?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [tab, setTab] = React.useState<Tab>(
@@ -246,6 +249,11 @@ export function ClientDetail({
             <Button asChild>
               <Link href={`/agenda?cliente=${client.id}`}>Agendar</Link>
             </Button>
+            {medicalRecords && (
+              <Button variant="outline" asChild>
+                <Link href={`/clientes/${client.id}/prontuario`}>Prontuário</Link>
+              </Button>
+            )}
             {whatsappLink(client.phone) && (
               <Button variant="outline" asChild>
                 <a href={whatsappLink(client.phone)!} target="_blank" rel="noreferrer">

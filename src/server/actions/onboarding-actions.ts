@@ -7,8 +7,14 @@ import { toActionResult } from '@/server/action-result';
 import { requireCompanyAdmin } from '@/server/auth/require-current-company';
 import { completeOnboarding } from '@/server/data/onboarding';
 import { assertProfessionalSlots } from '@/server/billing/features';
+import { prisma } from '@/lib/db';
+import { SEGMENT_GROUPS } from '@/lib/onboarding/templates';
 
 const time = z.string().regex(/^\d{2}:\d{2}$/, 'Horário inválido.');
+const SEGMENT_VALUES = SEGMENT_GROUPS.flatMap((g) => g.items.map((i) => i.value)) as [
+  string,
+  ...string[],
+];
 
 export async function completeOnboardingAction(input: unknown) {
   return toActionResult(async () => {
@@ -39,11 +45,19 @@ export async function completeOnboardingAction(input: unknown) {
           endTime: time,
         }),
         onlineBooking: z.boolean(),
+        /** Ramo escolhido no primeiro passo (liga o prontuário nos ramos de saúde e estética). */
+        segment: z.enum(SEGMENT_VALUES).nullish(),
       })
       .parse(input);
     const { company } = await requireCompanyAdmin();
     await assertProfessionalSlots(company, parsed.professionals.length);
     await completeOnboarding(company, parsed);
+    if (parsed.segment) {
+      await prisma.company.update({
+        where: { id: company.id },
+        data: { segment: parsed.segment },
+      });
+    }
     revalidatePath('/dashboard');
     return { slug: company.slug };
   });

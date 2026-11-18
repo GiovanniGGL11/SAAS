@@ -12,6 +12,7 @@ import { EntryDialog, type EntrySummary, useFormAccess } from '@/components/fich
 import { EntryStatusBadge } from '@/components/fichas/entry-status-badge';
 import { SessionRecordDialog } from '@/components/pacotes/session-record-dialog';
 import { WhatsappFormSender } from '@/components/fichas/whatsapp-form-sender';
+import { getMedicalRecordsEnabledAction } from '@/server/actions/medical-record-actions';
 import {
   getAppointmentFormsAction,
   requestAppointmentFormsAction,
@@ -46,6 +47,11 @@ export function AppointmentForms({
     queryKey: ['appointment-forms', appointmentId],
     queryFn: () => getAppointmentFormsAction(appointmentId).then(unwrapResult),
   });
+  const { data: medicalRecords } = useQuery({
+    queryKey: ['medical-records-enabled'],
+    queryFn: () => getMedicalRecordsEnabledAction(),
+    staleTime: 10 * 60_000,
+  });
   const [openEntry, setOpenEntry] = React.useState<EntrySummary | null>(null);
   const [recordOpen, setRecordOpen] = React.useState(false);
 
@@ -69,12 +75,22 @@ export function AppointmentForms({
         <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
           <ClipboardListIcon className="size-3.5" /> Fichas e registro
         </span>
-        <Link
-          href={`/clientes/${clientId}?aba=fichas`}
-          className="text-system-blue text-[12px] hover:underline"
-        >
-          Fichas do cliente
-        </Link>
+        <span className="flex gap-3">
+          {medicalRecords && (
+            <Link
+              href={`/clientes/${clientId}/prontuario`}
+              className="text-system-blue text-[12px] font-medium hover:underline"
+            >
+              Abrir prontuário
+            </Link>
+          )}
+          <Link
+            href={`/clientes/${clientId}?aba=fichas`}
+            className="text-system-blue text-[12px] hover:underline"
+          >
+            Fichas do cliente
+          </Link>
+        </span>
       </div>
       {list.length === 0 ? (
         <p className="text-label-secondary text-[13px]">

@@ -65,6 +65,12 @@ model Company {
   featureTrials       Json               @default("{}")
   /// Perguntas de demonstração do assistente de IA já usadas (plano sem IA; poucas, uma vez só).
   aiDemoUsed          Int                @default(0)
+  /// Ramo do negócio escolhido no primeiro acesso (src/lib/onboarding/templates.ts: estetica,
+  /// odonto, barbearia...). Vazio = não informado.
+  segment             String?
+  /// Prontuário: "on" | "off" escolhido em Configurações; vazio = pelo ramo (saúde, estética e
+  /// odonto ligam sozinhos).
+  medicalRecordsMode  String?
   plan                String?
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?
@@ -153,6 +159,7 @@ model Company {
   recordBlocks              ClientRecordBlock[]
   pricingProfile            PricingProfile?
   pricingSimulations        PricingSimulation[]
+  clinicalNotes             ClinicalNote[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -326,6 +333,7 @@ model Client {
   formEntries     FormEntry[]
   sessionRecords  SessionRecord[]
   recordBlocks    ClientRecordBlock[]
+  clinicalNotes   ClinicalNote[]
   quotes          Quote[]
   tasks           Task[]
   opportunities   Opportunity[]
@@ -2385,4 +2393,29 @@ model PricingSimulation {
   createdAt       DateTime @default(now())
 
   @@index([companyId, createdAt])
+}
+
+/// Evolução do prontuário: o que o profissional anotou sobre o paciente. Nunca é apagada nem
+/// editada: corrigir cria uma nova evolução que retifica a anterior (amendsId), e a anterior fica
+/// visível como "retificada" (regra dos conselhos profissionais para prontuário).
+model ClinicalNote {
+  id             String         @id @default(cuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id])
+  clientId       String
+  client         Client         @relation(fields: [clientId], references: [id])
+  /// Atendimento ao qual a evolução se refere (opcional).
+  appointmentId  String?
+  /// Profissional que atendeu (para a equipe com login próprio ver só as dos seus pacientes).
+  professionalId String?
+  text           String
+  /// Evolução que esta retifica.
+  amendsId       String?        @unique
+  amends         ClinicalNote?  @relation("ClinicalNoteAmend", fields: [amendsId], references: [id])
+  amendedBy      ClinicalNote?  @relation("ClinicalNoteAmend")
+  authorUserId   String
+  authorName     String
+  createdAt      DateTime       @default(now())
+
+  @@index([companyId, clientId, createdAt])
 }

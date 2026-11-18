@@ -12,6 +12,7 @@ import { UpgradeCard } from '@/components/assinatura/upgrade-card';
 import { AiSettingsCard } from '@/components/configuracoes/ai-settings-card';
 import { BusinessPreferencesCard } from '@/components/configuracoes/business-preferences-card';
 import { CustomFieldsCard } from '@/components/configuracoes/custom-fields-card';
+import { MedicalRecordsCard } from '@/components/configuracoes/medical-records-card';
 import { PageHeader } from '@/components/layout/page';
 import { OpenDemoCard } from '@/components/demo/demo-controls';
 
@@ -47,6 +48,8 @@ export default async function ConfiguracoesPage() {
       <AiSettingsCard />
 
       <BusinessPreferencesCard />
+
+      <MedicalRecordsCard segment={company.segment} mode={company.medicalRecordsMode} />
 
       <CustomFieldsCard />
 
