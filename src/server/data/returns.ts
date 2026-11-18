@@ -110,3 +110,93 @@ export function returnMessage(r: Pick<DueReturn, 'name' | 'serviceName' | 'lastV
   const days = Math.max(1, Math.floor((Date.now() - r.lastVisitAt.getTime()) / 86_400_000));
   return `Oi, ${first}! Já faz ${days} dias do seu último ${r.serviceName}. Que tal agendar o próximo? É só responder aqui que eu vejo um horário para você.`;
 }
+
+// ---- Retorno do paciente: lembrete na tela, no sino e envio automático ----------------------------
+
+export type ReturnStatus = 'SENT' | 'SNOOZED' | 'DISMISSED';
+/** "Lembrar amanhã" adia a pergunta por este tempo. */
+export const RETURN_SNOOZE_HOURS = 24;
+
+/** Chave do retorno: cliente + serviço + último atendimento daquele serviço. */
+const keyOf = (r: { clientId: string; serviceId: string; lastVisitAt: Date }) =>
+  `${r.clientId}:${r.serviceId}:${r.lastVisitAt.toISOString()}`;
+
+/** Retornos já tratados (enviado, adiado e ainda dentro do prazo, ou "não chamar"). */
+async function handledKeys(companyId: string, now: Date) {
+  const rows = await prisma.returnContact.findMany({
+    where: {
+      companyId,
+      OR: [
+        { status: { in: ['SENT', 'DISMISSED'] } },
+        { status: 'SNOOZED', snoozeUntil: { gt: now } },
+      ],
+    },
+    select: { clientId: true, serviceId: true, lastVisitAt: true },
+  });
+  return new Set(rows.map(keyOf));
+}
+
+/**
+ * Retornos esperando alguém chamar o cliente: o dia já chegou (ou passou, até 60 dias) e ninguém
+ * enviou, adiou ou dispensou. É o que aparece na tela para confirmar e abrir o WhatsApp.
+ */
+export async function listPendingReturns(companyId: string, now = new Date(), limit = 20) {
+  const [due, handled] = await Promise.all([
+    listDueReturns(companyId, 200),
+    handledKeys(companyId, now),
+  ]);
+  return due
+    .filter((r) => r.daysLate >= 0 && !handled.has(keyOf(r)))
+    .slice(0, limit)
+    .map((r) => ({ ...r, message: returnMessage(r) }));
+}
+
+/** Retornos chegando nos próximos dias (ainda não é o dia), para o aviso do sino. */
+export async function listUpcomingReturns(companyId: string) {
+  const due = await listDueReturns(companyId, 200);
+  return due.filter((r) => r.daysLate < 0);
+}
+
+/** Grava o que foi feito com o retorno (repetir só atualiza). */
+export async function markReturnContact(params: {
+  companyId: string;
+  clientId: string;
+  serviceId: string;
+  lastVisitAt: Date;
+  status: ReturnStatus;
+  channel?: 'manual' | 'auto';
+  userId: string;
+  now?: Date;
+}) {
+  const now = params.now ?? new Date();
+  const snoozeUntil =
+    params.status === 'SNOOZED' ? new Date(now.getTime() + RETURN_SNOOZE_HOURS * 3_600_000) : null;
+  const where = {
+    companyId_clientId_serviceId_lastVisitAt: {
+      companyId: params.companyId,
+      clientId: params.clientId,
+      serviceId: params.serviceId,
+      lastVisitAt: params.lastVisitAt,
+    },
+  };
+  const data = {
+    status: params.status,
+    channel: params.channel ?? 'manual',
+    snoozeUntil,
+    userId: params.userId,
+  };
+  await prisma.returnContact.upsert({
+    where,
+    create: { ...where.companyId_clientId_serviceId_lastVisitAt, ...data },
+    update: data,
+  });
+}
+
+/**
+ * Confere que o retorno existe de verdade nesta empresa (o navegador manda só os ids) e devolve a
+ * data do último atendimento, que é parte da chave.
+ */
+export async function findPendingReturn(companyId: string, clientId: string, serviceId: string) {
+  const rows = await lastVisitsWithReturn(companyId, clientId);
+  return rows.find((r) => r.serviceId === serviceId) ?? null;
+}

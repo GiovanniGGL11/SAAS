@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 
 import { Sidebar } from '@/components/layout/sidebar';
@@ -18,6 +19,7 @@ import { getSubscriptionState } from '@/server/billing/subscription';
 import { TRIAL_DAYS } from '@/lib/billing/plans';
 import { BillingBanner, BillingGate } from '@/components/assinatura/billing-gate';
 import { featureAccessFor } from '@/server/billing/features';
+import { ReturnPrompt } from '@/components/retornos/return-prompt';
 import { featureName } from '@/lib/billing/feature-trials';
 import type { FeatureKey } from '@/lib/billing/plans';
 
@@ -96,6 +98,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <MobileTabBar />
         <ScrollingFlag />
         {ownProfessionalId && <ProfilePhotoSync />}
+        {/* Retorno do paciente: dono e recepção (a profissional com login próprio não recebe). */}
+        {!ownProfessionalId && !isDemo && (
+          <Suspense fallback={null}>
+            <ReturnPrompt />
+          </Suspense>
+        )}
       </div>
     </ViewerProvider>
   );

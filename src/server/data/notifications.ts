@@ -4,6 +4,7 @@ import { listLowStockProducts } from '@/server/data/stock';
 import { listUpcomingSupplyShortages } from '@/server/data/service-supplies';
 import { getPreferences } from '@/server/data/business-preferences';
 import { dueReminders } from '@/server/data/tasks';
+import { listPendingReturns, listUpcomingReturns } from '@/server/data/returns';
 
 /*
   Avisos do sino, calculados na hora (sem tabela): o navegador pergunta a cada minuto. Cada
@@ -24,7 +25,9 @@ export type NoticeKind =
   | 'approvals'
   | 'tasks_due'
   | 'quotes_waiting'
-  | 'task_reminder';
+  | 'task_reminder'
+  | 'returns_due'
+  | 'returns_soon';
 
 export type Notice = {
   id: string;
@@ -293,13 +296,60 @@ async function followUp(
   return notices;
 }
 
+/**
+ * Retorno do paciente: os que chegaram (abre a janela para confirmar e enviar) e os que chegam
+ * nos próximos dias. Com o envio automático ligado (e o WhatsApp do salão conectado), só avisa os
+ * que estão chegando: os do dia saem sozinhos.
+ */
+async function returnNotices(companyId: string, timezone: string, now: Date): Promise<Notice[]> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { waAutoReturn: true, zapiInstanceId: true, zapiToken: true },
+  });
+  const auto = Boolean(company?.waAutoReturn && company.zapiInstanceId && company.zapiToken);
+  const [pending, soonList] = await Promise.all([
+    auto ? Promise.resolve([]) : listPendingReturns(companyId, now, 50),
+    listUpcomingReturns(companyId),
+  ]);
+  const today = getTodayInTz(timezone);
+  const date = `${today.year}-${pad(today.month)}-${pad(today.day)}`;
+  const names = (list: { name: string }[]) =>
+    list
+      .slice(0, 3)
+      .map((r) => r.name.split(' ')[0])
+      .join(', ') + (list.length > 3 ? ` e mais ${list.length - 3}` : '');
+  const notices: Notice[] = [];
+  if (pending.length) {
+    notices.push({
+      id: `returns_due:${date}:${pending.length}`,
+      kind: 'returns_due',
+      title:
+        pending.length === 1
+          ? 'Retorno para chamar hoje'
+          : `${pending.length} retornos para chamar`,
+      body: `${names(pending)}. Toque para enviar pelo WhatsApp.`,
+      href: '/atividades?retornos=abrir',
+    });
+  }
+  if (soonList.length) {
+    notices.push({
+      id: `returns_soon:${date}:${soonList.length}`,
+      kind: 'returns_soon',
+      title: soonList.length === 1 ? 'Retorno chegando' : `${soonList.length} retornos chegando`,
+      body: `${names(soonList)}, nos próximos dias.`,
+      href: '/atividades',
+    });
+  }
+  return notices;
+}
+
 export async function listNotices(
   companyId: string,
   timezone: string,
   now = new Date(),
-  viewer?: { userId: string; isAdmin: boolean },
+  viewer?: { userId: string; isAdmin: boolean; isProfessional?: boolean },
 ): Promise<Notice[]> {
-  const [activity, soon, unconfirmed, stock, shortages, birthdayNotices, follow] =
+  const [activity, soon, unconfirmed, stock, shortages, birthdayNotices, follow, returns] =
     await Promise.all([
       clientActivity(companyId, timezone, now),
       upcoming(companyId, timezone, now),
@@ -308,11 +358,16 @@ export async function listNotices(
       supplyShortages(companyId, now),
       birthdays(companyId, timezone),
       followUp(companyId, timezone, now, viewer).catch(() => []),
+      // Quem chama o cliente de volta é o dono ou a recepção (não a profissional com login).
+      viewer?.isProfessional
+        ? Promise.resolve([])
+        : returnNotices(companyId, timezone, now).catch(() => []),
     ]);
   return [
     ...activity,
     ...soon,
     ...follow,
+    ...returns,
     ...unconfirmed,
     ...stock,
     ...shortages,

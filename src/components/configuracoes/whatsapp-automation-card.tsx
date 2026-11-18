@@ -41,6 +41,11 @@ const AUTOMATIONS = [
     title: 'Parabéns no aniversário',
     hint: 'Às 8h do dia do aniversário, uma vez por ano.',
   },
+  {
+    key: 'waAutoReturn',
+    title: 'Retorno do paciente',
+    hint: 'Às 8h do dia do retorno sugerido do serviço, uma vez por atendimento. Desligado, o sistema avisa na tela para você enviar.',
+  },
 ] as const;
 
 const KIND_LABEL: Record<string, string> = {
@@ -48,6 +53,7 @@ const KIND_LABEL: Record<string, string> = {
   REMINDER: 'Lembrete',
   REVIEW: 'Avaliação',
   BIRTHDAY: 'Aniversário',
+  RETURN: 'Retorno',
   CAMPAIGN: 'Campanha',
   TEST: 'Teste',
 };

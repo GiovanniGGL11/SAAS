@@ -45,6 +45,8 @@ model Company {
   waAutoReminder      Boolean            @default(false)
   waAutoReview        Boolean            @default(false)
   waAutoBirthday      Boolean            @default(false)
+  /// Retorno do paciente pelo WhatsApp do salão (Z-API), no dia do retorno sugerido.
+  waAutoReturn        Boolean            @default(false)
   // Assinatura do Atendafy (cobrança pela Asaas da plataforma).
   subscriptionStatus  SubscriptionStatus @default(TRIAL)
   trialEndsAt         DateTime?
@@ -160,6 +162,7 @@ model Company {
   pricingProfile            PricingProfile?
   pricingSimulations        PricingSimulation[]
   clinicalNotes             ClinicalNote[]
+  returnContacts            ReturnContact[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -2418,4 +2421,26 @@ model ClinicalNote {
   createdAt      DateTime       @default(now())
 
   @@index([companyId, clientId, createdAt])
+}
+
+/// Retorno do paciente já tratado: enviado (à mão ou automático), "lembrar depois" ou "não
+/// chamar". A chave é o último atendimento daquele serviço: um atendimento novo abre outro retorno.
+model ReturnContact {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  clientId    String
+  serviceId   String
+  lastVisitAt DateTime
+  /// SENT | SNOOZED | DISMISSED
+  status      String
+  /// manual (a pessoa enviou pelo WhatsApp dela) | auto (WhatsApp automático do salão)
+  channel     String    @default("manual")
+  snoozeUntil DateTime?
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([companyId, clientId, serviceId, lastVisitAt])
+  @@index([companyId, status])
 }

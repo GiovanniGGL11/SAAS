@@ -17,6 +17,7 @@ import { signAppointmentToken } from '@/server/data/public-booking';
 import { signReviewToken } from '@/server/data/relationship';
 import { optOutUrl, withOptOutFooter } from '@/server/data/marketing-consent';
 import { appBaseUrl } from '@/server/app-url';
+import { listPendingReturns, markReturnContact } from '@/server/data/returns';
 import { addDays, formatTimeInTz, startOfCalendarDateUtc, utcToCalendarDate } from '@/lib/time';
 
 /*
@@ -30,6 +31,8 @@ export type AutomationKind =
   | 'REMINDER'
   | 'REVIEW'
   | 'BIRTHDAY'
+  // Retorno do paciente no dia sugerido (só pelo número do salão, como o parabéns).
+  | 'RETURN'
   | 'CAMPAIGN'
   | 'TEST'
   // Convite automático da lista de espera (só com integração, janela de contato e autorização).
@@ -262,6 +265,7 @@ export type DailyWhatsappResult = {
   companies: number;
   reminders: number;
   birthdays: number;
+  returns: number;
   failed: number;
 };
 
@@ -280,14 +284,23 @@ export async function runDailyWhatsapp(
       OR: [
         { waAutoReminder: true },
         { waAutoBirthday: true, zapiInstanceId: { not: null }, zapiToken: { not: null } },
+        { waAutoReturn: true, zapiInstanceId: { not: null }, zapiToken: { not: null } },
       ],
     },
-    select: { id: true, name: true, timezone: true, waAutoReminder: true, waAutoBirthday: true },
+    select: {
+      id: true,
+      name: true,
+      timezone: true,
+      waAutoReminder: true,
+      waAutoBirthday: true,
+      waAutoReturn: true,
+    },
   });
   const result: DailyWhatsappResult = {
     companies: companies.length,
     reminders: 0,
     birthdays: 0,
+    returns: 0,
     failed: 0,
   };
 
@@ -363,6 +376,49 @@ export async function runDailyWhatsapp(
         });
         if (outcome === 'sent') result.birthdays += 1;
         else if (outcome === 'failed') result.failed += 1;
+      }
+    }
+
+    // Retorno do paciente: chegou o dia (ou passou) e ninguém chamou ainda. Também é contato de
+    // relacionamento: só pelo número do salão e respeitando quem não quer promoções.
+    if (company.waAutoReturn && config) {
+      const pending = await listPendingReturns(company.id, now, 100);
+      const optedOut = new Set(
+        (
+          await prisma.client.findMany({
+            where: {
+              companyId: company.id,
+              id: { in: pending.map((r) => r.clientId) },
+              marketingOptOutAt: { not: null },
+            },
+            select: { id: true },
+          })
+        ).map((c) => c.id),
+      );
+      for (const r of pending) {
+        if (optedOut.has(r.clientId)) continue;
+        const outcome = await sendOnce({
+          companyId: company.id,
+          kind: 'RETURN',
+          dedupeKey: `return:${r.clientId}:${r.serviceId}:${r.lastVisitAt.toISOString()}`,
+          phone: r.phone,
+          text: withOptOutFooter(r.message, optOutUrl(baseUrl, r.clientId)),
+          clientId: r.clientId,
+          config,
+        });
+        if (outcome === 'sent') {
+          result.returns += 1;
+          await markReturnContact({
+            companyId: company.id,
+            clientId: r.clientId,
+            serviceId: r.serviceId,
+            lastVisitAt: r.lastVisitAt,
+            status: 'SENT',
+            channel: 'auto',
+            userId: 'system',
+            now,
+          });
+        } else if (outcome === 'failed') result.failed += 1;
       }
     }
   }
