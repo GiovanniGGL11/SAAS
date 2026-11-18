@@ -113,10 +113,14 @@ describe('precificação e DRE gerencial', () => {
       payment: { method: 'PIX' },
       userId: 'u',
     });
+    // Outra profissional atende no mesmo horário (a agenda não deixa sobrepor a mesma pessoa).
+    const second = await prisma.professional.create({
+      data: { companyId: f.company.id, name: 'Segunda profissional', color: '#f97316' },
+    });
     const b = await createAppointment({
       companyId: f.company.id,
       clientId: f.client.id,
-      professionalId: f.professional.id,
+      professionalId: second.id,
       serviceId: f.service.id,
       startAt: new Date(Date.now() - 3 * 60_000),
       createdByUserId: 'u',
@@ -227,7 +231,9 @@ describe('precificação e DRE gerencial', () => {
     expect(service.contribution).toBe(109.8);
     expect(service.perHour).toBe(54.9);
     expect(r.products[0]).toMatchObject({ name: 'Protetor solar', revenue: 50, contribution: 14 });
-    expect(r.professionals[0].count).toBe(2);
+    expect(r.professionals).toHaveLength(2);
+    expect(r.professionals.reduce((s, p) => s + p.count, 0)).toBe(2);
+    expect(r.professionals.reduce((s, p) => s + p.revenue, 0)).toBe(170);
     const drill = await getRankingDrill(
       f.company.id,
       f.company.timezone,
