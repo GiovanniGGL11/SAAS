@@ -186,6 +186,16 @@ export function ClientsTutorial() {
             'As fichas e termos, os registros com fotos e as sessões.',
           ]}
         />
+        <p>
+          <strong>Resumo com IA</strong>: antes do atendimento, clique em{' '}
+          <strong>Gerar resumo</strong> e veja o essencial em poucas linhas: alertas, tratamento,
+          últimos atendimentos e o que olhar desta vez. Usa os créditos de IA do plano.
+        </p>
+        <Tip>
+          O resumo só organiza o que está registrado: não faz diagnóstico nem sugere conduta. Para a
+          IA não vão nome, telefone, e-mail nem carteirinha, e o resumo não fica salvo no
+          prontuário.
+        </Tip>
       </Section>
 
       <Section id="importar" title="Importar clientes de outro sistema">

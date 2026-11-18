@@ -29,6 +29,7 @@ import { ClientSessionsTab } from '@/components/pacotes/client-sessions-tab';
 import { TreatmentPlanTab, type PlanQuoteView } from '@/components/prontuario/treatment-plan-tab';
 import { DocumentsTab } from '@/components/prontuario/documents-tab';
 import { AttachmentsTab } from '@/components/prontuario/attachments-tab';
+import { AiSummary } from '@/components/prontuario/ai-summary';
 import { unwrapResult } from '@/lib/action-result';
 import { ageOn } from '@/lib/medical-records';
 import { formatPhone, whatsappLink } from '@/lib/phone';
@@ -300,6 +301,8 @@ export function MedicalRecordView({
           />
         </div>
       </Surface>
+
+      <AiSummary clientId={clientId} />
 
       <SegmentedControl
         className="self-start"

@@ -36,6 +36,7 @@ import {
   removeAttachment,
   signedAttachmentUrl,
 } from '@/server/storage/supabase';
+import { summarizeMedicalRecord } from '@/server/ai/medical-summary';
 import { DOCUMENT_KINDS } from '@/lib/clinical-documents';
 import { SEGMENT_GROUPS } from '@/lib/onboarding/templates';
 import { evolutionTemplates, medicalRecordsEnabled } from '@/lib/medical-records';
@@ -315,6 +316,15 @@ export async function attachmentLinkAction(input: unknown) {
     const { company } = await requireRecordAccess(clientId);
     const row = await findAttachment(company.id, clientId, id);
     return { url: await signedAttachmentUrl(row.storagePath, download ? row.name : undefined) };
+  });
+}
+
+/** Resumo do prontuário com IA (gasta créditos de IA do plano; não fica salvo). */
+export async function summarizeMedicalRecordAction(rawClientId: unknown) {
+  return toActionResult(async () => {
+    const clientId = parseId(rawClientId);
+    const { company, access } = await requireRecordAccess(clientId);
+    return summarizeMedicalRecord({ company, clientId, access });
   });
 }
 
