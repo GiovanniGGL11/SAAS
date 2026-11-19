@@ -48,6 +48,8 @@ const isProtectedRoute = createRouteMatcher([
   '/link-do-cliente',
   '/link-do-cliente/(.*)',
   '/plataforma',
+  '/imprimir',
+  '/imprimir/(.*)',
   '/meus-ganhos',
   '/metas',
   '/configuracoes/(.*)',

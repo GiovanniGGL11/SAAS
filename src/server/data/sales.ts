@@ -458,6 +458,7 @@ export async function sellProducts(params: {
           productId: product.id,
           type: 'SALE',
           quantity: item.quantity,
+          unitPrice: product.salePrice,
           reason: 'Venda no balcão',
           createdByUserId: params.userId,
         },

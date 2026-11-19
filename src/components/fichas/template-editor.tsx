@@ -432,8 +432,25 @@ export function TemplateEditor({
                           ))}
                         </SelectContent>
                       </Select>
+                      {question.type !== 'signature' && (
+                        <label
+                          className="ml-auto flex items-center gap-2 text-[13px]"
+                          title="Mostra a resposta como alerta no topo do prontuário do paciente (ex.: alergia, medicamento). Em sim ou não, só quando a resposta for Sim."
+                        >
+                          Alerta no prontuário
+                          <Switch
+                            checked={!!question.alert}
+                            onCheckedChange={(alert: boolean) =>
+                              setQuestion(si, qi, { alert: alert || undefined })
+                            }
+                          />
+                        </label>
+                      )}
                       <label
-                        className="ml-auto flex items-center gap-2 text-[13px]"
+                        className={cn(
+                          'flex items-center gap-2 text-[13px]',
+                          question.type === 'signature' && 'ml-auto',
+                        )}
                         title="Não deixa enviar a ficha sem responder esta pergunta"
                       >
                         Obrigatória

@@ -14,6 +14,7 @@ export const QUESTION_TYPES = [
   'multi_choice',
   'date',
   'number',
+  'cep',
   'signature',
 ] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
@@ -26,8 +27,16 @@ export const QUESTION_TYPE_LABEL: Record<QuestionType, string> = {
   multi_choice: 'Múltipla escolha',
   date: 'Data',
   number: 'Número',
+  cep: 'CEP (com endereço)',
   signature: 'Assinatura',
 };
+
+/**
+ * Resposta de CEP: "01310-100 · Avenida Paulista, Bela Vista, São Paulo/SP" quando o endereço foi
+ * achado; só "01310-100" quando a consulta não respondeu (ela fora do ar não trava a ficha). CEP
+ * inexistente não vira resposta válida: fica só com os números e a validação recusa.
+ */
+export const CEP_ANSWER = /^\d{5}-\d{3}( · .{1,280})?$/;
 
 /** Assinatura guardada na resposta: PNG (data URL) do traço. */
 export const SIGNATURE_DATA_URL = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
@@ -49,6 +58,12 @@ export type Question = {
   required: boolean;
   options?: ChoiceOption[];
   showIf?: ShowIf | null;
+  /**
+   * Mostrar como alerta no topo do prontuário (alergia, medicamento, gestação...). Em "sim ou
+   * não", o alerta aparece quando a resposta é "Sim", junto com as respostas das perguntas que
+   * dependem dela ("Quais?").
+   */
+  alert?: boolean;
 };
 
 export type Section = {
@@ -95,6 +110,7 @@ const questionSchema = z.object({
   required: z.boolean(),
   options: z.array(optionSchema).max(50).optional(),
   showIf: z.object({ questionId: idString, optionId: idString }).nullable().optional(),
+  alert: z.boolean().optional(),
 });
 
 const sectionSchema = z.object({
@@ -233,6 +249,10 @@ function checkValue(question: Question, value: unknown): string | null {
       const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
       return Number.isFinite(n) ? null : 'Informe um número.';
     }
+    case 'cep':
+      return typeof value === 'string' && CEP_ANSWER.test(value)
+        ? null
+        : 'CEP inválido ou não encontrado. Confira os 8 números (ex.: 01310-100).';
     case 'signature':
       return typeof value === 'string' &&
         value.length <= SIGNATURE_MAX_CHARS &&

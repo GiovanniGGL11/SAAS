@@ -832,7 +832,12 @@ export async function checkoutAppointment(params: CheckoutInput) {
 
       await tx.appointment.updateMany({
         where: { id: params.id, companyId: params.companyId },
-        data: { status: 'DONE', updatedByUserId: params.updatedByUserId },
+        data: {
+          status: 'DONE',
+          updatedByUserId: params.updatedByUserId,
+          // Desconto real dado (manual + cupom, limitado ao preço): base do DRE gerencial.
+          discountAmount: PrismaNamespace.Decimal.min(discount, price),
+        },
       });
       const done = (await tx.appointment.findFirst({
         where: { id: params.id, companyId: params.companyId },

@@ -58,9 +58,18 @@ export async function deleteTestCompany(companyId: string) {
   }
   await prisma.googleCalendarConnection.deleteMany({ where: { companyId } });
   await prisma.clientRecordBlock.deleteMany({ where: { companyId } });
+  await prisma.clinicalNote.deleteMany({ where: { companyId } });
+  await prisma.returnContact.deleteMany({ where: { companyId } });
+  await prisma.treatmentProcedure.deleteMany({ where: { companyId } });
+  await prisma.clinicalDocument.deleteMany({ where: { companyId } });
+  await prisma.clientAttachment.deleteMany({ where: { companyId } });
+  await prisma.toothMark.deleteMany({ where: { companyId } });
+  await prisma.faceMap.deleteMany({ where: { companyId } });
   await prisma.auditLog.deleteMany({ where: { companyId } });
   await prisma.automationRule.deleteMany({ where: { companyId } });
   await prisma.periodGoal.deleteMany({ where: { companyId } });
+  await prisma.pricingProfile.deleteMany({ where: { companyId } });
+  await prisma.pricingSimulation.deleteMany({ where: { companyId } });
   await prisma.serviceProfessional.deleteMany({ where: { companyId } });
   await prisma.trialClaim.deleteMany({ where: { companyId } });
   await prisma.referral.deleteMany({ where: { companyId } });

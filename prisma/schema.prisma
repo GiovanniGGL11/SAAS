@@ -45,6 +45,8 @@ model Company {
   waAutoReminder      Boolean            @default(false)
   waAutoReview        Boolean            @default(false)
   waAutoBirthday      Boolean            @default(false)
+  /// Retorno do paciente pelo WhatsApp do salão (Z-API), no dia do retorno sugerido.
+  waAutoReturn        Boolean            @default(false)
   // Assinatura do Atendafy (cobrança pela Asaas da plataforma).
   subscriptionStatus  SubscriptionStatus @default(TRIAL)
   trialEndsAt         DateTime?
@@ -58,8 +60,19 @@ model Company {
   selfSignupEnabled   Boolean            @default(false)
   /// Campos pedidos: { email|birthDate|cpf|address|notes: "off" | "optional" | "required" }.
   selfSignupFields    Json?
-  /// Ciclo da assinatura do Atendafy: MONTHLY ou YEARLY (anual com desconto, pago de uma vez).
+  /// Ciclo da assinatura do Atendafy: MONTHLY, QUARTERLY (trimestral) ou YEARLY (anual), com desconto e pago de uma vez nos dois últimos.
   billingCycle        String             @default("MONTHLY")
+  /// Teste de 3 dias de recursos fora do plano, uma vez por recurso:
+  /// { "<recurso>": { "startedAt": ISO, "endsAt": ISO } }. Fica guardado depois que acaba.
+  featureTrials       Json               @default("{}")
+  /// Perguntas de demonstração do assistente de IA já usadas (plano sem IA; poucas, uma vez só).
+  aiDemoUsed          Int                @default(0)
+  /// Ramo do negócio escolhido no primeiro acesso (src/lib/onboarding/templates.ts: estetica,
+  /// odonto, barbearia...). Vazio = não informado.
+  segment             String?
+  /// Prontuário: "on" | "off" escolhido em Configurações; vazio = pelo ramo (saúde, estética e
+  /// odonto ligam sozinhos).
+  medicalRecordsMode  String?
   plan                String?
   currentPeriodEnd    DateTime?
   asaasCustomerId     String?
@@ -146,6 +159,15 @@ model Company {
   /// A equipe vê as metas da empresa na aba Metas (cada um sempre vê a própria meta).
   shareGoalsWithTeam        Boolean                    @default(false)
   recordBlocks              ClientRecordBlock[]
+  pricingProfile            PricingProfile?
+  pricingSimulations        PricingSimulation[]
+  clinicalNotes             ClinicalNote[]
+  returnContacts            ReturnContact[]
+  treatmentProcedures       TreatmentProcedure[]
+  clinicalDocuments         ClinicalDocument[]
+  clientAttachments         ClientAttachment[]
+  toothMarks                ToothMark[]
+  faceMaps                  FaceMap[]
 }
 
 /// Cada vez que o painel da plataforma (/plataforma) foi aberto — para o dono ver se foi ele.
@@ -181,6 +203,8 @@ model Professional {
   phone           String?
   color           String
   avatarUrl       String?
+  /// Registro no conselho (ex.: "CRO-RS 21", "CRM-SP 123456"): sai nas prescrições e laudos.
+  registry        String?
   /// Conta de login (Clerk) do próprio profissional: vê só a agenda, os clientes e os ganhos dele.
   userId          String?
   active          Boolean         @default(true)
@@ -283,6 +307,10 @@ model Client {
   email             String?
   cpf               String?
   birthDate         DateTime?
+  /// Convênio do paciente (prontuário): nome, número da carteirinha e plano.
+  insuranceName     String?
+  insuranceNumber   String?
+  insurancePlan     String?
   notes             String?
   // Endereço opcional; o CEP é guardado só com dígitos e o resto vem do ViaCEP ou do usuário.
   zipCode           String?
@@ -307,24 +335,30 @@ model Client {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  appointments    Appointment[]
-  loyaltyEntries  LoyaltyEntry[]
-  waitlistEntries WaitlistEntry[]
-  transactions    Transaction[]
-  packages        ClientPackage[]
-  giftCards       GiftCard[]
-  referrals       Client[]            @relation("Referrals")
-  reviews         Review[]
-  campaignSends   CampaignRecipient[]
-  formEntries     FormEntry[]
-  sessionRecords  SessionRecord[]
-  recordBlocks    ClientRecordBlock[]
-  quotes          Quote[]
-  tasks           Task[]
-  opportunities   Opportunity[]
-  jobs            Job[]
-  referralsMade   Referral[]          @relation("ReferralReferrer")
-  referralOf      Referral?           @relation("ReferralReferred")
+  appointments        Appointment[]
+  loyaltyEntries      LoyaltyEntry[]
+  waitlistEntries     WaitlistEntry[]
+  transactions        Transaction[]
+  packages            ClientPackage[]
+  giftCards           GiftCard[]
+  referrals           Client[]             @relation("Referrals")
+  reviews             Review[]
+  campaignSends       CampaignRecipient[]
+  formEntries         FormEntry[]
+  sessionRecords      SessionRecord[]
+  recordBlocks        ClientRecordBlock[]
+  clinicalNotes       ClinicalNote[]
+  treatmentProcedures TreatmentProcedure[]
+  clinicalDocuments   ClinicalDocument[]
+  attachments         ClientAttachment[]
+  toothMarks          ToothMark[]
+  faceMaps            FaceMap[]
+  quotes              Quote[]
+  tasks               Task[]
+  opportunities       Opportunity[]
+  jobs                Job[]
+  referralsMade       Referral[]           @relation("ReferralReferrer")
+  referralOf          Referral?            @relation("ReferralReferred")
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -358,8 +392,10 @@ model Appointment {
   serviceNameSnapshot     String
   durationMinutesSnapshot Int
   /// Intervalo de preparo copiado do serviço ao marcar (o maior, se forem vários).
-  bufferMinutes           Int     @default(0)
-  priceSnapshot           Decimal @db.Decimal(10, 2)
+  bufferMinutes           Int      @default(0)
+  priceSnapshot           Decimal  @db.Decimal(10, 2)
+  /// Desconto dado na comanda (manual + cupom), gravado ao concluir e cobrar.
+  discountAmount          Decimal? @db.Decimal(10, 2)
 
   notes String?
 
@@ -435,6 +471,8 @@ model Product {
   salePrice   Decimal  @db.Decimal(10, 2)
   quantity    Int      @default(0)
   minQuantity Int      @default(0)
+  /// Unidade de controle do estoque: un, par, ml, g, cx, pct, fl. Quantidades e custo são nela.
+  unit        String   @default("un")
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -465,6 +503,11 @@ model StockMovement {
   reason          String?
   /// Atendimento que consumiu (ou devolveu) este material: base do estorno.
   appointmentId   String?
+  /// Custo unitário no momento do movimento (gravado pelo banco a partir do custo do produto,
+  /// quando não informado). Mudar o custo depois não reescreve o passado. Vazio = movimento antigo.
+  unitCost        Decimal?          @db.Decimal(10, 2)
+  /// Preço de venda unitário na venda (movimentos SALE): base do ranking de produtos.
+  unitPrice       Decimal?          @db.Decimal(10, 2)
   createdByUserId String
   createdAt       DateTime          @default(now())
 
@@ -2323,4 +2366,215 @@ model ClientRecordPhoto {
   createdAt       DateTime          @default(now())
 
   @@index([entryId])
+}
+
+/// Parâmetros da calculadora de preço (um por empresa). Ficam guardados mesmo se o plano mudar.
+model PricingProfile {
+  id                   String         @id @default(cuid())
+  companyId            String         @unique
+  company              Company        @relation(fields: [companyId], references: [id])
+  /// Somar as contas fixas cadastradas (Financeiro → Contas fixas) às despesas fixas.
+  useRecurringExpenses Boolean        @default(true)
+  /// Outras despesas fixas mensais que não estão nas contas fixas (R$).
+  extraFixedMonthly    Decimal        @default(0) @db.Decimal(12, 2)
+  /// Retirada mensal desejada pelo dono (pró-labore), R$.
+  ownerWithdrawal      Decimal        @default(0) @db.Decimal(12, 2)
+  /// Horas disponíveis para atender no mês (da equipe toda).
+  availableHours       Decimal        @default(160) @db.Decimal(8, 2)
+  /// Ocupação esperada da agenda, 0–100.
+  occupancyPercent     Decimal        @default(75) @db.Decimal(5, 2)
+  /// Impostos sobre a venda (Simples etc.), % do preço.
+  taxPercent           Decimal        @default(0) @db.Decimal(5, 2)
+  /// Margem de lucro desejada, % do preço.
+  targetMarginPercent  Decimal        @default(20) @db.Decimal(5, 2)
+  /// Forma de pagamento mais comum (define a taxa da maquininha nas contas).
+  defaultPaymentMethod PaymentMethod?
+  updatedByUserId      String
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+}
+
+/// Simulação de preço salva (serviço ou produto de revenda), com os números do momento.
+model PricingSimulation {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  name            String
+  /// service | product
+  kind            String
+  serviceId       String?
+  productId       String?
+  /// Entradas usadas na conta (para reabrir a simulação como estava).
+  inputs          Json
+  /// Resultado na hora: preço atual, mínimo, para a meta, lucro/hora...
+  summary         Json
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@index([companyId, createdAt])
+}
+
+/// Evolução do prontuário: o que o profissional anotou sobre o paciente. Nunca é apagada nem
+/// editada: corrigir cria uma nova evolução que retifica a anterior (amendsId), e a anterior fica
+/// visível como "retificada" (regra dos conselhos profissionais para prontuário).
+model ClinicalNote {
+  id             String        @id @default(cuid())
+  companyId      String
+  company        Company       @relation(fields: [companyId], references: [id])
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id])
+  /// Atendimento ao qual a evolução se refere (opcional).
+  appointmentId  String?
+  /// Profissional que atendeu (para a equipe com login próprio ver só as dos seus pacientes).
+  professionalId String?
+  text           String
+  /// Evolução que esta retifica.
+  amendsId       String?       @unique
+  amends         ClinicalNote? @relation("ClinicalNoteAmend", fields: [amendsId], references: [id])
+  amendedBy      ClinicalNote? @relation("ClinicalNoteAmend")
+  authorUserId   String
+  authorName     String
+  createdAt      DateTime      @default(now())
+
+  @@index([companyId, clientId, createdAt])
+}
+
+/// Retorno do paciente já tratado: enviado (à mão ou automático), "lembrar depois" ou "não
+/// chamar". A chave é o último atendimento daquele serviço: um atendimento novo abre outro retorno.
+model ReturnContact {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  clientId    String
+  serviceId   String
+  lastVisitAt DateTime
+  /// SENT | SNOOZED | DISMISSED
+  status      String
+  /// manual (a pessoa enviou pelo WhatsApp dela) | auto (WhatsApp automático do salão)
+  channel     String    @default("manual")
+  snoozeUntil DateTime?
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([companyId, clientId, serviceId, lastVisitAt])
+  @@index([companyId, status])
+}
+
+/// Plano de tratamento: uma sessão feita de um procedimento de orçamento aprovado (o item da versão
+/// aprovada, pela posição). Orçamento convertido em pacote conta pelas sessões do pacote, não aqui.
+model TreatmentProcedure {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id])
+  quoteId        String
+  /// Posição do item na versão aprovada do orçamento.
+  itemIndex      Int
+  appointmentId  String?
+  /// Evolução do prontuário em que foi marcada (opcional).
+  clinicalNoteId String?
+  note           String?
+  doneAt         DateTime @default(now())
+  doneByUserId   String
+  doneByName     String
+
+  @@index([companyId, clientId])
+  @@index([quoteId, itemIndex])
+}
+
+/// Prescrição, atestado, laudo, declaração ou orientações emitidos pelo prontuário. Não se apaga:
+/// um documento errado é anulado (fica visível como anulado) e outro é emitido.
+model ClinicalDocument {
+  id                   String    @id @default(cuid())
+  companyId            String
+  company              Company   @relation(fields: [companyId], references: [id])
+  clientId             String
+  client               Client    @relation(fields: [clientId], references: [id])
+  /// receita | atestado | laudo | declaracao | orientacoes | outro
+  kind                 String
+  title                String
+  body                 String
+  /// Profissional responsável (o nome e o registro saem impressos; guardados como estavam no dia).
+  professionalId       String?
+  professionalName     String
+  professionalRegistry String?
+  authorUserId         String
+  authorName           String
+  createdAt            DateTime  @default(now())
+  canceledAt           DateTime?
+  canceledByName       String?
+  cancelReason         String?
+
+  @@index([companyId, clientId, createdAt])
+}
+
+/// Anexo do prontuário (exame, laudo de fora, documento): arquivo no armazenamento privado.
+model ClientAttachment {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id])
+  clientId         String
+  client           Client   @relation(fields: [clientId], references: [id])
+  name             String
+  storagePath      String
+  contentType      String
+  sizeBytes        Int
+  uploadedByUserId String
+  uploadedByName   String
+  createdAt        DateTime @default(now())
+
+  @@index([companyId, clientId, createdAt])
+}
+
+/// Odontograma: uma marcação num dente (inteiro ou em faces). Não se apaga: "remover" guarda quem e
+/// quando, e o histórico continua. Vermelho = a fazer; azul = feito ou já existente.
+model ToothMark {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id])
+  /// Número do dente (FDI): 11–48 permanentes, 51–85 de leite.
+  tooth         Int
+  /// Faces M, D, O (oclusal/incisal), V e L (lingual/palatina). Vazio = o dente inteiro.
+  faces         String[]
+  /// Ver src/lib/odontogram.ts (carie, restauracao, canal, coroa, implante, ausente...).
+  condition     String
+  /// planned (a fazer) | done (feito ou já existente)
+  status        String
+  note          String?
+  authorUserId  String
+  authorName    String
+  createdAt     DateTime  @default(now())
+  doneAt        DateTime?
+  doneByName    String?
+  removedAt     DateTime?
+  removedByName String?
+
+  @@index([companyId, clientId])
+}
+
+/// Mapa facial (estética): uma aplicação com os pontos marcados no desenho do rosto. Não se edita;
+/// para corrigir, anula-se com o motivo e registra-se de novo.
+model FaceMap {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+  title          String
+  /// [{ x, y (0–100), area, product, amount, unit, note }]
+  points         Json
+  notes          String?
+  professionalId String?
+  authorUserId   String
+  authorName     String
+  createdAt      DateTime  @default(now())
+  canceledAt     DateTime?
+  canceledByName String?
+  cancelReason   String?
+
+  @@index([companyId, clientId, createdAt])
 }

@@ -7,6 +7,9 @@ import {
   professionalsLimitLabel,
   type PlanId,
   chargeCents,
+  CYCLE_ADJECTIVE,
+  CYCLE_MONTHS,
+  cycleOf,
   type BillingCycle,
 } from '@/lib/billing/plans';
 import { UserError } from '@/server/errors';
@@ -109,7 +112,7 @@ async function subscriptionCharge(
   return {
     value: cents / 100,
     description:
-      `Atendafy — plano ${plan.name}${cycle === 'YEARLY' ? ' anual' : ''}` +
+      `Atendafy — plano ${plan.name}${cycle === 'MONTHLY' ? '' : ` ${CYCLE_ADJECTIVE[cycle]}`}` +
       (extra > 0
         ? ` + ${extra} ${extra === 1 ? 'profissional extra' : 'profissionais extras'}`
         : ''),
@@ -292,13 +295,10 @@ type AsaasWebhook = {
   subscription?: { id?: string };
 };
 
-const cycleOf = (value: string | null | undefined): BillingCycle =>
-  value === 'YEARLY' ? 'YEARLY' : 'MONTHLY';
-
-/** Até quando uma cobrança paga vale: 1 mês, ou 1 ano no plano anual. */
+/** Até quando uma cobrança paga vale: 1 mês, 3 meses no trimestral ou 1 ano no anual. */
 function addPeriod(ymdDate: string, cycle: BillingCycle): Date {
   const d = new Date(`${ymdDate}T12:00:00-03:00`);
-  d.setMonth(d.getMonth() + (cycle === 'YEARLY' ? 12 : 1));
+  d.setMonth(d.getMonth() + CYCLE_MONTHS[cycle]);
   return d;
 }
 

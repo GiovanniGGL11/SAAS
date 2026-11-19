@@ -14,6 +14,7 @@ import {
   ClockIcon,
   FileTextIcon,
   ListChecksIcon,
+  MessageCircleIcon,
   PackageIcon,
   SparklesIcon,
   TriangleAlertIcon,
@@ -48,6 +49,8 @@ const ICONS: Record<NoticeKind, { icon: LucideIcon; className: string }> = {
   tasks_due: { icon: ListChecksIcon, className: 'text-system-orange bg-system-orange/10' },
   quotes_waiting: { icon: FileTextIcon, className: 'text-system-indigo bg-system-indigo/10' },
   task_reminder: { icon: BellIcon, className: 'text-system-orange bg-system-orange/10' },
+  returns_due: { icon: MessageCircleIcon, className: 'text-system-green bg-system-green/10' },
+  returns_soon: { icon: CalendarClockIcon, className: 'text-system-indigo bg-system-indigo/10' },
 };
 
 // ---- Lido / dispensado, por pessoa, no navegador ------------------------------------------------

@@ -119,3 +119,90 @@ export async function removePhotos(paths: string[]) {
     body: JSON.stringify({ prefixes: paths }),
   }).catch((error) => console.error('[storage] apagar fotos', error));
 }
+
+// ---- Anexos do prontuário (exames, documentos) -----------------------------------------------------
+
+/** Balde PRIVADO separado das fotos: aceita PDF além de imagens. */
+export const ATTACHMENTS_BUCKET = 'client-attachments';
+/** A Vercel aceita até ~4,5 MB por envio; 4 MB deixa margem. */
+export const ATTACHMENT_MAX_BYTES = 4 * 1024 * 1024;
+export const ATTACHMENT_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+/** Link do anexo para a equipe abrir: curto, gerado a cada clique. */
+export const ATTACHMENT_LINK_SECONDS = 5 * 60;
+
+let attachmentsBucketReady = false;
+
+async function ensureAttachmentsBucket() {
+  if (attachmentsBucketReady) return;
+  const { url, key } = requireConfig();
+  const res = await fetch(`${url}/storage/v1/bucket`, {
+    method: 'POST',
+    headers: headers(key, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      id: ATTACHMENTS_BUCKET,
+      name: ATTACHMENTS_BUCKET,
+      public: false,
+      file_size_limit: ATTACHMENT_MAX_BYTES,
+      allowed_mime_types: [...ATTACHMENT_TYPES],
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    if (!/already exists|Duplicate|409/i.test(`${res.status} ${text}`)) {
+      console.error('[storage] criar balde de anexos', res.status, text.slice(0, 300));
+      throw new StorageError('Não foi possível preparar o armazenamento dos anexos.');
+    }
+  }
+  attachmentsBucketReady = true;
+}
+
+export async function uploadAttachment(path: string, body: Buffer, contentType: string) {
+  await ensureAttachmentsBucket();
+  const { url, key } = requireConfig();
+  const res = await fetch(`${url}/storage/v1/object/${ATTACHMENTS_BUCKET}/${path}`, {
+    method: 'POST',
+    headers: headers(key, { 'Content-Type': contentType, 'x-upsert': 'false' }),
+    body: new Uint8Array(body),
+  });
+  if (!res.ok) {
+    console.error(
+      '[storage] enviar anexo',
+      res.status,
+      (await res.text().catch(() => '')).slice(0, 300),
+    );
+    throw new StorageError('Não foi possível guardar o arquivo. Tente de novo.');
+  }
+}
+
+/** Link temporário de um anexo (com o nome do arquivo para baixar). */
+export async function signedAttachmentUrl(path: string, downloadName?: string) {
+  const { url, key } = requireConfig();
+  const res = await fetch(`${url}/storage/v1/object/sign/${ATTACHMENTS_BUCKET}/${path}`, {
+    method: 'POST',
+    headers: headers(key, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ expiresIn: ATTACHMENT_LINK_SECONDS }),
+  });
+  if (!res.ok) {
+    console.error('[storage] link do anexo', res.status);
+    throw new StorageError('Não foi possível abrir o arquivo agora.');
+  }
+  const { signedURL } = (await res.json()) as { signedURL?: string };
+  if (!signedURL) throw new StorageError('Não foi possível abrir o arquivo agora.');
+  const download = downloadName ? `&download=${encodeURIComponent(downloadName)}` : '';
+  return `${url}/storage/v1${signedURL}${download}`;
+}
+
+export async function removeAttachment(path: string) {
+  const c = config();
+  if (!c) return;
+  await fetch(`${c.url}/storage/v1/object/${ATTACHMENTS_BUCKET}`, {
+    method: 'DELETE',
+    headers: headers(c.key, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ prefixes: [path] }),
+  }).catch((error) => console.error('[storage] apagar anexo', error));
+}

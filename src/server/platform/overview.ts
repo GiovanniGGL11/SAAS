@@ -3,10 +3,11 @@ import { clerkClient } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import {
   ASAAS_FEE_BRL,
+  CYCLE_MONTHS,
   OFFICIAL_WHATSAPP_COST_USD,
-  chargeCents,
+  cycleOf,
   getPlan,
-  monthlyPriceCents,
+  monthlyEquivalentCents,
   usdToBrlRate,
 } from '@/lib/billing/plans';
 import type { Company } from '@/generated/prisma/client';
@@ -79,11 +80,7 @@ export function summarizeCompanies(companies: CompanyRow[], now: Date) {
     if (situation === 'paying' || situation === 'past_due') {
       const plan = getPlan(company.plan);
       const pros = company.activeProfessionals ?? 0;
-      mrr += !plan
-        ? 0
-        : company.billingCycle === 'YEARLY'
-          ? chargeCents(plan, pros, 'YEARLY') / 1200
-          : monthlyPriceCents(plan, pros) / 100;
+      mrr += !plan ? 0 : monthlyEquivalentCents(plan, pros, cycleOf(company.billingCycle)) / 100;
     }
     if (situation === 'trial') {
       const daysLeft = getSubscriptionState(company, now).trialDaysLeft;
@@ -286,7 +283,10 @@ export async function getPlatformCompanies(now: Date) {
   }));
 }
 
-/** Receita mensal da empresa: o que paga por mês (anual dividido por 12). Teste e cortesia: zero. */
+/**
+ * Receita mensal da empresa: o que paga por mês (trimestral dividido por 3, anual por 12).
+ * Teste e cortesia: zero.
+ */
 export function companyMonthlyRevenue(
   company: CompanyRow & { situation: CompanySituation },
 ): number {
@@ -294,9 +294,7 @@ export function companyMonthlyRevenue(
   const plan = getPlan(company.plan);
   if (!plan) return 0;
   const pros = company.activeProfessionals ?? 0;
-  return company.billingCycle === 'YEARLY'
-    ? chargeCents(plan, pros, 'YEARLY') / 1200
-    : monthlyPriceCents(plan, pros) / 100;
+  return monthlyEquivalentCents(plan, pros, cycleOf(company.billingCycle)) / 100;
 }
 
 export type CompanyCosts = {
@@ -349,9 +347,8 @@ export async function getPlatformCosts(
     const aiCost = ((usage?._sum.estimatedCostMicros ?? 0) / 1_000_000) * rate;
     const waMessages = waBy.get(company.id) ?? 0;
     const waCost = waMessages * OFFICIAL_WHATSAPP_COST_USD * rate;
-    // Anual: uma taxa por ano, dividida pelos meses.
-    const fee =
-      revenue > 0 ? (company.billingCycle === 'YEARLY' ? ASAAS_FEE_BRL / 12 : ASAAS_FEE_BRL) : 0;
+    // Trimestral e anual: uma taxa por cobrança, dividida pelos meses que ela paga.
+    const fee = revenue > 0 ? ASAAS_FEE_BRL / CYCLE_MONTHS[cycleOf(company.billingCycle)] : 0;
     result.set(company.id, {
       revenue: round(revenue),
       aiCredits: usage?._sum.units ?? 0,

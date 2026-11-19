@@ -10,6 +10,8 @@ export type ProductInput = {
   salePrice: number;
   quantity: number;
   minQuantity: number;
+  /** Unidade de controle (un, par, ml, g...). Ausente = mantém (ou "un" ao criar). */
+  unit?: string;
 };
 
 export async function listAllProducts(companyId: string): Promise<Product[]> {
@@ -41,6 +43,7 @@ export async function createProduct(companyId: string, data: ProductInput): Prom
       salePrice: data.salePrice,
       quantity: data.quantity,
       minQuantity: data.minQuantity,
+      unit: data.unit ?? 'un',
     },
   });
 }
@@ -63,6 +66,7 @@ export async function updateProduct(
       costPrice: data.costPrice,
       salePrice: data.salePrice,
       minQuantity: data.minQuantity,
+      ...(data.unit ? { unit: data.unit } : {}),
     },
   });
   if (result.count === 0) throw new UserError('Produto não encontrado.');
@@ -196,6 +200,7 @@ export async function sellProductToAppointment(
         productId: product.id,
         type: 'SALE',
         quantity: params.quantity,
+        unitPrice: product.salePrice,
         reason: 'Venda em atendimento',
         createdByUserId,
       },

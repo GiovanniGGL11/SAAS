@@ -65,7 +65,11 @@ export type FeatureKey =
   /** Automações configuráveis (gatilho → condições → ações). */
   | 'automationRules'
   /** Indicadores avançados e metas (conversão, aprovação, tempo por etapa, prazos). */
-  | 'advancedKpis';
+  | 'advancedKpis'
+  /** Calculadora de preço com os dados reais (gastos, serviços, produtos), simulações e aplicar preço. */
+  | 'pricingCalculator'
+  /** DRE gerencial (competência × caixa), ponto de equilíbrio, previsto × realizado e rankings. */
+  | 'profitAnalysis';
 
 /** O que o plano INCLUI de IA. Incluir não basta: o recurso também precisa estar implementado (ver AI_IMPLEMENTED). */
 export type AiPlanEntitlements = {
@@ -173,6 +177,8 @@ const ESSENTIAL_FEATURES: Record<FeatureKey, boolean> = {
   serviceTracking: false,
   automationRules: false,
   advancedKpis: false,
+  pricingCalculator: false,
+  profitAnalysis: false,
 };
 
 const FULL_FEATURES: Record<FeatureKey, boolean> = {
@@ -193,6 +199,7 @@ const FULL_FEATURES: Record<FeatureKey, boolean> = {
   customFields: true,
   surveys: true,
   referrals: true,
+  pricingCalculator: true,
 };
 
 /** Só no Pro: rotinas automáticas e análises que dependem delas. */
@@ -207,6 +214,7 @@ const PRO_FEATURES: Record<FeatureKey, boolean> = {
   serviceTracking: true,
   automationRules: true,
   advancedKpis: true,
+  profitAnalysis: true,
 };
 
 export const PLANS: Plan[] = [
@@ -266,6 +274,7 @@ export const PLANS: Plan[] = [
       'Tudo do Básico',
       'Campanhas para chamar clientes de volta',
       'Comissões, metas e relatórios',
+      'Calculadora de preço com os seus custos',
       'Pacotes, assinaturas e fichas de atendimento',
       'Orçamentos que o cliente aprova pelo link',
       'Lista de espera e área do cliente',
@@ -306,7 +315,7 @@ export const PLANS: Plan[] = [
       'Várias unidades num painel só',
       'Renovação de pacotes e lista de espera no automático',
       'Resumo do dia pronto toda manhã',
-      'Lucro de cada serviço e indicadores avançados',
+      'DRE gerencial, ponto de equilíbrio e lucro por serviço',
       'Serviços em andamento e regras automáticas de tarefas',
     ],
   },
@@ -451,19 +460,57 @@ export function monthlyPriceCents(
   return plan.priceCents + extra * plan.extraProfessionalCents;
 }
 
-export type BillingCycle = 'MONTHLY' | 'YEARLY';
+export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+
+export const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'YEARLY'];
 
 /** Desconto do plano anual (pago de uma vez). */
 export const ANNUAL_DISCOUNT = 0.2;
+/** Desconto do plano trimestral (3 meses pagos de uma vez). */
+export const QUARTERLY_DISCOUNT = 0.1;
 
-/** Valor de cada cobrança: a mensalidade, ou 12 mensalidades com o desconto do anual. */
+/** Quantos meses cada cobrança paga. */
+export const CYCLE_MONTHS: Record<BillingCycle, number> = { MONTHLY: 1, QUARTERLY: 3, YEARLY: 12 };
+
+export const CYCLE_DISCOUNT: Record<BillingCycle, number> = {
+  MONTHLY: 0,
+  QUARTERLY: QUARTERLY_DISCOUNT,
+  YEARLY: ANNUAL_DISCOUNT,
+};
+
+/** "mensal", "trimestral", "anual" (para descrições e textos). */
+export const CYCLE_ADJECTIVE: Record<BillingCycle, string> = {
+  MONTHLY: 'mensal',
+  QUARTERLY: 'trimestral',
+  YEARLY: 'anual',
+};
+
+/** O que está gravado em Company.billingCycle (texto livre no banco) como ciclo conhecido. */
+export function cycleOf(value: string | null | undefined): BillingCycle {
+  return value === 'YEARLY' || value === 'QUARTERLY' ? value : 'MONTHLY';
+}
+
+/**
+ * Valor de cada cobrança: a mensalidade, 3 mensalidades com o desconto do trimestral ou
+ * 12 mensalidades com o desconto do anual.
+ */
 export function chargeCents(
   plan: Pick<Plan, 'priceCents' | 'includedProfessionals' | 'extraProfessionalCents'>,
   activeProfessionals: number,
   cycle: BillingCycle,
 ): number {
   const monthly = monthlyPriceCents(plan, activeProfessionals);
-  return cycle === 'YEARLY' ? Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT)) : monthly;
+  if (cycle === 'MONTHLY') return monthly;
+  return Math.round(monthly * CYCLE_MONTHS[cycle] * (1 - CYCLE_DISCOUNT[cycle]));
+}
+
+/** Quanto a cobrança de cada ciclo dá por mês (para comparar e para a receita mensal). */
+export function monthlyEquivalentCents(
+  plan: Pick<Plan, 'priceCents' | 'includedProfessionals' | 'extraProfessionalCents'>,
+  activeProfessionals: number,
+  cycle: BillingCycle,
+): number {
+  return chargeCents(plan, activeProfessionals, cycle) / CYCLE_MONTHS[cycle];
 }
 
 /** "1 profissional" ou "até 3 profissionais" (para as mensagens de limite). */

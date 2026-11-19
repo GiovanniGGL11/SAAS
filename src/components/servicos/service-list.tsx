@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { PageHeader, Surface } from '@/components/layout/page';
 import { ListToolbar, SearchField, matchesSearch } from '@/components/layout/list-controls';
 import { ServiceDrawer } from '@/components/servicos/service-drawer';
@@ -146,6 +147,9 @@ export function ServiceList({
               ? 'Serviços recorrentes: o cliente paga todo mês e tem sessões por mês.'
               : 'Várias sessões de um serviço, vendidas de uma vez.'
           }
+          actions={
+            <HowToButton href={`/servicos/tutorial#${subscriptions ? 'assinaturas' : 'pacotes'}`} />
+          }
         />
         {tabs}
         {packagesOffer ? (
@@ -168,10 +172,13 @@ export function ServiceList({
         title="Serviços"
         description={`${activeCount} ${activeCount === 1 ? 'serviço ativo' : 'serviços ativos'} no catálogo.`}
         actions={
-          <Button onClick={openCreate}>
-            <PlusIcon className="size-4" />
-            Novo serviço
-          </Button>
+          <>
+            <HowToButton href="/servicos/tutorial" />
+            <Button onClick={openCreate}>
+              <PlusIcon className="size-4" />
+              Novo serviço
+            </Button>
+          </>
         }
       />
       {tabs}

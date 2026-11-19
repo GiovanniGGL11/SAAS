@@ -4,6 +4,7 @@ import { FormsHome } from '@/components/fichas/forms-home';
 import { upgradeOffer } from '@/server/billing/features';
 import { UpgradeCard } from '@/components/assinatura/upgrade-card';
 import { PageHeader } from '@/components/layout/page';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 
 export const metadata = { title: 'Fichas e formulários' };
 
@@ -21,7 +22,10 @@ export default async function FichasPage({
   if (offer) {
     return (
       <div className="flex flex-col gap-5">
-        <PageHeader title="Fichas e formulários" />
+        <PageHeader
+          title="Fichas e formulários"
+          actions={<HowToButton href="/fichas/tutorial" />}
+        />
         <UpgradeCard offer={offer} />
       </div>
     );

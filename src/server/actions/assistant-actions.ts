@@ -16,6 +16,7 @@ import {
   buildAiSession,
 } from '@/server/ai/access';
 import { handleAssistantMessage } from '@/server/ai/assistant-service';
+import { aiDemoState, askAiDemo } from '@/server/ai/demo';
 import {
   cancelProposal,
   confirmProposal,
@@ -131,7 +132,18 @@ export async function getAiStatusAction() {
     usage,
     /** Administrador que ainda não está no plano com mais créditos. */
     canUpgradeCredits: session.isAdmin && session.entitlements.planId !== 'pro',
+    /** Plano sem IA: poucas perguntas de demonstração (uma vez só). */
+    demo: await aiDemoState(session),
   };
+}
+
+/** Uma pergunta da demonstração da IA (plano sem IA). Só consulta, resposta curta. */
+export async function askAssistantDemoAction(input: unknown) {
+  return toActionResult(async () => {
+    const { question } = z.object({ question: z.string().max(1000) }).parse(input);
+    const session = await aiSession();
+    return askAiDemo({ session, question });
+  });
 }
 
 export async function getAiSettingsAction() {

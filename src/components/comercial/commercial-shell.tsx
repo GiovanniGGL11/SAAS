@@ -5,6 +5,7 @@ import * as React from 'react';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { OpportunitiesView } from '@/components/comercial/opportunities-view';
 import { QuotesView } from '@/components/orcamentos/quotes-view';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 
 type Tab = 'oportunidades' | 'orcamentos';
 
@@ -38,17 +39,23 @@ export function CommercialShell({
   }
   return (
     <div className="flex flex-col gap-4">
-      {crm && quotes && (
-        <SegmentedControl
-          className="self-start"
-          value={tab}
-          onValueChange={change}
-          options={[
-            { value: 'oportunidades', label: 'Oportunidades' },
-            { value: 'orcamentos', label: 'Orçamentos' },
-          ]}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {crm && quotes ? (
+          <SegmentedControl
+            value={tab}
+            onValueChange={change}
+            options={[
+              { value: 'oportunidades', label: 'Oportunidades' },
+              { value: 'orcamentos', label: 'Orçamentos' },
+            ]}
+          />
+        ) : (
+          <span />
+        )}
+        <HowToButton
+          href={`/comercial/tutorial#${tab === 'orcamentos' ? 'orcamento' : 'oportunidades'}`}
         />
-      )}
+      </div>
       {tab === 'oportunidades' && crm ? (
         <OpportunitiesView
           timezone={timezone}

@@ -60,6 +60,7 @@ export const STARTER_ANAMNESIS_SCHEMA: FormSchema = {
           type: 'yes_no',
           title: 'Tem alguma alergia ou já teve reação a algum produto?',
           required: false,
+          alert: true,
         },
         {
           id: 'q_alergia_quais',
@@ -81,6 +82,7 @@ export const STARTER_ANAMNESIS_SCHEMA: FormSchema = {
           type: 'yes_no',
           title: 'Usa algum medicamento de forma contínua?',
           required: false,
+          alert: true,
         },
         {
           id: 'q_medicamentos_quais',
@@ -102,6 +104,7 @@ export const STARTER_ANAMNESIS_SCHEMA: FormSchema = {
           type: 'long_text',
           title: 'Há alguma condição de saúde que o profissional deva saber?',
           required: false,
+          alert: true,
         },
       ],
     },

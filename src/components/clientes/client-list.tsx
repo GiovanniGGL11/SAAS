@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { unwrapResult } from '@/lib/action-result';
 import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -147,6 +148,7 @@ export function ClientList({
         description={`${counts.active} ${counts.active === 1 ? 'cliente ativo' : 'clientes ativos'} na sua base.`}
         actions={
           <>
+            <HowToButton href="/clientes/tutorial" />
             {isAdmin && (
               <Button variant="outline" onClick={() => setImportOpen(true)}>
                 Importar

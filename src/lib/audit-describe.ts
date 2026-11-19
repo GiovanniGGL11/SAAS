@@ -28,6 +28,7 @@ const SYSTEM_ACTORS: Record<string, string> = {
   'client-link': 'Cliente (link de confirmação)',
   'demo-seed': 'Dados de demonstração',
   'client-form-link': 'Cliente (link da ficha)',
+  'client-signup-link': 'Cliente (convite de cadastro e ficha)',
   system: 'Sistema',
 };
 

@@ -68,6 +68,7 @@ export function OnboardingWizard({
         professionals: people.map((name) => ({ name })),
         hours: { weekdays, startTime, endTime },
         onlineBooking: online,
+        segment,
       }).then(unwrapResult),
     onSuccess: () => {
       toast.success('Tudo pronto! Sua agenda já pode receber horários.');

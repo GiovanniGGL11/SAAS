@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { STOCK_UNIT_VALUES } from '@/lib/stock-units';
+
 export const productInput = z.object({
   name: z.string().min(1, 'Informe o nome').max(200),
   sku: z.string().max(100).optional(),
@@ -8,6 +10,8 @@ export const productInput = z.object({
   salePrice: z.coerce.number().min(0, 'Preço de venda não pode ser negativo'),
   quantity: z.coerce.number().int().min(0, 'Quantidade não pode ser negativa'),
   minQuantity: z.coerce.number().int().min(0, 'Quantidade mínima não pode ser negativa'),
+  /** Unidade de controle (un, par, ml, g...). */
+  unit: z.enum(STOCK_UNIT_VALUES).optional(),
 });
 export type ProductFormInput = z.infer<typeof productInput>;
 

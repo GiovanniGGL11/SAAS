@@ -18,7 +18,13 @@ import {
 } from '@/server/whatsapp/automation';
 import { personalize } from '@/server/data/relationship';
 
-const TOGGLES = ['waAutoConfirm', 'waAutoReminder', 'waAutoReview', 'waAutoBirthday'] as const;
+const TOGGLES = [
+  'waAutoConfirm',
+  'waAutoReminder',
+  'waAutoReview',
+  'waAutoBirthday',
+  'waAutoReturn',
+] as const;
 
 /** O que a tela mostra: nunca devolve o token, só se ele existe. */
 export async function getWhatsappSettingsAction() {
@@ -34,6 +40,7 @@ export async function getWhatsappSettingsAction() {
         waAutoReminder: true,
         waAutoReview: true,
         waAutoBirthday: true,
+        waAutoReturn: true,
       },
     }),
     prisma.whatsappMessage.findMany({
@@ -53,6 +60,7 @@ export async function getWhatsappSettingsAction() {
       waAutoReminder: full.waAutoReminder,
       waAutoReview: full.waAutoReview,
       waAutoBirthday: full.waAutoBirthday,
+      waAutoReturn: full.waAutoReturn,
     },
     recent,
     /** Confirmação e lembrete pelo WhatsApp oficial do Atendafy (incluídos no plano). */
@@ -102,6 +110,7 @@ export async function removeZapiCredentialsAction() {
         waAutoReminder: false,
         waAutoReview: false,
         waAutoBirthday: false,
+        waAutoReturn: false,
       },
     });
     revalidatePath('/configuracoes');

@@ -34,6 +34,14 @@ const COPY: Partial<Record<FeatureKey, { title: string; text: string }>> = {
     title: 'WhatsApp automático',
     text: 'Confirmação, lembrete e pedido de avaliação saindo sozinhos do número do salão.',
   },
+  pricingCalculator: {
+    title: 'Calcular com meus serviços',
+    text: 'A calculadora usa os seus gastos, serviços e produtos de verdade: preço mínimo, preço para a sua margem, lucro por hora e simulações — e aplica o novo preço no catálogo com um toque.',
+  },
+  profitAnalysis: {
+    title: 'Lucro de verdade',
+    text: 'DRE gerencial por competência e por caixa, ponto de equilíbrio, previsto × realizado e quais serviços, produtos e profissionais mais dão lucro.',
+  },
   multiUnit: {
     title: 'Várias unidades',
     text: 'Todas as unidades num painel só, cada uma com a sua agenda, equipe e caixa.',
@@ -50,6 +58,13 @@ export type UpgradeOffer = {
   perDay: number;
   /** "a mais por dia que o Básico" ou só "por dia". */
   perDayIsExtra: boolean;
+  /** O recurso travado (para o botão "Testar grátis"). */
+  feature?: FeatureKey;
+  /**
+   * Teste grátis do recurso: disponível (nunca testado) ou já usado (com a data em que acabou).
+   * `null`/ausente = este recurso não tem teste.
+   */
+  trial?: { available: boolean; endedAt: string | null; days: number } | null;
 };
 
 /** Plano mais barato que libera o recurso, com a conta do preço por dia. */

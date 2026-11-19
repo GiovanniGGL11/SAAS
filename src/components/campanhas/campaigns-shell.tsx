@@ -4,6 +4,7 @@ import * as React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { PageHeader } from '@/components/layout/page';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { CouponList } from '@/components/campanhas/coupon-list';
 import { GiftCardsView } from '@/components/campanhas/gift-cards-view';
@@ -40,6 +41,7 @@ export function CampaignsShell({
       <PageHeader
         title="Cupons"
         description="Cupons, vales-presente, mensagens para grupos de clientes, indicações e avaliações."
+        actions={<HowToButton href={`/campanhas/tutorial#${tab}`} />}
       />
       <SegmentedControl
         value={tab}

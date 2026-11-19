@@ -976,6 +976,11 @@ export async function convertQuoteToSale(params: {
           productId: item.refId!,
           type: 'SALE',
           quantity: item.quantity,
+          // Preço unitário já com o desconto do item.
+          unitPrice:
+            Math.round(
+              ((item.unitPrice * item.quantity - (item.discount ?? 0)) / item.quantity) * 100,
+            ) / 100,
           reason: `Venda do orçamento #${quote.number}`,
           createdByUserId: params.userId,
         },

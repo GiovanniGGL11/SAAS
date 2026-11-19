@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { unwrapResult } from '@/lib/action-result';
 import { optimisticPatchItem } from '@/lib/query-cache';
 import { Button } from '@/components/ui/button';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MobileList, MobileListItem } from '@/components/layout/mobile-list';
+import { formatQty, unitShort } from '@/lib/stock-units';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { PageHeader, Surface } from '@/components/layout/page';
@@ -111,6 +113,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
         description={`${products.filter((p) => p.active).length} produtos ativos · ${formatCurrencyBRL(stockValue)} em estoque (preço de custo).`}
         actions={
           <>
+            <HowToButton href="/estoque/tutorial" />
             <Button variant="outline" onClick={() => setHistoryOpen(true)}>
               Histórico
             </Button>
@@ -239,10 +242,12 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                           <div className="flex items-center gap-2.5">
                             <span
                               className={
-                                lowStock ? 'text-system-red w-8 font-semibold' : 'w-8 font-medium'
+                                lowStock
+                                  ? 'text-system-red min-w-12 font-semibold whitespace-nowrap'
+                                  : 'min-w-12 font-medium whitespace-nowrap'
                               }
                             >
-                              {product.quantity}
+                              {formatQty(product.quantity, product.unit)}
                             </span>
                             <span className="bg-foreground/[0.08] hidden h-1.5 w-20 overflow-hidden rounded-full sm:block">
                               <span
@@ -255,7 +260,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                             </span>
                             {product.minQuantity > 0 && (
                               <span className="text-label-secondary text-[12px]">
-                                mín. {product.minQuantity}
+                                mín. {formatQty(product.minQuantity, product.unit)}
                               </span>
                             )}
                           </div>
@@ -307,7 +312,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                         )}
                       >
                         <span className="text-[15px] font-bold">{product.quantity}</span>
-                        <span className="text-[9px] font-medium">un.</span>
+                        <span className="text-[9px] font-medium">{unitShort(product.unit)}</span>
                       </span>
                     }
                     title={
@@ -318,7 +323,7 @@ export function ProductList({ initialProducts }: { initialProducts: SerializedPr
                     }
                     subtitle={
                       lowStock
-                        ? `Estoque baixo · mín. ${product.minQuantity}`
+                        ? `Estoque baixo · mín. ${formatQty(product.minQuantity, product.unit)}`
                         : [
                             product.sku,
                             product.minQuantity > 0 ? `mín. ${product.minQuantity}` : null,

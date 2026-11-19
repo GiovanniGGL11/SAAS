@@ -71,6 +71,7 @@ export function ProfessionalDrawer({
       name: professional?.name ?? '',
       email: professional?.email ?? '',
       phone: professional?.phone ?? '',
+      registry: professional?.registry ?? '',
       color: professional?.color ?? PRESET_COLORS[1],
       commissionType: professional?.commissionType ?? null,
       commissionValue: professional?.commissionValue ?? null,
@@ -174,6 +175,19 @@ export function ProfessionalDrawer({
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="registry"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Registro no conselho (opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex.: CRO-RS 21, CRM-SP 123456, CRBM 1234" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <p className="text-label-secondary -mt-2 text-xs">
               O e-mail é opcional, mas sem ele o profissional não recebe o convite para ter login
               próprio (agenda e ganhos dele pelo celular).

@@ -36,6 +36,10 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-19: manutenção. Master trouxe prontuário (fases 1–5), retorno do paciente no sino, pergunta de CEP nas fichas, tutoriais "Como usar", precificação e unidades de estoque. Merge com 3 conflitos:
+  - `notifications.ts`/`notification-actions.ts`: mantidos o recorte do profissional (`professionalId`) e os avisos de retorno do master; o retorno também fica de fora para o login do profissional, agora pelo mesmo `professionalId` (o `isProfessional` do master foi trocado por ele, e `tests/return-reminders.test.ts` ajustado).
+  - `appointments.ts`: o lado do branch era só formatação; ficou a versão do master, formatada com Prettier.
+  - tsc limpo, eslint sem erros, `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
 - 2026-11-18: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
 - 2026-11-17: manutenção. Master trouxe metas, registros do cliente (fotos no Supabase Storage), importação de ficha em PDF e "Meus planos" na área do cliente (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
 - 2026-11-16: master trouxe o login do profissional (agenda/clientes só dele). Merge com 1 conflito em `sidebar.tsx` (ficou a versão do master, sem desfoque). Ajustes para respeitar o recorte do profissional:
@@ -53,6 +57,7 @@ Cada execução continua do primeiro item não marcado.
 - Assistente: criar/editar cliente pelas telas normais não grava AuditLog (só pelo assistente). Avaliar se vale padronizar.
 
 ## Para o dono fazer
+- Rodar `npm test -- tests/return-reminders.test.ts tests/notifications.test.ts` (merge do retorno do paciente com o recorte do profissional).
 - Rodar `npm test -- tests/notifications.test.ts` (caso novo do profissional) e testar logado como profissional: o sino só mostra a agenda dele e o assistente aparece como indisponível.
 - Criar a chave do Gemini em https://aistudio.google.com/apikey e cadastrar `GEMINI_API_KEY` na Vercel (Production e Preview). Opcional: `GEMINI_MODEL`.
 - Rodar `npm test -- tests/assistant.test.ts` com o banco de teste.

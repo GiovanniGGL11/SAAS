@@ -5,12 +5,19 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ClipboardListIcon, FileTextIcon, PlusIcon, SparklesIcon } from 'lucide-react';
+import {
+  ClipboardListIcon,
+  FileTextIcon,
+  MessageCircleIcon,
+  PlusIcon,
+  SparklesIcon,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { unwrapResult } from '@/lib/action-result';
 import { ENTRY_STATUS_LABEL, FORM_TYPE_LABEL } from '@/lib/forms/schema';
 import { Button } from '@/components/ui/button';
+import { HowToButton } from '@/components/tutorial/tutorial-kit';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,6 +40,7 @@ import {
 } from '@/components/ui/select';
 import { PageHeader } from '@/components/layout/page';
 import { ImportPdfButton } from '@/components/fichas/import-pdf-button';
+import { SendFormDialog } from '@/components/fichas/send-form-dialog';
 import { FormRenderer } from '@/components/fichas/form-renderer';
 import { EntryDialog, type EntrySummary, useFormAccess } from '@/components/fichas/entry-dialog';
 import { EntryStatusBadge, FlagBadge } from '@/components/fichas/entry-status-badge';
@@ -68,6 +76,12 @@ export function FormsHome({ timezone, initialTab }: { timezone: string; initialT
     { value: 'preenchimentos', label: 'Preenchimentos' },
     ...(access?.canGrant ? [{ value: 'acesso' as const, label: 'Acesso e privacidade' }] : []),
   ];
+  const [sendOpen, setSendOpen] = React.useState(false);
+  const sendButton = access?.canRequest ? (
+    <Button variant="outline" onClick={() => setSendOpen(true)}>
+      <MessageCircleIcon /> Enviar ficha pelo WhatsApp
+    </Button>
+  ) : null;
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -76,6 +90,8 @@ export function FormsHome({ timezone, initialTab }: { timezone: string; initialT
         actions={
           access?.canManage && tab === 'modelos' ? (
             <>
+              <HowToButton href="/fichas/tutorial" />
+              {sendButton}
               <ImportPdfButton />
               <Button asChild>
                 <Link href="/fichas/modelos/novo">
@@ -83,9 +99,15 @@ export function FormsHome({ timezone, initialTab }: { timezone: string; initialT
                 </Link>
               </Button>
             </>
-          ) : undefined
+          ) : (
+            <>
+              <HowToButton href="/fichas/tutorial" />
+              {sendButton}
+            </>
+          )
         }
       />
+      <SendFormDialog open={sendOpen} onOpenChange={setSendOpen} />
       <SegmentedControl
         className="self-start"
         value={tab}

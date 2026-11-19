@@ -1,21 +1,28 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { BookOpenIcon } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page';
+import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { FinanceView } from '@/components/financeiro/finance-view';
 import { IncomeStatementView } from '@/components/financeiro/income-statement-view';
 import { CommissionsView } from '@/components/financeiro/commissions-view';
 import { RecurringExpensesView } from '@/components/financeiro/recurring-expenses-view';
 import { FinanceSettingsView } from '@/components/financeiro/finance-settings-view';
+import { PricingTab } from '@/components/financeiro/pricing-calculator';
+import { ProfitView } from '@/components/financeiro/profit-view';
 import type { UpgradeOffer } from '@/lib/billing/upgrade';
 import { UpgradeCard } from '@/components/assinatura/upgrade-card';
 
 const TABS = [
   { value: 'lancamentos', label: 'Lançamentos' },
   { value: 'dre', label: 'DRE' },
+  { value: 'precificacao', label: 'Precificação' },
+  { value: 'lucro', label: 'Lucro' },
   { value: 'comissoes', label: 'Comissões' },
   { value: 'contas-fixas', label: 'Contas fixas' },
   { value: 'ajustes', label: 'Ajustes' },
@@ -26,9 +33,15 @@ type Tab = (typeof TABS)[number]['value'];
 /** Financeiro em abas; a aba fica no endereço (?aba=dre) para dar para voltar e compartilhar. */
 export function FinanceShell({
   commissionsOffer = null,
+  pricingOffer = null,
+  profitOffer = null,
 }: {
   /** Plano sem comissões: a aba mostra o convite para subir de plano. */
   commissionsOffer?: UpgradeOffer | null;
+  /** Plano sem a calculadora completa: a aba mostra a demonstração com dados de exemplo. */
+  pricingOffer?: UpgradeOffer | null;
+  /** Plano sem o DRE gerencial: a aba mostra o convite para o Pro. */
+  profitOffer?: UpgradeOffer | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -41,6 +54,13 @@ export function FinanceShell({
       <PageHeader
         title="Financeiro"
         description="Fluxo de caixa, contas, resultado do mês e taxas."
+        actions={
+          <Button variant="outline" asChild>
+            <Link href="/financeiro/tutorial">
+              <BookOpenIcon /> Como usar
+            </Link>
+          </Button>
+        }
       />
       <SegmentedControl
         value={tab}
@@ -54,6 +74,8 @@ export function FinanceShell({
       />
       {tab === 'lancamentos' && <FinanceView />}
       {tab === 'dre' && <IncomeStatementView />}
+      {tab === 'precificacao' && <PricingTab offer={pricingOffer} />}
+      {tab === 'lucro' && (profitOffer ? <UpgradeCard offer={profitOffer} /> : <ProfitView />)}
       {tab === 'comissoes' &&
         (commissionsOffer ? <UpgradeCard offer={commissionsOffer} /> : <CommissionsView />)}
       {tab === 'contas-fixas' && <RecurringExpensesView />}

@@ -56,7 +56,8 @@ export async function createSubscription(
     nextDueDate: string;
     description: string;
     externalReference: string;
-    cycle?: 'MONTHLY' | 'YEARLY';
+    /** Ciclos da Asaas usados pelo Atendafy (mensal, trimestral, anual). */
+    cycle?: 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
   },
 ) {
   const { cycle = 'MONTHLY', ...rest } = input;
