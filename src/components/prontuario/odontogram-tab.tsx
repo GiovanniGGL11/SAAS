@@ -61,14 +61,14 @@ const STROKE: Record<string, string> = {
 };
 
 /** Desenho de um dente: 5 faces (a do meio é a oclusal) e, por cima, o que vale para o dente todo. */
-function Tooth({
+export function Tooth({
   tooth,
   marks,
   selected,
   onSelect,
 }: {
   tooth: number;
-  marks: Mark[];
+  marks: Pick<Mark, 'faces' | 'condition' | 'status'>[];
   selected: boolean;
   onSelect: () => void;
 }) {

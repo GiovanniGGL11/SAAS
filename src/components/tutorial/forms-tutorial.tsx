@@ -9,6 +9,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { SendFormDemo } from '@/components/tutorial/demo/forms-demos';
 
 const SECTIONS = [
   { id: 'modelo', label: 'Criar um modelo' },
@@ -107,6 +108,7 @@ export function FormsTutorial() {
           O cliente abre no celular, responde, assina com o dedo e envia. O link vale 7 dias. Nada é
           enviado sozinho: o WhatsApp abre com a mensagem pronta e você aperta enviar.
         </p>
+        <SendFormDemo />
         <Sub>Pela agenda (o jeito mais rápido)</Sub>
         <p>
           Abra o agendamento e, em <strong>Fichas e registro</strong>, toque em{' '}
