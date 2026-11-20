@@ -8,6 +8,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { QuoteDemo } from '@/components/tutorial/demo/business-demos';
 
 const SECTIONS = [
   { id: 'oportunidades', label: 'Oportunidades (funil)' },
@@ -87,6 +88,7 @@ export function CommercialTutorial() {
 
       <Section id="orcamento" eyebrow="Orçamentos" title="Criar um orçamento">
         <Path items={['Comercial', 'Orçamentos', 'Novo orçamento']} />
+        <QuoteDemo />
         <Steps
           items={[
             'Escolha o cliente e dê um nome (Ex.: Tratamento facial — 8 sessões).',

@@ -10,6 +10,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { StockDemo } from '@/components/tutorial/demo/business-demos';
 
 const SECTIONS = [
   { id: 'unidade', label: 'Escolher a unidade' },
@@ -71,6 +72,7 @@ export function StockTutorial() {
           O jeito mais prático de controlar material: dizer uma vez o que cada serviço gasta. A cada
           atendimento <strong>concluído</strong>, os materiais saem do estoque sozinhos.
         </p>
+        <StockDemo />
         <Steps
           items={[
             <>

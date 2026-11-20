@@ -8,6 +8,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { ScheduleDemo } from '@/components/tutorial/demo/team-demos';
 
 const SECTIONS = [
   { id: 'cadastro', label: 'Cadastrar' },
@@ -53,9 +54,15 @@ export function ProfessionalsTutorial() {
           Para cada dia da semana, os horários em que o profissional atende, com intervalos (Ex.:
           9h–12h e 13h–18h). As mudanças são salvas sozinhas.
         </p>
+        <ScheduleDemo />
         <Bullets
           items={[
             'Fora do expediente, a agenda fica cinza e o link de agendamento não oferece horário.',
+            <>
+              Profissional novo: a tela sugere seg a sex, 9h às 18h, mas só vale depois de salvar
+              (em <strong>Salvar este expediente</strong> ou mudando qualquer horário). Até lá, a
+              lista mostra <strong>Sem expediente</strong> e ele não aparece no link.
+            </>,
             'Um horário muito fora do comum (Ex.: 3h da manhã) pede confirmação, para evitar erro de digitação.',
           ]}
         />

@@ -9,6 +9,7 @@ import {
   DemoPlayer,
   MiniButton,
   MiniField,
+  MiniPhone,
   Pop,
   Typed,
   type DemoStep,
@@ -65,15 +66,6 @@ function Signature() {
   );
 }
 
-function Phone({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="border-foreground/80 bg-background relative h-[296px] w-[176px] shrink-0 overflow-hidden rounded-[26px] border-[5px] shadow-lg">
-      <span className="bg-foreground/80 absolute top-1 left-1/2 z-10 h-3 w-14 -translate-x-1/2 rounded-full" />
-      <div className="flex h-full flex-col pt-5 text-[10px]">{children}</div>
-    </div>
-  );
-}
-
 export function SendFormDemo() {
   return (
     <DemoPlayer title="Enviar a anamnese pelo WhatsApp" steps={STEPS} height={320}>
@@ -116,7 +108,7 @@ export function SendFormDemo() {
           </div>
 
           {/* Celular do cliente */}
-          <Phone>
+          <MiniPhone>
             {step <= 1 ? (
               <div className="flex h-full flex-col bg-[#e7ddd3] dark:bg-[#1b1b1b]">
                 <div className="bg-[#075e54] px-2 py-1.5 text-[10px] font-semibold text-white">
@@ -192,7 +184,7 @@ export function SendFormDemo() {
                 <p className="text-label-secondary">Obrigado, Maria. Até sexta.</p>
               </Pop>
             )}
-          </Phone>
+          </MiniPhone>
         </div>
       )}
     </DemoPlayer>

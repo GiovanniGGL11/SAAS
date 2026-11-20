@@ -370,3 +370,33 @@ export function Pop({ children, className }: { children: React.ReactNode; classN
     </motion.div>
   );
 }
+
+/** Chave liga/desliga em miniatura. */
+export function MiniSwitch({ on, demo }: { on: boolean; demo?: string }) {
+  return (
+    <span
+      data-demo={demo}
+      className={cn(
+        'relative inline-block h-[18px] w-8 shrink-0 rounded-full transition-colors',
+        on ? 'bg-system-green' : 'bg-foreground/20',
+      )}
+    >
+      <span
+        className={cn(
+          'absolute top-0.5 size-[14px] rounded-full bg-white shadow transition-all',
+          on ? 'left-[16px]' : 'left-0.5',
+        )}
+      />
+    </span>
+  );
+}
+
+/** Celular em miniatura (o que o cliente vê). */
+export function MiniPhone({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border-foreground/80 bg-background relative h-[296px] w-[176px] shrink-0 overflow-hidden rounded-[26px] border-[5px] shadow-lg">
+      <span className="bg-foreground/80 absolute top-1 left-1/2 z-10 h-3 w-14 -translate-x-1/2 rounded-full" />
+      <div className="flex h-full flex-col pt-5 text-[10px]">{children}</div>
+    </div>
+  );
+}

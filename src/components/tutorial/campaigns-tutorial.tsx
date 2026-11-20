@@ -8,6 +8,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { CouponDemo } from '@/components/tutorial/demo/business-demos';
 
 const SECTIONS = [
   { id: 'cupons', label: 'Cupons de desconto' },
@@ -29,6 +30,7 @@ export function CampaignsTutorial() {
     >
       <Section id="cupons" title="Cupons de desconto">
         <Path items={['Cupons', 'Criar cupom']} />
+        <CouponDemo />
         <Fields
           rows={[
             ['Código', 'O que o cliente fala ou digita (Ex.: BEMVINDO10).'],
