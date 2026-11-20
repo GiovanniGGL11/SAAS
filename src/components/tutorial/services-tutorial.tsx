@@ -8,6 +8,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { PackageDemo } from '@/components/tutorial/demo/team-demos';
 
 const SECTIONS = [
   { id: 'servico', label: 'Cadastrar um serviço' },
@@ -106,6 +107,7 @@ export function ServicesTutorial() {
 
       <Section id="pacotes" title="Pacotes">
         <Path items={['Serviços', 'Pacotes']} />
+        <PackageDemo />
         <p>
           Várias sessões de um serviço, pagas de uma vez, para usar quando o cliente quiser. Ex.: 4
           limpezas de pele por R$ 320.

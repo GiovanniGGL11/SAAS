@@ -1,5 +1,6 @@
 'use server';
 
+import { prisma } from '@/lib/db';
 import { getOwnProfessional } from '@/server/auth/professional-scope';
 import { toActionResult } from '@/server/action-result';
 import { parseId } from '@/server/errors';
@@ -45,9 +46,20 @@ export async function listProfessionalsAction() {
     (p) => !own || p.id === own.id,
   );
 
+  // Quem tem expediente salvo (sem ele, o profissional não aparece no link de agendamento).
+  const scheduled = new Set(
+    (
+      await prisma.professionalAvailability.findMany({
+        where: { professional: { companyId: company.id } },
+        select: { professionalId: true },
+        distinct: ['professionalId'],
+      })
+    ).map((a) => a.professionalId),
+  );
   const withProduction = await Promise.all(
     professionals.map(async (professional) => ({
       ...serializeProfessional(professional),
+      hasSchedule: scheduled.has(professional.id),
       production: await getProfessionalMonthlyProduction(company.id, professional.id),
     })),
   );

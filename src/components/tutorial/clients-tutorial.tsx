@@ -5,9 +5,15 @@ import {
   Path,
   Section,
   Steps,
+  Sub,
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import {
+  EvolutionDemo,
+  FaceMapDemo,
+  OdontogramDemo,
+} from '@/components/tutorial/demo/record-demos';
 
 const SECTIONS = [
   { id: 'lista', label: 'A lista de clientes' },
@@ -198,6 +204,12 @@ export function ClientsTutorial() {
             'As fichas e termos, os registros com fotos e as sessões.',
           ]}
         />
+        <Sub>Na prática: a evolução</Sub>
+        <EvolutionDemo />
+        <Sub>Na prática: o odontograma</Sub>
+        <OdontogramDemo />
+        <Sub>Na prática: o mapa facial</Sub>
+        <FaceMapDemo />
         <p>
           <strong>Resumo com IA</strong>: antes do atendimento, clique em{' '}
           <strong>Gerar resumo</strong> e veja o essencial em poucas linhas: alertas, tratamento,

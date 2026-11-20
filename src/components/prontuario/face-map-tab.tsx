@@ -52,7 +52,7 @@ type DraftPoint = Omit<FacePoint, 'amount'> & { amount: string };
  * Desenho do rosto (de frente). Os pontos ficam em % da largura e da altura, e as regiões de
  * src/lib/face-map.ts (areaAt) seguem este desenho.
  */
-function FaceDrawing({
+export function FaceDrawing({
   points,
   selected,
   onAdd,

@@ -7,6 +7,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { WhatsAppAutoDemo } from '@/components/tutorial/demo/business-demos';
 
 const SECTIONS = [
   { id: 'whatsapp', label: 'WhatsApp automático' },
@@ -32,6 +33,7 @@ export function SettingsTutorial() {
           Mensagens que saem sozinhas do WhatsApp do salão, pela Z-API (um serviço que conecta o
           WhatsApp ao sistema).
         </p>
+        <WhatsAppAutoDemo />
         <Steps
           items={[
             'Crie uma instância em z-api.io e conecte o celular do salão pelo QR code.',

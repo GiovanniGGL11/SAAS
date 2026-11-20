@@ -8,6 +8,7 @@ import {
   Tip,
   TutorialPage,
 } from '@/components/tutorial/tutorial-kit';
+import { BookAppointmentDemo, CheckoutDemo } from '@/components/tutorial/demo/agenda-demos';
 
 const SECTIONS = [
   { id: 'ver', label: 'Ver a agenda' },
@@ -51,6 +52,7 @@ export function AgendaTutorial() {
       </Section>
 
       <Section id="marcar" eyebrow="O mais usado" title="Marcar um horário">
+        <BookAppointmentDemo />
         <Steps
           items={[
             <>
@@ -123,6 +125,7 @@ export function AgendaTutorial() {
       </Section>
 
       <Section id="cobrar" title="Concluir e cobrar (a comanda)">
+        <CheckoutDemo />
         <p>
           No agendamento, toque em <strong>Concluir e cobrar</strong>. Na comanda:
         </p>

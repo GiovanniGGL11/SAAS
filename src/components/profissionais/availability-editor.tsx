@@ -58,12 +58,16 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
   const [week, setWeek] = React.useState<Week | null>(null);
   // Horários incomuns que a pessoa já confirmou ("sim, é isso mesmo"); não pergunta de novo.
   const [confirmed, setConfirmed] = React.useState<string[]>([]);
+  // Sem nada salvo, a tela mostra uma sugestão. Ela precisa parecer sugestão: antes ficava igual a
+  // um expediente salvo, e o link público seguia avisando "Expediente pendente".
+  const [suggested, setSuggested] = React.useState(false);
   const loaded = query.data;
   // Inicializa uma vez com o que veio do banco; sem expediente cadastrado, sugere seg–sex 9h–18h.
   if (loaded && week === null) {
     const next = emptyWeek();
     if (loaded.length === 0) {
       for (const d of [1, 2, 3, 4, 5]) next[d] = [{ startTime: '09:00', endTime: '18:00' }];
+      setSuggested(true);
     } else {
       for (const a of loaded) next[a.weekday].push({ startTime: a.startTime, endTime: a.endTime });
     }
@@ -76,8 +80,10 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
     mutationFn: async (snapshot: Week) =>
       unwrapResult(await setProfessionalAvailabilityAction(toPayload(professionalId, snapshot))),
     onSuccess: () => {
+      setSuggested(false);
       queryClient.invalidateQueries({ queryKey: ['availability', professionalId] });
       queryClient.invalidateQueries({ queryKey: ['schedule-context'] });
+      queryClient.invalidateQueries({ queryKey: ['professionals'] });
     },
     onError: (error: Error) =>
       toast.error(error.message || 'Não foi possível salvar o expediente.'),
@@ -140,6 +146,32 @@ export function AvailabilityEditor({ professionalId }: { professionalId: string 
           Copiar segunda para ter–sex
         </Button>
       </div>
+
+      {suggested && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-xl bg-[#ff9f0a]/12 px-4 py-3 text-[13px] text-[#8a4b00] dark:text-[#ffb340]"
+        >
+          <span className="min-w-0 flex-1">
+            <strong>Sugestão, ainda não salva.</strong> Enquanto não salvar, este profissional não
+            aparece no link de agendamento. Ajuste os dias e horários ou salve como está.
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            disabled={save.isPending || isInvalid(week)}
+            onClick={() => {
+              if (timer.current) clearTimeout(timer.current);
+              pending.current = null;
+              save.mutate(week, {
+                onSuccess: () => toast.success('Expediente salvo.'),
+              });
+            }}
+          >
+            <CheckIcon /> {save.isPending ? 'Salvando...' : 'Salvar este expediente'}
+          </Button>
+        </div>
+      )}
 
       <div className="ring-foreground/[0.06] divide-foreground/[0.06] flex flex-col divide-y rounded-2xl ring-1">
         {ORDER.map((weekday) => {

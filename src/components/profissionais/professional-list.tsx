@@ -35,6 +35,8 @@ type Production = { appointmentCount: number; revenue: number };
 type ProfessionalWithProduction = SerializedProfessional & {
   /** Vazio logo depois de criar (o cadastro volta sem os números do mês até a lista recarregar). */
   production?: Production;
+  /** Tem expediente salvo (sem ele, não aparece no link de agendamento). */
+  hasSchedule?: boolean;
 };
 
 const NO_PRODUCTION: Production = { appointmentCount: 0, revenue: 0 };
@@ -182,6 +184,15 @@ export function ProfessionalList({
                           {professional.name}
                         </span>
                         {!professional.active && <Badge variant="outline">Inativo</Badge>}
+                        {professional.active && professional.hasSchedule === false && (
+                          <Badge
+                            variant="outline"
+                            className="border-system-orange/40 text-system-orange"
+                            title="Sem expediente salvo: não aparece no link de agendamento"
+                          >
+                            Sem expediente
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-label-secondary truncate text-[13px]">
                         {professional.email || professional.phone || 'Sem contato'}
