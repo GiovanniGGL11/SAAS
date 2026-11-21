@@ -124,10 +124,10 @@ export async function computeDailySummary(
     }),
     prisma.task.findMany({
       where: {
-          companyId,
-          status: { in: ['OPEN', 'IN_PROGRESS'] },
-          OR: [{ dueAt: null }, { dueAt: { lt: end } }],
-        },
+        companyId,
+        status: { in: ['OPEN', 'IN_PROGRESS'] },
+        OR: [{ dueAt: null }, { dueAt: { lt: end } }],
+      },
       select: { id: true, title: true, dueAt: true },
       orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }],
       take: 20,

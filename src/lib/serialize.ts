@@ -20,7 +20,10 @@ import type { AppointmentWithRelations } from '@/server/data/appointments';
  */
 export function serializeAppointment<T extends Appointment>(
   appointment: T,
-): Omit<T, 'priceSnapshot' | 'depositAmount'> & { priceSnapshot: number; depositAmount: number | null } {
+): Omit<T, 'priceSnapshot' | 'depositAmount'> & {
+  priceSnapshot: number;
+  depositAmount: number | null;
+} {
   return {
     ...appointment,
     priceSnapshot: Number(appointment.priceSnapshot),
@@ -28,7 +31,10 @@ export function serializeAppointment<T extends Appointment>(
   };
 }
 
-export type SerializedAppointment = Omit<AppointmentWithRelations, 'priceSnapshot' | 'depositAmount'> & {
+export type SerializedAppointment = Omit<
+  AppointmentWithRelations,
+  'priceSnapshot' | 'depositAmount'
+> & {
   priceSnapshot: number;
   depositAmount: number | null;
 };

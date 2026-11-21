@@ -94,7 +94,7 @@ describe('retorno do paciente', () => {
     const forPro = await listNotices(f.company.id, f.company.timezone, new Date(), {
       userId: 'p',
       isAdmin: false,
-      isProfessional: true,
+      professionalId: f.professional.id,
     });
     expect(forPro.some((n) => n.kind === 'returns_due')).toBe(false);
 

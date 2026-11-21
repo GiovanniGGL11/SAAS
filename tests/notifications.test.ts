@@ -110,4 +110,49 @@ describe('notification bell', () => {
     // Agendamento feito pela equipe não vira aviso de "agendamento online".
     expect(notices.filter((n) => n.kind === 'client_booked')).toHaveLength(1);
   });
+
+  it('shows a professional login only their own appointments, without stock or birthdays', async () => {
+    const now = new Date();
+    await prisma.product.create({
+      data: {
+        companyId: a.company.id,
+        name: 'Pomada',
+        costPrice: 10,
+        salePrice: 30,
+        quantity: 0,
+        minQuantity: 3,
+      },
+    });
+    const colleague = await prisma.professional.create({
+      data: { companyId: a.company.id, name: 'Colega', color: '#ff9500' },
+    });
+    const mine = await createAppointment({
+      companyId: a.company.id,
+      clientId: a.client.id,
+      professionalId: a.professional.id,
+      serviceId: a.service.id,
+      startAt: new Date(Math.ceil((now.getTime() + 3_600_000) / 60_000) * 60_000),
+      createdByUserId: 'online-booking',
+    });
+    const theirs = await createAppointment({
+      companyId: a.company.id,
+      clientId: a.client.id,
+      professionalId: colleague.id,
+      serviceId: a.service.id,
+      startAt: new Date(Math.ceil((now.getTime() + 5_400_000) / 60_000) * 60_000),
+      createdByUserId: 'online-booking',
+    });
+
+    const notices = await listNotices(a.company.id, a.company.timezone, now, {
+      userId: 'user_pro',
+      isAdmin: false,
+      professionalId: a.professional.id,
+    });
+    const text = JSON.stringify(notices);
+
+    expect(text).toContain(mine.id);
+    expect(text).not.toContain(theirs.id);
+    expect(notices.some((n) => n.kind === 'low_stock')).toBe(false);
+    expect(notices.some((n) => n.kind === 'birthday')).toBe(false);
+  });
 });

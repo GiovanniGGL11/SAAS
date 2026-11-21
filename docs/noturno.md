@@ -36,10 +36,31 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-21: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
+- 2026-11-20: manutenção. Master trouxe as demonstrações animadas nos tutoriais e um ajuste do expediente sugerido em Profissionais (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
+- 2026-11-19: manutenção. Master trouxe prontuário (fases 1–5), retorno do paciente no sino, pergunta de CEP nas fichas, tutoriais "Como usar", precificação e unidades de estoque. Merge com 3 conflitos:
+  - `notifications.ts`/`notification-actions.ts`: mantidos o recorte do profissional (`professionalId`) e os avisos de retorno do master; o retorno também fica de fora para o login do profissional, agora pelo mesmo `professionalId` (o `isProfessional` do master foi trocado por ele, e `tests/return-reminders.test.ts` ajustado).
+  - `appointments.ts`: o lado do branch era só formatação; ficou a versão do master, formatada com Prettier.
+  - tsc limpo, eslint sem erros, `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
+- 2026-11-18: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
+- 2026-11-17: manutenção. Master trouxe metas, registros do cliente (fotos no Supabase Storage), importação de ficha em PDF e "Meus planos" na área do cliente (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
+- 2026-11-16: master trouxe o login do profissional (agenda/clientes só dele). Merge com 1 conflito em `sidebar.tsx` (ficou a versão do master, sem desfoque). Ajustes para respeitar o recorte do profissional:
+  - Sino: profissional logado vê só avisos da própria agenda (atividade do cliente, próximas 2 h, amanhã sem confirmação) e os próprios lembretes; estoque, falta de material, aniversariantes, tarefas e orçamentos ficam de fora. Teste novo em `tests/notifications.test.ts`.
+  - Assistente: bloqueado para o login do profissional (mensagem "ainda não está disponível no login do profissional"), porque as ferramentas enxergam a empresa toda. **Pendência:** recortar as ferramentas de leitura/escrita do assistente por `getOwnProfessional()` para liberar depois.
+  - tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa; 3 arquivos do master formatados com Prettier.
+- 2026-11-15: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
+- 2026-11-14: manutenção. Master trouxe custos de IA, pacotes/assinaturas, login da plataforma e ajustes de celular (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown.
+- 2026-11-13: manutenção. Master trouxe planos/IA, plataforma, cadastro pelo link e agenda (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown (inclui `docs/planos-e-ia.md`, do master, não alterado).
+- 2026-11-12: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
+- 2026-11-10: manutenção. Master sem novidades; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier só acusa Markdown antigo.
+- 2026-11-09: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa. Prettier só acusa arquivos Markdown de `docs/` e o README (não alterados).
+- 2026-11-07: todos os itens concluídos e o branch já estava igual ao master (PR anterior incorporado). Execução só de manutenção: tsc e eslint limpos (só avisos antigos), `tests/csv.test.ts` passa; 15 arquivos vindos do master formatados com Prettier.
 - Sino/assistente: a largura em 375px foi conferida só pelo código (sem Clerk aqui não dá para abrir o painel); o topo agora tem busca, assistente, sino, tema e usuário — vale olhar num celular de verdade.
 - Assistente: criar/editar cliente pelas telas normais não grava AuditLog (só pelo assistente). Avaliar se vale padronizar.
 
 ## Para o dono fazer
+- Rodar `npm test -- tests/return-reminders.test.ts tests/notifications.test.ts` (merge do retorno do paciente com o recorte do profissional).
+- Rodar `npm test -- tests/notifications.test.ts` (caso novo do profissional) e testar logado como profissional: o sino só mostra a agenda dele e o assistente aparece como indisponível.
 - Criar a chave do Gemini em https://aistudio.google.com/apikey e cadastrar `GEMINI_API_KEY` na Vercel (Production e Preview). Opcional: `GEMINI_MODEL`.
 - Rodar `npm test -- tests/assistant.test.ts` com o banco de teste.
 - Testar o assistente (ícone ✦ no topo): "Como está minha agenda amanhã?", "Quem não volta há 60 dias?", "Cadastrar cliente João, 11 98888-7777", marcar/remarcar/cancelar e confirmar no cartão; logar como membro (não admin) e pedir o faturamento (deve recusar). No celular (375px) o painel abre como bottom sheet.

@@ -11,9 +11,7 @@ import { cn } from '@/lib/utils';
  * Pages render this `md:hidden` next to their `hidden md:block` table.
  */
 export function MobileList({ className, ...props }: React.ComponentProps<'ul'>) {
-  return (
-    <ul className={cn('divide-foreground/[0.06] divide-y md:hidden', className)} {...props} />
-  );
+  return <ul className={cn('divide-foreground/[0.06] divide-y md:hidden', className)} {...props} />;
 }
 
 export function MobileListItem({
