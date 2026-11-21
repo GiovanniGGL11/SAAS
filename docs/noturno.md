@@ -36,6 +36,7 @@ Cada execução continua do primeiro item não marcado.
 - Agenda: aceita `/agenda?data=AAAA-MM-DD&agendamento=<id>` (abre o dia e o atendimento) — é o destino dos avisos.
 
 ## Pendências
+- 2026-11-21: manutenção. Master sem novidades desde a última execução; tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
 - 2026-11-20: manutenção. Master trouxe as demonstrações animadas nos tutoriais e um ajuste do expediente sugerido em Profissionais (merge sem conflitos); tsc limpo, eslint sem erros (3 avisos antigos), `tests/csv.test.ts` passa, Prettier limpo em `src`, `tests` e `prisma`.
 - 2026-11-19: manutenção. Master trouxe prontuário (fases 1–5), retorno do paciente no sino, pergunta de CEP nas fichas, tutoriais "Como usar", precificação e unidades de estoque. Merge com 3 conflitos:
   - `notifications.ts`/`notification-actions.ts`: mantidos o recorte do profissional (`professionalId`) e os avisos de retorno do master; o retorno também fica de fora para o login do profissional, agora pelo mesmo `professionalId` (o `isProfessional` do master foi trocado por ele, e `tests/return-reminders.test.ts` ajustado).
